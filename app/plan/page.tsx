@@ -1,27 +1,9 @@
 import Link from "next/link";
-
-const posts = [
-  {
-    title: "5 tips för säker grillning i sommar",
-    body: "Sommaren är här och många plockar fram grillen. Kontrollera alltid slangar, kopplingar och gasolflaska innan du börjar grilla.",
-    cta: "Kom in till oss om du vill fylla på eller kontrollera din gasol.",
-    image: "Familj som grillar ute en ljus sommarkväll.",
-  },
-  {
-    title: "Är gasolflaskan redo för semestern?",
-    body: "Innan du ger dig iväg med husbil eller husvagn är det klokt att se över gasolen. En snabb kontroll kan göra resan tryggare.",
-    cta: "Besök oss innan avresa.",
-    image: "Husbil på camping med gasolflaska i förgrunden.",
-  },
-  {
-    title: "Gasol till grill, camping och husbil",
-    body: "Vi hjälper dig med gasolpåfyllning inför sommarens grillkvällar, campingresor och utflykter.",
-    cta: "Fyll på hos oss idag.",
-    image: "Gasolflaskor uppradade i en ren butiksmiljö.",
-  },
-];
+import { getRandomPlan } from "@/lib/mockPlans";
 
 export default function PlanPage() {
+  const plan = getRandomPlan();
+
   return (
     <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-neutral-950">
       <div className="mx-auto max-w-7xl">
@@ -30,22 +12,36 @@ export default function PlanPage() {
             ← Till dashboard
           </Link>
 
-          <span className="rounded-full bg-white px-4 py-2 text-sm font-medium text-green-700 shadow-sm">
-            Plan redo
-          </span>
+          <Link
+            href="/generating"
+            className="rounded-full bg-neutral-950 px-5 py-3 text-sm font-medium text-white"
+          >
+            Generera ny plan
+          </Link>
         </nav>
 
         <section className="mb-8 rounded-[2rem] bg-neutral-950 p-8 text-white">
           <p className="text-sm uppercase tracking-widest text-neutral-400">
-            Vecka 24
+            Vecka 24 • {plan.company}
           </p>
           <h1 className="mt-3 text-5xl font-bold tracking-tight">
-            Veckans marknadsplan
+            {plan.focus}
           </h1>
           <p className="mt-4 max-w-2xl text-neutral-300">
             Färdigt material för sociala medier, nyhetsbrev och kampanjer.
             Granska, kopiera och publicera.
           </p>
+
+          <div className="mt-6 flex flex-wrap gap-2">
+            {plan.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-white/10 px-4 py-2 text-sm text-white"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
         </section>
 
         <section className="mb-10 grid gap-5 md:grid-cols-3">
@@ -58,8 +54,9 @@ export default function PlanPage() {
           <h2 className="mb-5 text-2xl font-bold">Sociala medier</h2>
 
           <div className="grid gap-5 lg:grid-cols-3">
-            {posts.map((post, index) => (
+            {plan.posts.map((post, index) => (
               <article
+                id={`post-${index + 1}`}
                 key={post.title}
                 className="rounded-[2rem] bg-white p-6 shadow-sm"
               >
@@ -81,7 +78,7 @@ export default function PlanPage() {
                 <h3 className="text-xl font-bold">{post.title}</h3>
 
                 <div className="mt-5 space-y-4 text-sm leading-6 text-neutral-700">
-                  <Block label="Text" text={post.body} />
+                  <Block label="Text" text={post.text} />
                   <Block label="CTA" text={post.cta} />
                   <Block label="Bildidé" text={post.image} />
                 </div>
@@ -101,25 +98,25 @@ export default function PlanPage() {
             </span>
 
             <h2 className="mt-4 text-2xl font-bold">
-              Är din gasol redo för sommaren?
+              Nyhetsbrev: {plan.focus}
             </h2>
 
             <div className="mt-5 space-y-4 text-neutral-700">
               <p>
-                <strong>Ämnesrad:</strong> Är din gasol redo för sommaren?
+                <strong>Ämnesrad:</strong> Är du redo för {plan.focus.toLowerCase()}?
               </p>
               <p>
-                <strong>Förhandsvisning:</strong> En enkel checklista inför
-                grillning, camping och semester.
+                <strong>Förhandsvisning:</strong> En enkel påminnelse med tips,
+                råd och nästa steg.
               </p>
               <p>
-                Sommaren innebär mer grillning, fler resor och mer användning av
-                gasol. Därför är det ett bra tillfälle att kontrollera flaskor,
-                slangar och kopplingar innan semestern börjar.
+                Den här veckan fokuserar vi på {plan.focus.toLowerCase()}. Det
+                är ett bra tillfälle att nå kunderna med relevant information
+                och tydliga erbjudanden.
               </p>
               <p>
-                Kom förbi oss innan semestern så hjälper vi dig med påfyllning
-                och råd kring säker hantering.
+                <strong>CTA:</strong> Kontakta oss eller besök webben för mer
+                information.
               </p>
             </div>
 
@@ -139,12 +136,12 @@ export default function PlanPage() {
 
             <div className="mt-5 space-y-4">
               <Campaign
-                title="Semesterklar gasol"
-                text="Erbjud snabb kontroll och påfyllning för husbils- och husvagnsägare inför semestern."
+                title={`${plan.focus}: kampanjvecka`}
+                text="Skapa en kort kampanj med tydlig period, tydlig CTA och lokal relevans."
               />
               <Campaign
-                title="Grillhelg-kampanj"
-                text="Påminn kunder om att fylla på gasol inför helgens grillning. Enkel kampanj med lokal räckvidd."
+                title="Påminnelsekampanj"
+                text="Påminn kunderna om varför detta är relevant just nu och gör det enkelt att agera."
               />
             </div>
 
