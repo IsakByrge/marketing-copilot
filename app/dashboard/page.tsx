@@ -1,8 +1,17 @@
+"use client";
+
 import Link from "next/link";
-import { companies, getRandomPlan } from "@/lib/mockPlans";
+import { useState } from "react";
+import { companies, plans } from "@/lib/mockPlans";
 
 export default function DashboardPage() {
-  const plan = getRandomPlan();
+  const [selectedCompany, setSelectedCompany] = useState(companies[0].name);
+const [planIndex, setPlanIndex] = useState(0);
+  const companyPlans = plans.filter(
+  (plan) => plan.company === selectedCompany
+);
+
+const plan = companyPlans[0];
 
   return (
     <main className="min-h-screen bg-[#F8F6F2] text-neutral-950">
@@ -10,9 +19,15 @@ export default function DashboardPage() {
         <nav className="mb-10 flex items-center justify-between">
           <div>
             <p className="text-sm text-neutral-500">Aktivt företag</p>
-            <select className="mt-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 font-semibold shadow-sm">
+            <select
+              value={selectedCompany}
+              onChange={(e) => setSelectedCompany(e.target.value)}
+              className="mt-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 font-semibold shadow-sm"
+            >
               {companies.map((company) => (
-                <option key={company.name}>{company.name}</option>
+                <option key={company.name} value={company.name}>
+                  {company.name}
+                </option>
               ))}
             </select>
           </div>
@@ -33,7 +48,7 @@ export default function DashboardPage() {
           <div className="mt-4 grid gap-8 lg:grid-cols-[1.5fr_1fr] lg:items-end">
             <div>
               <h1 className="max-w-3xl text-5xl font-bold tracking-tight">
-                {plan.company}
+                {selectedCompany}
                 <br />
                 Marknadsplanen är klar.
               </h1>
@@ -49,6 +64,7 @@ export default function DashboardPage() {
                 Rekommenderat fokus
               </p>
               <h2 className="mt-2 text-3xl font-bold">{plan.focus}</h2>
+
               <div className="mt-5 flex flex-wrap gap-2">
                 {plan.tags.map((tag) => (
                   <span
@@ -92,12 +108,16 @@ export default function DashboardPage() {
                 Granska veckans plan
               </Link>
 
-              <Link
-                href="/generating"
-                className="rounded-2xl border border-white/20 px-6 py-4 font-medium text-white"
-              >
-                Generera ny plan
-              </Link>
+              <button
+  onClick={() =>
+    setPlanIndex((prev) =>
+      prev + 1 >= companyPlans.length ? 0 : prev + 1
+    )
+  }
+  className="rounded-2xl border border-white/20 px-6 py-4 font-medium text-white"
+>
+  Generera ny plan
+</button>
             </div>
           </div>
 
@@ -123,7 +143,7 @@ export default function DashboardPage() {
             {plan.posts.map((post, index) => (
               <Link
                 key={post.title}
-                href={`/plan#post-${index + 1}`}
+                href={`/post/${index + 1}`}
                 className="rounded-3xl border border-neutral-200 p-5 transition hover:border-neutral-950 hover:bg-[#FAFAFA]"
               >
                 <p className="text-sm text-green-700">Inlägg {index + 1}</p>
