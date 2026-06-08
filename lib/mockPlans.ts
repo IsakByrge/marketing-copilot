@@ -46,7 +46,7 @@ export const plans = [
     posts: [
       {
         title: "Så förvarar du gasol säkert",
-        text: "Gasol ska alltid förvaras stående, ventilerat och skyddat från stark värme.",
+        text: "Gasol ska alltid förvaras stående, ventilerat och skyddat från stark värme. Det är en enkel vana som gör stor skillnad.",
         cta: "Fråga oss gärna om säker gasolförvaring.",
         image: "Trygg och ventilerad förvaring av gasolflaskor.",
       },
@@ -58,9 +58,35 @@ export const plans = [
       },
       {
         title: "Tryggare gasol inför sommaren",
-        text: "Med rätt hantering är gasol både enkelt och säkert att använda.",
+        text: "Med rätt hantering är gasol både enkelt och säkert att använda. Vi hjälper dig gärna om du är osäker.",
         cta: "Vi hjälper dig med påfyllning och råd.",
         image: "Kund som får hjälp med gasolflaska.",
+      },
+    ],
+  },
+  {
+    id: "gasol-husbil",
+    company: "Gasolfyllarna",
+    focus: "Husbilen inför semestern",
+    tags: ["Husbil", "Semester", "Påfyllning", "Trygg resa"],
+    posts: [
+      {
+        title: "Dags att semesterkolla gasolen?",
+        text: "Inför semestern är det smart att kontrollera gasolen i husbilen. Då slipper du onödiga stopp när resan väl börjar.",
+        cta: "Kom förbi innan avresa så hjälper vi dig.",
+        image: "Husbil redo för semester med somrig bakgrund.",
+      },
+      {
+        title: "Gasolpåfyllning innan resan",
+        text: "Ska du iväg med husbil eller husvagn? Se till att gasolen är fylld innan du rullar iväg.",
+        cta: "Fyll på snabbt och enkelt hos oss.",
+        image: "Person som förbereder husbil inför semester.",
+      },
+      {
+        title: "Tryggare camping med rätt gasol",
+        text: "Matlagning, värme och kylskåp i husbilen fungerar bättre när gasolen är kontrollerad och redo.",
+        cta: "Vi hjälper dig att bli semesterklar.",
+        image: "Campingplats med husbil och kvällssol.",
       },
     ],
   },
@@ -87,6 +113,58 @@ export const plans = [
         text: "Vi har samlat produkter som passar perfekt för camping, grillning och spontana utflykter.",
         cta: "Handla online idag.",
         image: "Produkter för camping och fritid på ljus bakgrund.",
+      },
+    ],
+  },
+  {
+    id: "webshop-camping",
+    company: "Fritidsvaruhuset",
+    focus: "Campingprodukter inför semestern",
+    tags: ["Camping", "Semester", "Packning", "Webshop"],
+    posts: [
+      {
+        title: "Packa smart inför campingsemestern",
+        text: "Rätt utrustning gör campingresan enklare, bekvämare och roligare. Se över vad du saknar innan du åker.",
+        cta: "Utforska campingfavoriter i webshopen.",
+        image: "Campingutrustning snyggt packad på ett bord.",
+      },
+      {
+        title: "Smarta prylar för livet utomhus",
+        text: "Från praktiska tillbehör till bekväma lösningar – små produkter kan göra stor skillnad på resan.",
+        cta: "Beställ online inför semestern.",
+        image: "Fritidsprodukter ute i naturmiljö.",
+      },
+      {
+        title: "Redo för nästa campingtur?",
+        text: "Oavsett om du åker långt eller bara över helgen är det skönt att ha rätt saker med sig.",
+        cta: "Se våra utvalda campingprodukter.",
+        image: "Tält, stol och campingutrustning i kvällsljus.",
+      },
+    ],
+  },
+  {
+    id: "webshop-grill",
+    company: "Fritidsvaruhuset",
+    focus: "Grill och uteliv",
+    tags: ["Grill", "Sommarkvällar", "Tillbehör", "Inspiration"],
+    posts: [
+      {
+        title: "Gör grillkvällen enklare",
+        text: "Med rätt tillbehör blir grillningen både smidigare och roligare. Se över vad du behöver inför helgen.",
+        cta: "Hitta grilltillbehör i webshopen.",
+        image: "Grilltillbehör på ett bord utomhus.",
+      },
+      {
+        title: "Sommarkvällar börjar ute",
+        text: "Skapa en härligare uteplats med smarta produkter för matlagning, umgänge och avkoppling.",
+        cta: "Se våra produkter för uteliv.",
+        image: "Uteplats med grill och kvällssol.",
+      },
+      {
+        title: "Helgens grillplaner?",
+        text: "Nu är det rätt läge att fylla på med tillbehör inför grillning, camping och spontana middagar utomhus.",
+        cta: "Beställ idag i webshopen.",
+        image: "Mat och grillredskap redo inför grillkväll.",
       },
     ],
   },

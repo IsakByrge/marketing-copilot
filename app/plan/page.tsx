@@ -1,8 +1,18 @@
 import Link from "next/link";
-import { getRandomPlan } from "@/lib/mockPlans";
+import { plans } from "@/lib/mockPlans";
 
-export default function PlanPage() {
-  const plan = getRandomPlan();
+export default async function PlanPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ company?: string; plan?: string }>;
+}) {
+  const params = await searchParams;
+
+  const company = params.company;
+  const planIndex = Number(params.plan ?? 0);
+
+  const companyPlans = plans.filter((item) => item.company === company);
+  const plan = companyPlans[planIndex] ?? plans[0];
 
   return (
     <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-neutral-950">
@@ -13,7 +23,7 @@ export default function PlanPage() {
           </Link>
 
           <Link
-            href="/generating"
+            href="/dashboard"
             className="rounded-full bg-neutral-950 px-5 py-3 text-sm font-medium text-white"
           >
             Generera ny plan
@@ -24,9 +34,11 @@ export default function PlanPage() {
           <p className="text-sm uppercase tracking-widest text-neutral-400">
             Vecka 24 • {plan.company}
           </p>
+
           <h1 className="mt-3 text-5xl font-bold tracking-tight">
             {plan.focus}
           </h1>
+
           <p className="mt-4 max-w-2xl text-neutral-300">
             Färdigt material för sociala medier, nyhetsbrev och kampanjer.
             Granska, kopiera och publicera.
@@ -57,7 +69,7 @@ export default function PlanPage() {
             {plan.posts.map((post, index) => (
               <article
                 id={`post-${index + 1}`}
-                key={post.title}
+                key={`${plan.id}-${post.title}`}
                 className="rounded-[2rem] bg-white p-6 shadow-sm"
               >
                 <div className="mb-4 flex items-center justify-between">
@@ -103,17 +115,21 @@ export default function PlanPage() {
 
             <div className="mt-5 space-y-4 text-neutral-700">
               <p>
-                <strong>Ämnesrad:</strong> Är du redo för {plan.focus.toLowerCase()}?
+                <strong>Ämnesrad:</strong> Är du redo för{" "}
+                {plan.focus.toLowerCase()}?
               </p>
+
               <p>
                 <strong>Förhandsvisning:</strong> En enkel påminnelse med tips,
                 råd och nästa steg.
               </p>
+
               <p>
                 Den här veckan fokuserar vi på {plan.focus.toLowerCase()}. Det
                 är ett bra tillfälle att nå kunderna med relevant information
                 och tydliga erbjudanden.
               </p>
+
               <p>
                 <strong>CTA:</strong> Kontakta oss eller besök webben för mer
                 information.
@@ -139,6 +155,7 @@ export default function PlanPage() {
                 title={`${plan.focus}: kampanjvecka`}
                 text="Skapa en kort kampanj med tydlig period, tydlig CTA och lokal relevans."
               />
+
               <Campaign
                 title="Påminnelsekampanj"
                 text="Påminn kunderna om varför detta är relevant just nu och gör det enkelt att agera."
