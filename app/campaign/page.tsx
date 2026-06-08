@@ -3,24 +3,21 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-type MarketingPost = {
+type Campaign = {
   title: string;
-  text: string;
+  goal: string;
+  message: string;
+  channels: string;
   cta: string;
-  image: string;
 };
 
 type MarketingPlan = {
   company: string;
   focus: string;
-  posts: MarketingPost[];
+  campaigns?: Campaign[];
 };
 
-export default function PostPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function CampaignPage() {
   const [plan, setPlan] = useState<MarketingPlan | null>(null);
 
   useEffect(() => {
@@ -37,22 +34,25 @@ export default function PostPage({
 
   if (!plan) {
     return (
-      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8">
+      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
         <div className="mx-auto max-w-4xl">
-          <p>Laddar inlägg...</p>
+          <p>Laddar kampanj...</p>
         </div>
       </main>
     );
   }
 
-  const index = Number(params.id) - 1;
-  const post = plan.posts[index];
+  const campaign = plan.campaigns?.[0];
 
-  if (!post) {
+  if (!campaign) {
     return (
-      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8">
+      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
         <div className="mx-auto max-w-4xl">
-          <p>Inlägget kunde inte hittas.</p>
+          <Link href="/plan" className="text-sm font-medium text-neutral-600">
+            ← Till planen
+          </Link>
+
+          <p className="mt-16 text-xl">Det finns ingen kampanj i planen.</p>
         </div>
       </main>
     );
@@ -62,44 +62,37 @@ export default function PostPage({
     <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
       <div className="mx-auto max-w-4xl">
         <nav className="mb-20 flex items-center justify-between">
-          <Link
-            href="/plan"
-            className="text-sm font-medium text-neutral-600"
-          >
+          <Link href="/plan" className="text-sm font-medium text-neutral-600">
             ← Till planen
           </Link>
 
           <button className="rounded-full bg-[#111111] px-5 py-3 text-sm font-medium text-white">
-            Kopiera inlägg
+            Kopiera kampanj
           </button>
         </nav>
 
         <section className="mb-20">
           <p className="mb-6 text-sm font-medium text-neutral-500">
-            {plan.company} · Socialt inlägg 0{index + 1}
+            {plan.company} · Kampanjidé
           </p>
 
           <h1 className="max-w-4xl text-6xl font-semibold leading-[0.95] tracking-[-0.06em] md:text-8xl">
-            {post.title}
+            {campaign.title}
           </h1>
 
           <p className="mt-10 max-w-3xl text-2xl leading-10 tracking-tight text-neutral-700 md:text-3xl md:leading-[1.35]">
-            Färdigt innehåll genererat av AI.
+            En kampanjbrief genererad av AI med mål, budskap, kanalval och CTA.
           </p>
         </section>
 
         <section className="border-y border-black/10 py-12">
-          <ContentBlock label="Text">
-            {post.text}
-          </ContentBlock>
+          <ContentBlock label="Mål">{campaign.goal}</ContentBlock>
 
-          <ContentBlock label="CTA">
-            {post.cta}
-          </ContentBlock>
+          <ContentBlock label="Budskap">{campaign.message}</ContentBlock>
 
-          <ContentBlock label="Bildidé">
-            {post.image}
-          </ContentBlock>
+          <ContentBlock label="Kanaler">{campaign.channels}</ContentBlock>
+
+          <ContentBlock label="CTA">{campaign.cta}</ContentBlock>
         </section>
 
         <section className="mt-12 flex flex-wrap gap-3">
@@ -133,7 +126,7 @@ function ContentBlock({
         {label}
       </p>
 
-      <p className="max-w-3xl text-2xl leading-10 tracking-tight text-neutral-700">
+      <p className="max-w-3xl whitespace-pre-line text-2xl leading-10 tracking-tight text-neutral-700">
         {children}
       </p>
     </div>

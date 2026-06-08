@@ -3,24 +3,20 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-type MarketingPost = {
-  title: string;
-  text: string;
+type Newsletter = {
+  subject: string;
+  preview: string;
+  body: string;
   cta: string;
-  image: string;
 };
 
 type MarketingPlan = {
   company: string;
   focus: string;
-  posts: MarketingPost[];
+  newsletter?: Newsletter;
 };
 
-export default function PostPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function NewsletterPage() {
   const [plan, setPlan] = useState<MarketingPlan | null>(null);
 
   useEffect(() => {
@@ -37,22 +33,25 @@ export default function PostPage({
 
   if (!plan) {
     return (
-      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8">
+      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
         <div className="mx-auto max-w-4xl">
-          <p>Laddar inlägg...</p>
+          <p>Laddar nyhetsbrev...</p>
         </div>
       </main>
     );
   }
 
-  const index = Number(params.id) - 1;
-  const post = plan.posts[index];
+  const newsletter = plan.newsletter;
 
-  if (!post) {
+  if (!newsletter) {
     return (
-      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8">
+      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
         <div className="mx-auto max-w-4xl">
-          <p>Inlägget kunde inte hittas.</p>
+          <Link href="/plan" className="text-sm font-medium text-neutral-600">
+            ← Till planen
+          </Link>
+
+          <p className="mt-16 text-xl">Det finns inget nyhetsbrev i planen.</p>
         </div>
       </main>
     );
@@ -62,43 +61,44 @@ export default function PostPage({
     <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
       <div className="mx-auto max-w-4xl">
         <nav className="mb-20 flex items-center justify-between">
-          <Link
-            href="/plan"
-            className="text-sm font-medium text-neutral-600"
-          >
+          <Link href="/plan" className="text-sm font-medium text-neutral-600">
             ← Till planen
           </Link>
 
           <button className="rounded-full bg-[#111111] px-5 py-3 text-sm font-medium text-white">
-            Kopiera inlägg
+            Kopiera nyhetsbrev
           </button>
         </nav>
 
         <section className="mb-20">
           <p className="mb-6 text-sm font-medium text-neutral-500">
-            {plan.company} · Socialt inlägg 0{index + 1}
+            {plan.company} · Nyhetsbrev
           </p>
 
           <h1 className="max-w-4xl text-6xl font-semibold leading-[0.95] tracking-[-0.06em] md:text-8xl">
-            {post.title}
+            {newsletter.subject}
           </h1>
 
           <p className="mt-10 max-w-3xl text-2xl leading-10 tracking-tight text-neutral-700 md:text-3xl md:leading-[1.35]">
-            Färdigt innehåll genererat av AI.
+            Ett färdigt kundutskick genererat av AI.
           </p>
         </section>
 
         <section className="border-y border-black/10 py-12">
-          <ContentBlock label="Text">
-            {post.text}
+          <ContentBlock label="Ämnesrad">
+            {newsletter.subject}
+          </ContentBlock>
+
+          <ContentBlock label="Förhandsvisning">
+            {newsletter.preview}
+          </ContentBlock>
+
+          <ContentBlock label="Innehåll">
+            {newsletter.body}
           </ContentBlock>
 
           <ContentBlock label="CTA">
-            {post.cta}
-          </ContentBlock>
-
-          <ContentBlock label="Bildidé">
-            {post.image}
+            {newsletter.cta}
           </ContentBlock>
         </section>
 
@@ -133,7 +133,7 @@ function ContentBlock({
         {label}
       </p>
 
-      <p className="max-w-3xl text-2xl leading-10 tracking-tight text-neutral-700">
+      <p className="max-w-3xl whitespace-pre-line text-2xl leading-10 tracking-tight text-neutral-700">
         {children}
       </p>
     </div>

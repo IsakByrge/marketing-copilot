@@ -1,43 +1,110 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { companies, plans } from "@/lib/mockPlans";
+
+type MarketingPost = {
+  title: string;
+  text: string;
+  cta: string;
+  image: string;
+};
+
+type MarketingPlan = {
+  id?: string;
+  company: string;
+  focus: string;
+  tags: string[];
+  posts: MarketingPost[];
+};
 
 export default function DashboardPage() {
   const [selectedCompany, setSelectedCompany] = useState(companies[0].name);
   const [planIndex, setPlanIndex] = useState(0);
+  const [aiPlan, setAiPlan] = useState<MarketingPlan | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  useEffect(() => {
+  const savedPlan = localStorage.getItem("marketing-copilot-plan");
+
+  if (savedPlan) {
+    setAiPlan(JSON.parse(savedPlan));
+  }
+}, []);
 
   const companyPlans = useMemo(
     () => plans.filter((plan) => plan.company === selectedCompany),
     [selectedCompany]
   );
 
-  const plan = companyPlans[planIndex] ?? companyPlans[0];
+  const fallbackPlan = companyPlans[planIndex] ?? companyPlans[0] ?? plans[0];
+  const activePlan = aiPlan ?? fallbackPlan;
+
+  const planHref = `/plan?company=${encodeURIComponent(
+    activePlan.company
+  )}&plan=${planIndex}`;
 
   function changeCompany(company: string) {
     setSelectedCompany(company);
     setPlanIndex(0);
+    setAiPlan(null);
   }
 
-  function nextPlan() {
-    setPlanIndex((prev) => (prev + 1 >= companyPlans.length ? 0 : prev + 1));
-  }
+  async function generateAiPlan() {
+    try {
+      setIsGenerating(true);
 
-  const planHref = `/plan?company=${encodeURIComponent(
-    selectedCompany
-  )}&plan=${planIndex}`;
+      const response = await fetch("/api/generate-plan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          company: selectedCompany,
+          industry: selectedCompany === "Gasolfyllarna" ? "Gasol" : "Webshop",
+          focus: activePlan.focus,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Kunde inte generera plan");
+      }
+
+      const data = await response.json();
+
+      const newPlan = {
+  id: "ai-generated-plan",
+  company: data.company,
+  focus: data.focus,
+  tags: data.tags ?? [],
+  posts: data.posts ?? [],
+  newsletter: data.newsletter,
+  campaigns: data.campaigns,
+};
+
+setAiPlan(newPlan);
+localStorage.setItem("marketing-copilot-plan", JSON.stringify(newPlan));
+    } catch (error) {
+      console.error(error);
+      alert("Kunde inte generera plan.");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
 
   return (
-    <main className="min-h-screen bg-[#F8F6F2] text-neutral-950">
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        <nav className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm text-neutral-500">Aktivt företag</p>
+    <main className="min-h-screen bg-[#F8F6F2] text-[#111111]">
+      <div className="mx-auto max-w-6xl px-6 py-8 md:py-10">
+        <nav className="mb-20 flex items-center justify-between">
+          <Link href="/" className="text-sm font-medium tracking-tight">
+            Marketing Copilot
+          </Link>
+
+          <div className="flex items-center gap-3">
             <select
               value={selectedCompany}
               onChange={(e) => changeCompany(e.target.value)}
-              className="mt-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 font-semibold shadow-sm"
+              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium outline-none"
             >
               {companies.map((company) => (
                 <option key={company.name} value={company.name}>
@@ -45,136 +112,185 @@ export default function DashboardPage() {
                 </option>
               ))}
             </select>
-          </div>
 
-          <div className="flex gap-3">
             <Link
               href="/create"
-              className="rounded-full bg-white px-5 py-3 text-sm font-medium shadow-sm"
+              className="rounded-full bg-[#111111] px-4 py-2 text-sm font-medium text-white"
             >
-              + Skapa direkt
+              Skapa direkt
             </Link>
-
-            <button
-              onClick={nextPlan}
-              className="rounded-full bg-neutral-950 px-5 py-3 text-sm font-medium text-white"
-            >
-              Generera ny plan
-            </button>
           </div>
         </nav>
 
-        <section className="mb-8 rounded-[2rem] bg-white p-8 shadow-sm">
-          <p className="text-sm font-medium text-green-700">
-            Vecka 24 • Autopilot aktiv
+        <section className="mb-28">
+          <p className="mb-6 text-sm font-medium text-neutral-500">
+            Måndagsbriefing · Vecka 24
           </p>
 
-          <div className="mt-5 grid gap-8 lg:grid-cols-[1.4fr_1fr] lg:items-end">
-            <div>
-              <h1 className="max-w-3xl text-5xl font-bold tracking-tight">
-                {selectedCompany}
-                <br />
-                Marknadsplanen är klar.
-              </h1>
+          <h1 className="max-w-4xl text-6xl font-semibold leading-[0.95] tracking-[-0.06em] md:text-8xl">
+            Din marknadsplan är klar.
+          </h1>
 
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-neutral-600">
-                AI:n har tagit fram veckans innehåll baserat på bransch,
-                säsong och företagets fokusområden.
-              </p>
+          <div className="mt-10 max-w-3xl">
+            <p className="text-2xl leading-10 tracking-tight text-neutral-700 md:text-3xl md:leading-[1.35]">
+              För{" "}
+              <span className="font-semibold text-black">
+                {activePlan.company}
+              </span>{" "}
+              rekommenderar AI:n fokus på{" "}
+              <span className="font-semibold text-black">
+                {activePlan.focus}
+              </span>
+              .
+            </p>
 
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href={planHref}
-                  className="rounded-2xl bg-neutral-950 px-6 py-4 font-medium text-white"
-                >
-                  Granska veckans plan
-                </Link>
+            <p className="mt-6 text-lg leading-8 text-neutral-600">
+              Campingresor, sommarplanering och köpbeslut sker nu. Det här är
+              rätt vecka att synas med tydliga, enkla budskap.
+            </p>
+          </div>
 
-                <button
-                  onClick={nextPlan}
-                  className="rounded-2xl border border-neutral-300 px-6 py-4 font-medium"
-                >
-                  Testa annan plan
-                </button>
-              </div>
-            </div>
+          <div className="mt-10 flex flex-wrap gap-3">
+            <Link
+              href={planHref}
+              className="rounded-full bg-[#111111] px-7 py-4 text-sm font-semibold text-white transition hover:bg-black/80"
+            >
+              Granska planen
+            </Link>
 
-            <div className="rounded-3xl bg-[#EDF7EF] p-6">
-              <p className="text-sm font-medium text-green-800">
-                Rekommenderat fokus
-              </p>
-              <h2 className="mt-2 text-3xl font-bold">{plan.focus}</h2>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                {plan.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full bg-white px-4 py-2 text-sm font-medium text-neutral-800"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-
-              <p className="mt-5 text-sm text-green-900/70">
-                Plan {planIndex + 1} av {companyPlans.length}
-              </p>
-            </div>
+            <button
+              onClick={generateAiPlan}
+              disabled={isGenerating}
+              className="rounded-full border border-black/10 bg-white px-7 py-4 text-sm font-semibold transition hover:border-black/30 disabled:opacity-50"
+            >
+              {isGenerating ? "Genererar..." : "Generera ny plan"}
+            </button>
           </div>
         </section>
 
-        <section className="mb-8 grid gap-5 md:grid-cols-3">
-          <Stat title="Sociala inlägg" value="5" />
-          <Stat title="Nyhetsbrev" value="1" />
-          <Stat title="Kampanjidéer" value="2" />
-        </section>
-
-        <section className="rounded-[2rem] bg-white p-7 shadow-sm">
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <section className="mb-24 border-t border-black/10 pt-10">
+          <div className="grid gap-12 md:grid-cols-[0.75fr_1.25fr]">
             <div>
               <p className="text-sm font-medium text-neutral-500">
-                Förhandsvisning
+                Veckans fokus
               </p>
-              <h2 className="text-2xl font-bold">
-                Veckans färdiga innehåll
+              <h2 className="mt-3 text-4xl font-semibold tracking-tight">
+                {activePlan.focus}
               </h2>
             </div>
 
-            <Link href={planHref} className="text-sm font-medium">
-              Visa hela planen →
+            <div className="space-y-8">
+              <BriefingItem
+                title="Varför nu?"
+                text="Kunderna planerar semester, grillning och inköp. Det gör veckan extra relevant för tydlig och praktisk kommunikation."
+              />
+
+              <BriefingItem
+                title="AI rekommenderar"
+                text={`Fokusera på ${activePlan.tags
+                  .join(", ")
+                  .toLowerCase()} och gör det enkelt för kunden att agera.`}
+              />
+
+              <BriefingItem
+                title="Målet"
+                text="Skapa synlighet utan att det känns stressigt, säljigt eller generiskt."
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-24">
+          <div className="mb-8 flex items-end justify-between gap-6">
+            <div>
+              <p className="text-sm font-medium text-neutral-500">
+                Klart att publicera
+              </p>
+              <h2 className="mt-3 text-4xl font-semibold tracking-tight">
+                Veckans innehåll
+              </h2>
+            </div>
+
+            <Link
+              href={planHref}
+              className="hidden text-sm font-semibold text-neutral-700 hover:text-black md:block"
+            >
+              Visa allt →
             </Link>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            {plan.posts.map((post, index) => (
+          <div className="grid gap-4">
+            {activePlan.posts.map((post: MarketingPost, index: number) => (
               <Link
-                key={`${plan.id}-${post.title}`}
+                key={`${activePlan.id ?? "plan"}-${post.title}`}
                 href={`${planHref}#post-${index + 1}`}
-                className="group rounded-3xl border border-neutral-200 bg-[#FAFAFA] p-5 transition hover:border-neutral-950 hover:bg-white"
+                className="group grid gap-6 rounded-[2rem] border border-black/10 bg-white p-6 transition hover:border-black/30 md:grid-cols-[0.2fr_1fr_0.3fr] md:items-center md:p-8"
               >
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="rounded-full bg-[#EDF7EF] px-3 py-1 text-sm font-medium text-green-800">
-                    Inlägg {index + 1}
+                <p className="text-sm font-medium text-neutral-500">
+                  0{index + 1}
+                </p>
+
+                <div>
+                  <p className="mb-3 text-sm font-medium text-neutral-500">
+                    Socialt inlägg
                   </p>
-                  <span className="text-sm text-neutral-400 group-hover:text-neutral-950">
+
+                  <h3 className="text-3xl font-semibold tracking-tight">
+                    {post.title}
+                  </h3>
+
+                  <p className="mt-4 max-w-2xl leading-7 text-neutral-600">
+                    {post.text}
+                  </p>
+                </div>
+
+                <div className="text-left md:text-right">
+                  <span className="text-sm font-semibold text-neutral-500 group-hover:text-black">
                     Öppna →
                   </span>
                 </div>
-
-                <h3 className="text-xl font-bold">{post.title}</h3>
-
-                <p className="mt-3 line-clamp-3 text-sm leading-6 text-neutral-600">
-                  {post.text}
-                </p>
-
-                <div className="mt-5 rounded-2xl bg-white p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-neutral-400">
-                    CTA
-                  </p>
-                  <p className="mt-1 text-sm font-medium">{post.cta}</p>
-                </div>
               </Link>
             ))}
+          </div>
+        </section>
+
+        <section className="mb-24 rounded-[2rem] bg-[#111111] p-8 text-white md:p-10">
+          <div className="grid gap-10 md:grid-cols-[0.8fr_1.2fr] md:items-end">
+            <div>
+              <p className="text-sm font-medium text-white/50">
+                Leverans denna vecka
+              </p>
+
+              <h2 className="mt-3 text-4xl font-semibold tracking-tight">
+                Allt är förberett.
+              </h2>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <Delivery title="Sociala inlägg" value="5" />
+              <Delivery title="Nyhetsbrev" value="1" />
+              <Delivery title="Kampanjidéer" value="2" />
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-black/10 pt-10">
+          <div className="grid gap-8 md:grid-cols-[0.8fr_1.2fr] md:items-start">
+            <div>
+              <p className="text-sm font-medium text-neutral-500">
+                Behöver du något utöver veckoplanen?
+              </p>
+
+              <h2 className="mt-3 text-4xl font-semibold tracking-tight">
+                Skapa något direkt.
+              </h2>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <QuickCreate title="Kampanj" />
+              <QuickCreate title="Socialt inlägg" />
+              <QuickCreate title="Nyhetsbrev" />
+            </div>
           </div>
         </section>
       </div>
@@ -182,12 +298,34 @@ export default function DashboardPage() {
   );
 }
 
-function Stat({ title, value }: { title: string; value: string }) {
+function BriefingItem({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-[2rem] bg-white p-6 shadow-sm">
-      <p className="text-sm text-neutral-500">{title}</p>
-      <p className="mt-2 text-4xl font-bold">{value}</p>
-      <p className="mt-1 text-sm text-green-700">Redo att granska</p>
+    <div className="border-b border-black/10 pb-8">
+      <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
+      <p className="mt-3 max-w-2xl leading-7 text-neutral-600">{text}</p>
     </div>
+  );
+}
+
+function Delivery({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="rounded-3xl bg-white/10 p-5">
+      <p className="text-4xl font-semibold">{value}</p>
+      <p className="mt-2 text-sm text-white/60">{title}</p>
+    </div>
+  );
+}
+
+function QuickCreate({ title }: { title: string }) {
+  return (
+    <Link
+      href="/create"
+      className="rounded-3xl border border-black/10 bg-white p-5 transition hover:border-black/30"
+    >
+      <p className="font-semibold">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-neutral-600">
+        Skapa ett färdigt utkast direkt.
+      </p>
+    </Link>
   );
 }
