@@ -17,14 +17,24 @@ type CompanyProfile = {
   contentGuidelines?: string[];
 };
 
+type BrainFile = {
+  name: string;
+  size: number;
+  type: string;
+  addedAt: string;
+  content?: string;
+};
+
 type GeneratePlanBody = {
   companyProfile?: CompanyProfile;
+  brainFiles?: BrainFile[];
 };
 
 export async function POST(request: Request) {
   try {
     const body: GeneratePlanBody = await request.json();
     const profile = body.companyProfile;
+    const brainFiles = body.brainFiles ?? [];
 
     if (!profile) {
       return NextResponse.json(
@@ -33,103 +43,132 @@ export async function POST(request: Request) {
       );
     }
 
+    // Build week + month context
+    const now = new Date();
+    const month = now.toLocaleString("sv-SE", { month: "long" });
+    const jan1 = new Date(now.getFullYear(), 0, 1);
+    const week = Math.ceil(
+      ((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7
+    );
+
+    // Build brain files context
+    const fileContext = brainFiles.length > 0
+      ? `\nUPPLADDAT MATERIAL (använd detta för djupare förståelse):\n${brainFiles
+          .map(f => {
+            let line = `- ${f.name} (${f.type})`;
+            if (f.content) line += `\n  Innehåll: ${f.content.slice(0, 800)}`;
+            return line;
+          })
+          .join("\n")}`
+      : "";
+
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
-      input: `
-Du är en erfaren svensk marknadschef för småföretag.
+      input: `Du är en erfaren copywriter och marknadsstrateg specialiserad på lokala svenska tjänsteföretag.
 
-Din uppgift är att skapa en konkret veckoplan baserad på företagets AI-profil.
+DITT UPPDRAG: Skapa marknadsinnehåll som känns skrivet av någon som KÄNNER företaget inifrån — inte av en AI.
+
+NULÄGE: ${month}, vecka ${week}.
 
 FÖRETAGSPROFIL:
 Företagsnamn: ${profile.companyName ?? ""}
 Bransch: ${profile.industry ?? ""}
 Sammanfattning: ${profile.summary ?? ""}
+Kunder: ${(profile.customers ?? []).join(", ")}
+Produkter och tjänster: ${(profile.products ?? []).join(", ")}
+Tonalitet: ${(profile.tone ?? []).join(", ")}
+Styrkor: ${(profile.strengths ?? []).join(", ")}
+Ska undvikas: ${(profile.avoid ?? []).join(", ")}
+Innehållsriktlinjer: ${(profile.contentGuidelines ?? []).join(", ")}
+${fileContext}
 
-Kunder:
-${(profile.customers ?? []).map((item) => `- ${item}`).join("\n")}
+KRITISKA REGLER:
+1. Använd ALLTID företagets faktiska namn och specifika tjänster — aldrig "era tjänster" generellt
+2. Anpassa till ${month} och vecka ${week} — nämn säsongen och relevanta händelser där det passar
+3. Matcha branschens verkliga språk — en gasolfirma pratar inte som en frisör
+4. CTA:er ska vara konkreta handlingar, inte "Kontakta oss"
+5. Hitta INTE på fakta om orter, priser, garantier, certifieringar eller specifika resultat som inte framgår av profilen
 
-Produkter och tjänster:
-${(profile.products ?? []).map((item) => `- ${item}`).join("\n")}
+FÖRBJUDNA FRASER — använd ALDRIG:
+- "Vi strävar efter att leverera kvalitet"
+- "Nöjda kunder är vår prioritet"
+- "Med lång erfarenhet inom branschen"
+- "Tveka inte att höra av dig"
+- "I dagens digitala värld"
+- "Vi på [företag] är stolta"
+- Alla generiska fraser som kan gälla vilket företag som helst
 
-Tonalitet:
-${(profile.tone ?? []).map((item) => `- ${item}`).join("\n")}
+BRA INNEHÅLL:
+- Refererar till specifika scenarion kunden känner igen
+- Sätter upp ett problem INNAN lösningen presenteras
+- Är konkret nog att publiceras direkt utan redigering
+- Känns skrivet av en människa som jobbar i branschen
 
-Styrkor:
-${(profile.strengths ?? []).map((item) => `- ${item}`).join("\n")}
-
-Ska undvika:
-${(profile.avoid ?? []).map((item) => `- ${item}`).join("\n")}
-
-Riktlinjer för innehåll:
-${(profile.contentGuidelines ?? []).map((item) => `- ${item}`).join("\n")}
-
-VIKTIGT:
-Planen får inte innehålla information som inte finns i profilen.
-Om företaget inte har angett ort, skriv inte ort.
-Om företaget inte har angett pris, rabatt eller kampanj, skriv inte pris, rabatt eller kampanj.
-Om företaget inte har angett garanti, skriv inte garanti.
-
-Returnera ENDAST giltig JSON i exakt denna struktur:
+Returnera ENDAST giltig JSON i exakt denna struktur. Ingen markdown, inga kommentarer:
 
 {
-  "company": "",
-  "focus": "",
-  "tags": [],
+  "company": "${profile.companyName ?? ""}",
+  "focus": "En mening om veckans marknadsföringstema — specifik och säsongsanpassad",
+  "tags": ["3-5 konkreta teman för veckan"],
   "posts": [
     {
-      "title": "",
-      "text": "",
-      "cta": "",
-      "image": ""
+      "title": "Rubrik som fångar ett konkret problem eller behov",
+      "text": "Inläggstext — kort nog att publiceras direkt, max 3 meningar. Konkret scenario kunden känner igen.",
+      "cta": "Specifik uppmaning med tydlig handling",
+      "image": "Realistisk bildidé enkel att fotografera med mobil"
+    },
+    {
+      "title": "Tips-format: Visste du att... eller 3 tecken på att...",
+      "text": "Inläggstext med praktisk insikt från branschen",
+      "cta": "Konkret CTA",
+      "image": "Bildidé"
+    },
+    {
+      "title": "Säsongsrelevant rubrik för ${month}",
+      "text": "Inläggstext kopplad till vad som händer just nu för målgruppen",
+      "cta": "Konkret CTA",
+      "image": "Bildidé"
+    },
+    {
+      "title": "Bakom-kulisserna eller kundperspektiv",
+      "text": "Mer berättande inlägg som bygger förtroende",
+      "cta": "Konkret CTA",
+      "image": "Bildidé"
+    },
+    {
+      "title": "Experttips eller vanligt misstag i branschen",
+      "text": "Inlägg som positionerar företaget som specialist",
+      "cta": "Konkret CTA",
+      "image": "Bildidé"
     }
   ],
   "newsletter": {
-    "subject": "",
-    "preview": "",
-    "body": "",
-    "cta": ""
+    "subject": "Ämnesrad som skapar nyfikenhet, max 50 tecken, refererar till specifik tjänst eller scenario",
+    "preview": "Kompletterande förhandsvisningstext, max 85 tecken",
+    "body": "3 stycken: 1) Konkret scenario kunden känner igen. 2) Hur ${profile.companyName ?? "företaget"} löser det specifikt. 3) Varför just nu i ${month}.",
+    "cta": "Specifik uppmaning med tydlig handling"
   },
   "campaigns": [
     {
-      "title": "",
-      "goal": "",
-      "message": "",
-      "channels": "",
-      "cta": ""
+      "title": "Kampanjnamn kopplat till ${month}",
+      "goal": "Vad kampanjen ska uppnå",
+      "message": "Kampanjbudskapet i 2-3 meningar — specifikt och säsongsanpassat",
+      "channels": "Rekommenderade kanaler",
+      "cta": "Kampanjens call to action"
+    },
+    {
+      "title": "Kampanjnamn kopplat till ${profile.products?.[0] ?? "huvudtjänst"}",
+      "goal": "Vad kampanjen ska uppnå",
+      "message": "Kampanjbudskapet i 2-3 meningar",
+      "channels": "Rekommenderade kanaler",
+      "cta": "Kampanjens call to action"
     }
   ]
-}
-
-Regler:
-- Skriv på svenska.
-- Skapa exakt 5 sociala inlägg.
-- Skapa exakt 2 kampanjer.
-- All text måste följa tonaliteten från profilen.
-- Allt som står under "Ska undvika" är förbjudet att använda.
-- Innehållet måste följa riktlinjerna under "Riktlinjer för innehåll".
-- Bygg planen på företagets sammanfattning, kunder, produkter/tjänster och styrkor.
-- Hitta inte på fakta om orter, antal anläggningar, priser, rabatter, erbjudanden, öppettider, garantier, certifieringar eller specifika resultat.
-- Om något inte framgår av profilen, skriv generellt.
-- Använd inte emojis om profilen säger att emojis ska undvikas.
-- Använd inte engelska buzzwords om profilen säger att det ska undvikas.
-- Använd inte skämtsam ton om profilen säger att det ska undvikas.
-- Använd inte billigt säljspråk om profilen säger att det ska undvikas.
-- Gör innehållet konkret, praktiskt och användbart.
-- Undvik generiska AI-formuleringar som "i dagens digitala värld".
-- Varje socialt inlägg ska vara kort nog att kunna publiceras direkt.
-- CTA ska vara konkret men inte pushig.
-- Bildidéerna ska vara realistiska och enkla att skapa.
-- Returnera endast JSON. Ingen markdown, inga kommentarer, ingen förklaring.
-`,
+}`,
     });
 
     const rawText = response.output_text;
-
-    const cleanedText = rawText
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
-
+    const cleanedText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
     const firstBrace = cleanedText.indexOf("{");
     const lastBrace = cleanedText.lastIndexOf("}");
 
@@ -137,13 +176,11 @@ Regler:
       throw new Error("OpenAI returnerade ingen JSON.");
     }
 
-    const jsonText = cleanedText.slice(firstBrace, lastBrace + 1);
-    const plan = JSON.parse(jsonText);
-
+    const plan = JSON.parse(cleanedText.slice(firstBrace, lastBrace + 1));
     return NextResponse.json(plan);
+
   } catch (error) {
     console.error("GENERATE_PLAN_ERROR:", error);
-
     return NextResponse.json(
       { error: "Kunde inte generera marknadsplan." },
       { status: 500 }

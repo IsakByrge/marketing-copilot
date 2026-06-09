@@ -2,6 +2,19 @@
 
 import { useState } from "react";
 
+const T = {
+  bg: "#0a0908",
+  surface: "#111009",
+  surface2: "#181510",
+  line: "rgba(255,248,235,0.08)",
+  line2: "rgba(255,248,235,0.13)",
+  text: "#f5f0e8",
+  text2: "rgba(245,240,232,0.55)",
+  text3: "rgba(245,240,232,0.30)",
+  gold: "#c9a96e",
+  goldDim: "rgba(201,169,110,0.10)",
+};
+
 export default function OnboardingPage() {
   const [form, setForm] = useState({
     companyName: "",
@@ -17,40 +30,22 @@ export default function OnboardingPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   function updateField(field: string, value: string) {
-    setForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setForm((prev) => ({ ...prev, [field]: value }));
   }
 
   async function analyzeCompany() {
     try {
       setIsAnalyzing(true);
-
-      localStorage.setItem(
-        "marketing-copilot-company-input",
-        JSON.stringify(form)
-      );
-localStorage.removeItem("marketing-copilot-plan");
+      localStorage.setItem("marketing-copilot-company-input", JSON.stringify(form));
+      localStorage.removeItem("marketing-copilot-plan");
       const response = await fetch("/api/analyze-company", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-
-      if (!response.ok) {
-        throw new Error("Kunde inte analysera företaget");
-      }
-
+      if (!response.ok) throw new Error("Kunde inte analysera företaget");
       const profile = await response.json();
-
-      localStorage.setItem(
-        "marketing-copilot-company-profile",
-        JSON.stringify(profile)
-      );
-
+      localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(profile));
       window.location.href = "/profile";
     } catch (error) {
       console.error(error);
@@ -60,147 +55,172 @@ localStorage.removeItem("marketing-copilot-plan");
     }
   }
 
+  const fields = [
+    { key: "companyName", label: "Företagsnamn", placeholder: "Ex. Gasolfyllarna", type: "input" },
+    { key: "website", label: "Hemsida", placeholder: "Ex. https://gasolfyllarna.se", type: "input" },
+    { key: "industry", label: "Bransch", placeholder: "Ex. Gasol, VVS, bilverkstad, webshop", type: "input" },
+    { key: "products", label: "Vad säljer ni?", placeholder: "Ex. Gasolpåfyllning, gasolflaskor och rådgivning kring säker gasolhantering.", type: "textarea" },
+    { key: "customers", label: "Vilka är era kunder?", placeholder: "Ex. Campingägare, husbilsägare, grillkunder och privatpersoner som behöver fylla på gasol.", type: "textarea" },
+    { key: "tone", label: "Hur vill ni uppfattas?", placeholder: "Ex. Lokala, hjälpsamma, trygga, kunniga och enkla att ha att göra med.", type: "textarea" },
+    { key: "avoid", label: "Vad vill ni undvika?", placeholder: "Ex. Aggressivt säljspråk, clickbait, överdrivna erbjudanden.", type: "textarea" },
+    { key: "previousPosts", label: "Klistra in tidigare inlägg", placeholder: "Klistra gärna in 3–5 tidigare inlägg, kampanjtexter eller nyhetsbrev så AI:n lär sig tonaliteten.", type: "textarea" },
+  ];
+
+  const filled = Object.values(form).filter(v => v.trim()).length;
+  const progress = Math.round((filled / fields.length) * 100);
+
   return (
-    <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
-      <div className="mx-auto max-w-4xl">
-        <section className="mb-16">
-          <p className="mb-6 text-sm font-medium text-neutral-500">
+    <main style={{ minHeight: "100svh", background: T.bg, paddingTop: 0 }}>
+
+      {/* Nav */}
+      <nav style={{
+        position: "sticky", top: 0, zIndex: 100,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 48px", height: 56,
+        background: "rgba(10,9,8,0.9)", backdropFilter: "blur(20px)",
+        borderBottom: `1px solid ${T.line}`,
+      }}>
+        <a href="/" style={{
+          fontFamily: "var(--font-cormorant), serif",
+          fontWeight: 500, fontSize: "1.1rem",
+          letterSpacing: "0.08em", textTransform: "uppercase",
+          color: T.text, textDecoration: "none",
+        }}>
+          Marketing<span style={{ color: T.gold }}>Copilot</span>
+        </a>
+        <div style={{ fontSize: "0.7rem", fontWeight: 300, color: T.text3, letterSpacing: "0.06em" }}>
+          {filled} / {fields.length} fält ifyllda
+        </div>
+      </nav>
+
+      {/* Progress bar */}
+      <div style={{ height: 2, background: T.line }}>
+        <div style={{
+          height: "100%", background: T.gold, opacity: .6,
+          width: `${progress}%`, transition: "width .4s ease",
+        }} />
+      </div>
+
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "60px 48px 100px" }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: 64 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12,
+            fontSize: "0.67rem", fontWeight: 400, letterSpacing: "0.18em",
+            textTransform: "uppercase", color: T.gold, marginBottom: 20,
+          }}>
+            <span style={{ width: 20, height: 1, background: T.gold, opacity: .5, display: "block" }} />
             Onboarding
-          </p>
-
-          <h1 className="max-w-4xl text-6xl font-semibold leading-[0.95] tracking-[-0.06em] md:text-8xl">
-            Lär upp din AI-marknadschef.
+          </div>
+          <h1 style={{
+            fontFamily: "var(--font-cormorant), serif",
+            fontWeight: 300, fontSize: "clamp(2.4rem, 5vw, 4rem)",
+            lineHeight: 1.0, letterSpacing: "-0.02em",
+            color: T.text, marginBottom: 16,
+          }}>
+            Lär upp din<br />
+            <em style={{ fontStyle: "italic", color: T.gold }}>AI-marknadschef.</em>
           </h1>
-
-          <p className="mt-10 max-w-3xl text-2xl leading-10 tracking-tight text-neutral-700 md:text-3xl md:leading-[1.35]">
+          <p style={{
+            fontSize: "0.95rem", fontWeight: 300,
+            color: T.text2, lineHeight: 1.8, maxWidth: 480,
+          }}>
             Berätta hur företaget fungerar, vilka kunder ni hjälper och hur ni
             vill låta. Det här blir grunden för allt innehåll.
           </p>
-        </section>
+        </div>
 
-        <section className="space-y-10 border-y border-black/10 py-12">
-          <Field
-            label="Företagsnamn"
-            placeholder="Ex. Gasolfyllarna"
-            value={form.companyName}
-            onChange={(value) => updateField("companyName", value)}
-          />
+        {/* Fields */}
+        <div style={{ borderTop: `1px solid ${T.line}` }}>
+          {fields.map((f) => (
+            <div key={f.key} style={{ padding: "32px 0", borderBottom: `1px solid ${T.line}` }}>
+              <label style={{
+                display: "block", marginBottom: 12,
+                fontSize: "0.67rem", fontWeight: 400,
+                letterSpacing: "0.14em", textTransform: "uppercase",
+                color: T.text3,
+              }}>
+                {f.label}
+              </label>
+              {f.type === "input" ? (
+                <input
+                  value={form[f.key as keyof typeof form]}
+                  onChange={(e) => updateField(f.key, e.target.value)}
+                  placeholder={f.placeholder}
+                  style={{
+                    width: "100%", background: "transparent",
+                    border: "none", borderBottom: `1px solid ${T.line2}`,
+                    padding: "10px 0", outline: "none",
+                    fontSize: "1.05rem", fontWeight: 300,
+                    color: T.text, transition: "border-color .2s",
+                    fontFamily: "var(--font-outfit), sans-serif",
+                  }}
+                  onFocus={e => e.target.style.borderBottomColor = T.gold}
+                  onBlur={e => e.target.style.borderBottomColor = T.line2}
+                  placeholder-style={{ color: T.text3 } as React.CSSProperties}
+                />
+              ) : (
+                <textarea
+                  value={form[f.key as keyof typeof form]}
+                  onChange={(e) => updateField(f.key, e.target.value)}
+                  placeholder={f.placeholder}
+                  rows={f.key === "previousPosts" ? 6 : 3}
+                  style={{
+                    width: "100%", background: "transparent",
+                    border: "none", borderBottom: `1px solid ${T.line2}`,
+                    padding: "10px 0", outline: "none", resize: "vertical",
+                    fontSize: "1.05rem", fontWeight: 300, lineHeight: 1.75,
+                    color: T.text, transition: "border-color .2s",
+                    fontFamily: "var(--font-outfit), sans-serif",
+                  }}
+                  onFocus={e => e.target.style.borderBottomColor = T.gold}
+                  onBlur={e => e.target.style.borderBottomColor = T.line2}
+                />
+              )}
+            </div>
+          ))}
+        </div>
 
-          <Field
-            label="Hemsida"
-            placeholder="Ex. https://gasolfyllarna.se"
-            value={form.website}
-            onChange={(value) => updateField("website", value)}
-          />
-
-          <Field
-            label="Bransch"
-            placeholder="Ex. Gasol, VVS, bilverkstad, webshop"
-            value={form.industry}
-            onChange={(value) => updateField("industry", value)}
-          />
-
-          <TextArea
-            label="Vad säljer ni?"
-            placeholder="Ex. Gasolpåfyllning, gasolflaskor och rådgivning kring säker gasolhantering."
-            value={form.products}
-            onChange={(value) => updateField("products", value)}
-          />
-
-          <TextArea
-            label="Vilka är era kunder?"
-            placeholder="Ex. Campingägare, husbilsägare, grillkunder och privatpersoner som behöver fylla på gasol."
-            value={form.customers}
-            onChange={(value) => updateField("customers", value)}
-          />
-
-          <TextArea
-            label="Hur vill ni uppfattas?"
-            placeholder="Ex. Lokala, hjälpsamma, trygga, kunniga och enkla att ha att göra med."
-            value={form.tone}
-            onChange={(value) => updateField("tone", value)}
-          />
-
-          <TextArea
-            label="Vad vill ni undvika?"
-            placeholder="Ex. Aggressivt säljspråk, clickbait, överdrivna erbjudanden och för mycket emojis."
-            value={form.avoid}
-            onChange={(value) => updateField("avoid", value)}
-          />
-
-          <TextArea
-            label="Klistra in tidigare inlägg"
-            placeholder="Klistra gärna in 3–5 tidigare inlägg, kampanjtexter eller nyhetsbrev så AI:n lär sig tonaliteten."
-            value={form.previousPosts}
-            onChange={(value) => updateField("previousPosts", value)}
-          />
-        </section>
-
-        <section className="mt-12 flex justify-end">
+        {/* Submit */}
+        <div style={{ marginTop: 48, display: "flex", justifyContent: "flex-end" }}>
           <button
-            type="button"
             onClick={analyzeCompany}
-            disabled={isAnalyzing}
-            className="rounded-full bg-[#111111] px-7 py-4 text-sm font-semibold text-white transition hover:bg-black/80 disabled:opacity-50"
+            disabled={isAnalyzing || !form.companyName.trim()}
+            style={{
+              fontFamily: "var(--font-outfit), sans-serif",
+              fontSize: "0.75rem", fontWeight: 400,
+              letterSpacing: "0.12em", textTransform: "uppercase",
+              padding: "14px 32px", borderRadius: 2, border: "none",
+              background: isAnalyzing || !form.companyName.trim() ? T.surface2 : T.gold,
+              color: isAnalyzing || !form.companyName.trim() ? T.text3 : T.bg,
+              cursor: isAnalyzing || !form.companyName.trim() ? "not-allowed" : "pointer",
+              transition: "all .2s",
+              display: "flex", alignItems: "center", gap: 10,
+            }}
           >
-            {isAnalyzing ? "Analyserar..." : "Analysera företaget"}
+            {isAnalyzing && (
+              <span style={{
+                width: 14, height: 14, borderRadius: "50%",
+                border: `1.5px solid rgba(201,169,110,.3)`,
+                borderTopColor: T.bg,
+                display: "inline-block",
+                animation: "spin .7s linear infinite",
+              }} />
+            )}
+            {isAnalyzing ? "Analyserar..." : "Analysera företaget →"}
           </button>
-        </section>
+        </div>
       </div>
+
+      <style>{`
+        input::placeholder, textarea::placeholder { color: ${T.text3}; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 640px) {
+          nav { padding: 0 20px !important; }
+          div[style*="padding: 60px 48px"] { padding: 40px 20px 80px !important; }
+        }
+      `}</style>
     </main>
-  );
-}
-
-function Field({
-  label,
-  placeholder,
-  value,
-  onChange,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="mb-3 block text-sm font-medium text-neutral-500">
-        {label}
-      </label>
-
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full border-b border-black/10 bg-transparent py-4 text-2xl outline-none placeholder:text-neutral-400 focus:border-black"
-      />
-    </div>
-  );
-}
-
-function TextArea({
-  label,
-  placeholder,
-  value,
-  onChange,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="mb-3 block text-sm font-medium text-neutral-500">
-        {label}
-      </label>
-
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="min-h-32 w-full resize-none border-b border-black/10 bg-transparent py-4 text-2xl leading-10 outline-none placeholder:text-neutral-400 focus:border-black"
-      />
-    </div>
   );
 }

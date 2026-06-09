@@ -1,26 +1,216 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/* ─── TOKENS ─────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --mc-bg:            #0a0908;
+  --mc-surface:       #111009;
+  --mc-surface-2:     #181510;
+  --mc-gold:          #c9a96e;
+  --mc-gold-dim:      rgba(201, 169, 110, 0.10);
+  --mc-text:          #f5f0e8;
+  --mc-muted:         rgba(245, 240, 232, 0.55);
+  --mc-subtle:        rgba(245, 240, 232, 0.30);
+  --mc-border:        rgba(255, 248, 235, 0.08);
+  --mc-border-strong: rgba(255, 248, 235, 0.13);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ─── BASE ───────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  min-height: 100%;
+  background: var(--mc-bg);
+  color: var(--mc-text);
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+h1, h2, h3, .mc-serif {
+  font-family: var(--font-cormorant), "Cormorant Garamond", serif;
+  font-weight: 300;
 }
+
+button, input, textarea, select {
+  font-family: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--mc-gold);
+  color: var(--mc-bg);
+}
+
+::placeholder {
+  color: var(--mc-subtle);
+}
+
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track { background: var(--mc-bg); }
+::-webkit-scrollbar-thumb { background: var(--mc-border-strong); border-radius: 2px; }
+
+/* ─── ANIMATIONS ─────────────────────────────────────── */
+@keyframes fadeUp   { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes spin     { to { transform: rotate(360deg); } }
+@keyframes shimmer  { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.7; } }
+@keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.fade-up { animation: fadeUp  0.55s ease both; }
+.fade-in { animation: fadeIn  0.45s ease both; }
+.d1 { animation-delay: 0.08s; }
+.d2 { animation-delay: 0.16s; }
+.d3 { animation-delay: 0.24s; }
+.d4 { animation-delay: 0.32s; }
+.d5 { animation-delay: 0.40s; }
+
+/* ─── LAYOUT ─────────────────────────────────────────── */
+.mc-page {
+  min-height: 100vh;
+  background: var(--mc-bg);
+  color: var(--mc-text);
+}
+
+/* ─── SURFACES ───────────────────────────────────────── */
+.mc-surface {
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 2px;
+}
+
+.mc-surface-2 {
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border);
+  border-radius: 2px;
+}
+
+/* ─── LABEL ──────────────────────────────────────────── */
+.mc-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--mc-gold);
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-size: 0.67rem;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.mc-label::before {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 1px;
+  background: var(--mc-gold);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+/* ─── BUTTONS ────────────────────────────────────────── */
+.mc-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--mc-gold);
+  color: var(--mc-bg);
+  border: none;
+  border-radius: 2px;
+  padding: 12px 28px;
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.mc-btn-primary:hover    { opacity: 0.88; }
+.mc-btn-primary:disabled { opacity: 0.45; pointer-events: none; }
+
+.mc-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--mc-muted);
+  border: 1px solid var(--mc-border-strong);
+  border-radius: 2px;
+  padding: 12px 28px;
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+.mc-btn-ghost:hover    { border-color: var(--mc-gold); color: var(--mc-text); }
+.mc-btn-ghost:disabled { opacity: 0.45; pointer-events: none; }
+
+/* ─── INPUTS ─────────────────────────────────────────── */
+.mc-input {
+  width: 100%;
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border-strong);
+  border-radius: 2px;
+  padding: 12px 16px;
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-size: 0.88rem;
+  font-weight: 300;
+  color: var(--mc-text);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.mc-input:focus        { border-color: var(--mc-gold); }
+.mc-input::placeholder { color: var(--mc-subtle); }
+
+.mc-textarea {
+  width: 100%;
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border-strong);
+  border-radius: 2px;
+  padding: 12px 16px;
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-size: 0.88rem;
+  font-weight: 300;
+  color: var(--mc-text);
+  outline: none;
+  transition: border-color 0.2s;
+  resize: vertical;
+  min-height: 120px;
+}
+.mc-textarea:focus        { border-color: var(--mc-gold); }
+.mc-textarea::placeholder { color: var(--mc-subtle); }
+
+/* ─── CONTENT BLOCKS ─────────────────────────────────── */
+.mc-content-block {
+  border-bottom: 1px solid var(--mc-border);
+  padding: 36px 0;
+}
+.mc-content-block:last-child {
+  border-bottom: none;
+}
+
+/* ─── SKELETON ───────────────────────────────────────── */
+.skel {
+  background: var(--mc-surface-2);
+  border-radius: 2px;
+  animation: shimmer 1.6s ease infinite;
+}
+
+/* ─── UTILITY ────────────────────────────────────────── */
+.mc-muted  { color: var(--mc-muted); }
+.mc-subtle { color: var(--mc-subtle); }
+.mc-gold   { color: var(--mc-gold); }

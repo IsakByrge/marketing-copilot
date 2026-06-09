@@ -3,55 +3,52 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+const T = {
+  bg: "#0a0908", surface: "#111009", surface2: "#181510",
+  line: "rgba(255,248,235,0.08)", line2: "rgba(255,248,235,0.13)",
+  text: "#f5f0e8", text2: "rgba(245,240,232,0.55)", text3: "rgba(245,240,232,0.30)",
+  gold: "#c9a96e", goldDim: "rgba(201,169,110,0.10)",
+};
+
 type MarketingPlan = {
   company: string;
   focus: string;
   tags: string[];
-  posts: {
-    title: string;
-    text: string;
-    cta: string;
-    image: string;
-  }[];
-  newsletter: {
-    subject: string;
-    preview: string;
-    body: string;
-    cta: string;
-  };
-  campaigns: {
-    title: string;
-    goal: string;
-    message: string;
-    channels: string;
-    cta: string;
-  }[];
+  posts: { title: string; text: string; cta: string; image: string; }[];
+  newsletter: { subject: string; preview: string; body: string; cta: string; };
+  campaigns: { title: string; goal: string; message: string; channels: string; cta: string; }[];
 };
+
+function NavBack() {
+  return (
+    <Link href="/dashboard" style={{
+      fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.1em",
+      textTransform: "uppercase", color: T.text3, textDecoration: "none",
+      display: "inline-flex", alignItems: "center", gap: 8, transition: "color .2s",
+    }}
+    onMouseOver={e => (e.currentTarget as HTMLElement).style.color = T.text2}
+    onMouseOut={e => (e.currentTarget as HTMLElement).style.color = T.text3}
+    >
+      ← Dashboard
+    </Link>
+  );
+}
 
 export default function PlanPage() {
   const [plan, setPlan] = useState<MarketingPlan | null>(null);
 
   useEffect(() => {
-    const savedPlan = localStorage.getItem("marketing-copilot-plan");
-
-    if (!savedPlan) return;
-
-    try {
-      setPlan(JSON.parse(savedPlan));
-    } catch (error) {
-      console.error(error);
-    }
+    const saved = localStorage.getItem("marketing-copilot-plan");
+    if (!saved) return;
+    try { setPlan(JSON.parse(saved)); } catch (e) { console.error(e); }
   }, []);
 
   if (!plan) {
     return (
-      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
-        <div className="mx-auto max-w-4xl">
-          <Link href="/dashboard" className="text-sm font-medium text-neutral-600">
-            ← Till dashboard
-          </Link>
-
-          <p className="mt-16 text-xl">
+      <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 48px" }}>
+        <div style={{ maxWidth: 800, margin: "0 auto" }}>
+          <NavBack />
+          <p style={{ marginTop: 80, fontSize: "1rem", fontWeight: 300, color: T.text2 }}>
             Ingen plan hittades. Gå till dashboard och generera en plan.
           </p>
         </div>
@@ -59,92 +56,165 @@ export default function PlanPage() {
     );
   }
 
+  const week = (() => {
+    const d = new Date(), j = new Date(d.getFullYear(), 0, 1);
+    return Math.ceil(((d.getTime() - j.getTime()) / 86400000 + j.getDay() + 1) / 7);
+  })();
+
   return (
-    <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
-      <div className="mx-auto max-w-5xl">
-        <nav className="mb-16 flex items-center justify-between">
-          <Link href="/dashboard" className="text-sm font-medium text-neutral-600">
-            ← Till dashboard
-          </Link>
-        </nav>
+    <main style={{ minHeight: "100svh", background: T.bg }}>
 
-        <section className="mb-16">
-          <p className="mb-6 text-sm font-medium text-neutral-500">
-            Marknadsplan
-          </p>
+      {/* Nav */}
+      <nav style={{
+        position: "sticky", top: 0, zIndex: 100,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 48px", height: 56,
+        background: "rgba(10,9,8,0.9)", backdropFilter: "blur(20px)",
+        borderBottom: `1px solid ${T.line}`,
+      }}>
+        <a href="/" style={{
+          fontFamily: "var(--font-cormorant), serif",
+          fontWeight: 500, fontSize: "1.1rem",
+          letterSpacing: "0.08em", textTransform: "uppercase",
+          color: T.text, textDecoration: "none",
+        }}>
+          Marketing<span style={{ color: T.gold }}>Copilot</span>
+        </a>
+        <NavBack />
+      </nav>
 
-          <h1 className="max-w-4xl text-6xl font-semibold leading-[0.95] tracking-[-0.06em] md:text-8xl">
-            Din plan för {plan.company}.
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "60px 48px 100px" }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: 64 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12,
+            fontSize: "0.67rem", fontWeight: 400, letterSpacing: "0.18em",
+            textTransform: "uppercase", color: T.gold, marginBottom: 20,
+          }}>
+            <span style={{ width: 20, height: 1, background: T.gold, opacity: .5, display: "block" }} />
+            Marknadsplan · Vecka {week}
+          </div>
+
+          <h1 style={{
+            fontFamily: "var(--font-cormorant), serif",
+            fontWeight: 300, fontSize: "clamp(2.6rem, 5vw, 4.5rem)",
+            lineHeight: 0.95, letterSpacing: "-0.02em",
+            color: T.text, marginBottom: 20,
+          }}>
+            Din plan för{" "}
+            <em style={{ fontStyle: "italic", color: T.gold }}>{plan.company}</em>.
           </h1>
 
-          <p className="mt-10 max-w-3xl text-2xl leading-10 tracking-tight text-neutral-700 md:text-3xl md:leading-[1.35]">
+          <p style={{
+            fontSize: "1rem", fontWeight: 300,
+            color: T.text2, lineHeight: 1.8,
+            maxWidth: 560, marginBottom: 24,
+          }}>
             {plan.focus}
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-2">
-            {plan.tags.map((tag, index) => (
-              <span
-                key={`${tag}-${index}`}
-                className="rounded-full border border-black/10 px-4 py-2 text-sm text-neutral-600"
-              >
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {plan.tags.map((tag, i) => (
+              <span key={i} style={{
+                fontSize: "0.65rem", fontWeight: 400,
+                letterSpacing: "0.1em", textTransform: "uppercase",
+                color: T.text3, border: `1px solid ${T.line2}`,
+                padding: "4px 12px", borderRadius: 2,
+              }}>
                 {tag}
               </span>
             ))}
           </div>
-        </section>
+        </div>
 
-        <section className="grid gap-4">
-          {plan.posts.map((post, index) => (
-            <Link
-              key={`${post.title}-${index}`}
-              href={`/post/${index}`}
-              className="rounded-3xl border border-black/10 bg-white/60 p-8 transition hover:bg-white"
+        {/* Posts */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 2 }}>
+          {plan.posts.map((post, i) => (
+            <Link key={i} href={`/post/${i}`} style={{
+              display: "block", padding: "28px 32px",
+              background: T.surface, border: `1px solid ${T.line}`,
+              borderRadius: 2, textDecoration: "none",
+              transition: "border-color .2s, background .2s",
+            }}
+            onMouseOver={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = T.line2; el.style.background = T.surface2; }}
+            onMouseOut={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = T.line; el.style.background = T.surface; }}
             >
-              <p className="mb-3 text-sm font-medium text-neutral-400">
-                Inlägg {index + 1}
-              </p>
-
-              <h2 className="text-3xl font-semibold tracking-tight">
+              <div style={{
+                fontSize: "0.62rem", fontWeight: 400,
+                letterSpacing: "0.14em", textTransform: "uppercase",
+                color: T.text3, marginBottom: 10,
+              }}>
+                Inlägg {i + 1}
+              </div>
+              <h2 style={{
+                fontFamily: "var(--font-cormorant), serif",
+                fontWeight: 400, fontSize: "1.5rem",
+                letterSpacing: "-0.01em", lineHeight: 1.2,
+                color: T.text, marginBottom: 10,
+              }}>
                 {post.title}
               </h2>
-
-              <p className="mt-4 max-w-3xl text-lg leading-8 text-neutral-700">
+              <p style={{
+                fontSize: "0.85rem", fontWeight: 300,
+                color: T.text2, lineHeight: 1.7,
+                maxWidth: 640,
+              }}>
                 {post.text}
               </p>
-
-              <p className="mt-6 text-sm font-medium text-neutral-900">
-                {post.cta}
-              </p>
+              <div style={{
+                marginTop: 16, fontSize: "0.68rem",
+                fontWeight: 400, letterSpacing: "0.1em",
+                textTransform: "uppercase", color: T.gold,
+              }}>
+                {post.cta} →
+              </div>
             </Link>
           ))}
-        </section>
+        </div>
 
-        <section className="mt-16 grid gap-4 md:grid-cols-2">
-          <Link
-            href="/newsletter"
-            className="rounded-3xl border border-black/10 bg-white/60 p-8 transition hover:bg-white"
-          >
-            <p className="mb-3 text-sm font-medium text-neutral-400">
-              Nyhetsbrev
-            </p>
-            <h2 className="text-3xl font-semibold tracking-tight">
-              {plan.newsletter?.subject ?? "Nyhetsbrev"}
-            </h2>
-          </Link>
-
-          <Link
-            href="/campaign"
-            className="rounded-3xl border border-black/10 bg-white/60 p-8 transition hover:bg-white"
-          >
-            <p className="mb-3 text-sm font-medium text-neutral-400">
-              Kampanj
-            </p>
-            <h2 className="text-3xl font-semibold tracking-tight">
-              {plan.campaigns?.[0]?.title ?? "Kampanj"}
-            </h2>
-          </Link>
-        </section>
+        {/* Newsletter + Campaign */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, marginTop: 2 }}>
+          {[
+            { href: "/newsletter", label: "Nyhetsbrev", title: plan.newsletter?.subject ?? "Nyhetsbrev" },
+            { href: "/campaign", label: "Kampanj", title: plan.campaigns?.[0]?.title ?? "Kampanj" },
+          ].map((item) => (
+            <Link key={item.href} href={item.href} style={{
+              display: "block", padding: "28px 32px",
+              background: T.surface, border: `1px solid ${T.line}`,
+              borderRadius: 2, textDecoration: "none",
+              transition: "border-color .2s, background .2s",
+            }}
+            onMouseOver={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = T.line2; el.style.background = T.surface2; }}
+            onMouseOut={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = T.line; el.style.background = T.surface; }}
+            >
+              <div style={{
+                fontSize: "0.62rem", fontWeight: 400,
+                letterSpacing: "0.14em", textTransform: "uppercase",
+                color: T.text3, marginBottom: 10,
+              }}>
+                {item.label}
+              </div>
+              <h2 style={{
+                fontFamily: "var(--font-cormorant), serif",
+                fontWeight: 400, fontSize: "1.5rem",
+                letterSpacing: "-0.01em", lineHeight: 1.2,
+                color: T.text,
+              }}>
+                {item.title}
+              </h2>
+            </Link>
+          ))}
+        </div>
       </div>
+
+      <style>{`
+        @media (max-width: 640px) {
+          nav { padding: 0 20px !important; }
+          div[style*="padding: 60px 48px"] { padding: 40px 20px 80px !important; }
+          div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </main>
   );
 }

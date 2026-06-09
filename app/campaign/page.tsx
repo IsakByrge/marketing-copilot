@@ -3,132 +3,147 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-type Campaign = {
-  title: string;
-  goal: string;
-  message: string;
-  channels: string;
-  cta: string;
+const T = {
+  bg: "#0a0908", surface: "#111009", surface2: "#181510",
+  line: "rgba(255,248,235,0.08)", line2: "rgba(255,248,235,0.13)",
+  text: "#f5f0e8", text2: "rgba(245,240,232,0.55)", text3: "rgba(245,240,232,0.30)",
+  gold: "#c9a96e", goldDim: "rgba(201,169,110,0.10)", goldBorder: "rgba(201,169,110,0.22)",
 };
 
-type MarketingPlan = {
-  company: string;
-  focus: string;
-  campaigns?: Campaign[];
-};
+type Campaign = { title: string; goal: string; message: string; channels: string; cta: string; };
+type MarketingPlan = { company: string; focus: string; campaigns?: Campaign[]; };
 
 export default function CampaignPage() {
   const [plan, setPlan] = useState<MarketingPlan | null>(null);
+  const [active, setActive] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const savedPlan = localStorage.getItem("marketing-copilot-plan");
-
-    if (!savedPlan) return;
-
-    try {
-      setPlan(JSON.parse(savedPlan));
-    } catch (error) {
-      console.error(error);
-    }
+    const saved = localStorage.getItem("marketing-copilot-plan");
+    if (saved) try { setPlan(JSON.parse(saved)); } catch {}
   }, []);
 
-  if (!plan) {
-    return (
-      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
-        <div className="mx-auto max-w-4xl">
-          <p>Laddar kampanj...</p>
-        </div>
-      </main>
-    );
+  function copyAll() {
+    const c = plan?.campaigns?.[active];
+    if (!c) return;
+    navigator.clipboard.writeText(`${c.title}\n\nMål: ${c.goal}\n\nBudskap: ${c.message}\n\nKanaler: ${c.channels}\n\nCTA: ${c.cta}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
-  const campaign = plan.campaigns?.[0];
-
-  if (!campaign) {
-    return (
-      <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
-        <div className="mx-auto max-w-4xl">
-          <Link href="/plan" className="text-sm font-medium text-neutral-600">
-            ← Till planen
-          </Link>
-
-          <p className="mt-16 text-xl">Det finns ingen kampanj i planen.</p>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
-      <div className="mx-auto max-w-4xl">
-        <nav className="mb-20 flex items-center justify-between">
-          <Link href="/plan" className="text-sm font-medium text-neutral-600">
-            ← Till planen
-          </Link>
-
-          <button className="rounded-full bg-[#111111] px-5 py-3 text-sm font-medium text-white">
-            Kopiera kampanj
-          </button>
-        </nav>
-
-        <section className="mb-20">
-          <p className="mb-6 text-sm font-medium text-neutral-500">
-            {plan.company} · Kampanjidé
-          </p>
-
-          <h1 className="max-w-4xl text-6xl font-semibold leading-[0.95] tracking-[-0.06em] md:text-8xl">
-            {campaign.title}
-          </h1>
-
-          <p className="mt-10 max-w-3xl text-2xl leading-10 tracking-tight text-neutral-700 md:text-3xl md:leading-[1.35]">
-            En kampanjbrief genererad av AI med mål, budskap, kanalval och CTA.
-          </p>
-        </section>
-
-        <section className="border-y border-black/10 py-12">
-          <ContentBlock label="Mål">{campaign.goal}</ContentBlock>
-
-          <ContentBlock label="Budskap">{campaign.message}</ContentBlock>
-
-          <ContentBlock label="Kanaler">{campaign.channels}</ContentBlock>
-
-          <ContentBlock label="CTA">{campaign.cta}</ContentBlock>
-        </section>
-
-        <section className="mt-12 flex flex-wrap gap-3">
-          <button className="rounded-full bg-[#111111] px-6 py-3 text-sm font-medium text-white">
-            Kopiera
-          </button>
-
-          <button className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-medium">
-            👍 Bra
-          </button>
-
-          <button className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-medium">
-            👎 Mindre bra
-          </button>
-        </section>
-      </div>
+  if (!plan) return (
+    <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 48px" }}>
+      <p style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2 }}>Laddar kampanj…</p>
     </main>
   );
-}
 
-function ContentBlock({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+  const campaigns = plan.campaigns ?? [];
+  const campaign = campaigns[active];
+
+  if (!campaign) return (
+    <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 48px" }}>
+      <Link href="/plan" style={{ fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, textDecoration: "none" }}>← Till planen</Link>
+      <p style={{ marginTop: 80, fontSize: "1rem", fontWeight: 300, color: T.text2 }}>Ingen kampanj hittades.</p>
+    </main>
+  );
+
+  const blocks = [
+    { label: "Mål", content: campaign.goal },
+    { label: "Budskap", content: campaign.message },
+    { label: "Kanaler", content: campaign.channels },
+    { label: "Call to action", content: campaign.cta },
+  ];
+
   return (
-    <div className="border-b border-black/10 py-10 last:border-b-0">
-      <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
-        {label}
-      </p>
+    <main style={{ minHeight: "100svh", background: T.bg }}>
 
-      <p className="max-w-3xl whitespace-pre-line text-2xl leading-10 tracking-tight text-neutral-700">
-        {children}
-      </p>
-    </div>
+      {/* Nav */}
+      <nav style={{
+        position: "sticky", top: 0, zIndex: 100,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 48px", height: 56,
+        background: "rgba(10,9,8,0.92)", backdropFilter: "blur(20px)",
+        borderBottom: `1px solid ${T.line}`,
+      }}>
+        <Link href="/plan" style={{ fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, textDecoration: "none" }}
+          onMouseOver={e => (e.currentTarget as HTMLElement).style.color = T.text2}
+          onMouseOut={e => (e.currentTarget as HTMLElement).style.color = T.text3}
+        >
+          ← Planen
+        </Link>
+        <button onClick={copyAll} style={{
+          fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400,
+          letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 16px",
+          borderRadius: 2, border: "none", background: T.gold, color: T.bg,
+          cursor: "pointer",
+        }}>
+          {copied ? "✓ Kopierat" : "Kopiera"}
+        </button>
+      </nav>
+
+      <div style={{ maxWidth: 800, margin: "0 auto", padding: "60px 48px 100px" }}>
+
+        {/* Campaign switcher */}
+        {campaigns.length > 1 && (
+          <div style={{ display: "flex", gap: 2, marginBottom: 40 }}>
+            {campaigns.map((c, i) => (
+              <button key={i} onClick={() => setActive(i)} style={{
+                flex: 1, padding: "12px 16px", borderRadius: 2,
+                background: active === i ? T.goldDim : T.surface,
+                border: `1px solid ${active === i ? T.goldBorder : T.line}`,
+                cursor: "pointer", transition: "all .15s", textAlign: "left",
+              }}>
+                <div style={{ fontSize: "0.6rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", color: active === i ? T.gold : T.text3, marginBottom: 4 }}>
+                  Kampanj {i + 1}
+                </div>
+                <div style={{ fontSize: "0.82rem", fontWeight: 400, color: active === i ? T.text : T.text2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {c.title}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Header */}
+        <div style={{ marginBottom: 56 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "0.65rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase", color: T.gold, marginBottom: 16 }}>
+            <span style={{ width: 18, height: 1, background: T.gold, opacity: .5, display: "block" }} />
+            {plan.company} · Kampanjidé {active + 1}
+          </div>
+          <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2.2rem,5vw,3.8rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 16 }}>
+            {campaign.title}
+          </h1>
+          <p style={{ fontSize: "0.82rem", fontWeight: 300, color: T.text3, letterSpacing: "0.04em" }}>
+            Kampanjbrief med mål, budskap, kanalval och CTA
+          </p>
+        </div>
+
+        {/* Content blocks */}
+        <div style={{ borderTop: `1px solid ${T.line}` }}>
+          {blocks.map(b => (
+            <div key={b.label} style={{ padding: "28px 0", borderBottom: `1px solid ${T.line}` }}>
+              <div style={{ fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 12 }}>{b.label}</div>
+              <p style={{ fontSize: "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8, maxWidth: 620, whiteSpace: "pre-line" }}>{b.content}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: "flex", gap: 10, marginTop: 36, flexWrap: "wrap" }}>
+          <button onClick={copyAll} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 24px", borderRadius: 2, border: "none", background: T.gold, color: T.bg, cursor: "pointer" }}>
+            {copied ? "✓ Kopierat" : "Kopiera kampanj"}
+          </button>
+          <button style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 18px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>Bra</button>
+          <button style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 18px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>Mindre bra</button>
+        </div>
+      </div>
+
+      <style>{`
+        @media (max-width: 640px) {
+          nav { padding: 0 20px !important; }
+          div[style*="padding: 60px 48px"] { padding: 40px 20px 80px !important; }
+        }
+      `}</style>
+    </main>
   );
 }
