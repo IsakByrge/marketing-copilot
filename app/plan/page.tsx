@@ -3,45 +3,56 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-type CompanyProfile = {
-  companyName: string;
-  industry: string;
-  summary: string;
-  customers: string[];
-  products: string[];
-  tone: string[];
-  strengths: string[];
-  avoid: string[];
-  contentGuidelines: string[];
+type MarketingPlan = {
+  company: string;
+  focus: string;
+  tags: string[];
+  posts: {
+    title: string;
+    text: string;
+    cta: string;
+    image: string;
+  }[];
+  newsletter: {
+    subject: string;
+    preview: string;
+    body: string;
+    cta: string;
+  };
+  campaigns: {
+    title: string;
+    goal: string;
+    message: string;
+    channels: string;
+    cta: string;
+  }[];
 };
 
-export default function ProfilePage() {
-  const [profile, setProfile] = useState<CompanyProfile | null>(null);
+export default function PlanPage() {
+  const [plan, setPlan] = useState<MarketingPlan | null>(null);
 
   useEffect(() => {
-    const savedProfile = localStorage.getItem(
-      "marketing-copilot-company-profile"
-    );
+    const savedPlan = localStorage.getItem("marketing-copilot-plan");
 
-    if (!savedProfile) return;
+    if (!savedPlan) return;
 
     try {
-      setProfile(JSON.parse(savedProfile));
+      setPlan(JSON.parse(savedPlan));
     } catch (error) {
       console.error(error);
     }
   }, []);
 
-  if (!profile) {
+  if (!plan) {
     return (
       <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
         <div className="mx-auto max-w-4xl">
-          <Link href="/onboarding" className="text-sm font-medium text-neutral-600">
-            ← Till onboarding
+          <Link href="/dashboard" className="text-sm font-medium text-neutral-600">
+            ← Till dashboard
           </Link>
 
           <p className="mt-16 text-xl">
-            Ingen AI-profil hittades. Gå tillbaka och analysera företaget.
+            Ingen plan hittades. Gå till dashboard och generera en plan.
           </p>
         </div>
       </main>
@@ -51,73 +62,89 @@ export default function ProfilePage() {
   return (
     <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
       <div className="mx-auto max-w-5xl">
-        <nav className="mb-20 flex items-center justify-between">
-          <Link href="/onboarding" className="text-sm font-medium text-neutral-600">
-            ← Redigera
-          </Link>
-
-          <Link
-            href="/dashboard"
-            className="rounded-full bg-[#111111] px-5 py-3 text-sm font-medium text-white"
-          >
-            Det stämmer
+        <nav className="mb-16 flex items-center justify-between">
+          <Link href="/dashboard" className="text-sm font-medium text-neutral-600">
+            ← Till dashboard
           </Link>
         </nav>
 
-        <section className="mb-20">
+        <section className="mb-16">
           <p className="mb-6 text-sm font-medium text-neutral-500">
-            AI-företagsprofil
+            Marknadsplan
           </p>
 
           <h1 className="max-w-4xl text-6xl font-semibold leading-[0.95] tracking-[-0.06em] md:text-8xl">
-            Vad AI vet om {profile.companyName}.
+            Din plan för {plan.company}.
           </h1>
 
           <p className="mt-10 max-w-3xl text-2xl leading-10 tracking-tight text-neutral-700 md:text-3xl md:leading-[1.35]">
-            {profile.summary}
+            {plan.focus}
           </p>
+
+          <div className="mt-8 flex flex-wrap gap-2">
+            {plan.tags.map((tag, index) => (
+              <span
+                key={`${tag}-${index}`}
+                className="rounded-full border border-black/10 px-4 py-2 text-sm text-neutral-600"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
         </section>
 
-        <section className="border-y border-black/10 py-12">
-          <ProfileSection title="Bransch" items={[profile.industry]} />
-          <ProfileSection title="Kunder" items={profile.customers} />
-          <ProfileSection title="Produkter och tjänster" items={profile.products} />
-          <ProfileSection title="Tonalitet" items={profile.tone} />
-          <ProfileSection title="Styrkor" items={profile.strengths} />
-          <ProfileSection title="Undvik" items={profile.avoid} />
-          <ProfileSection
-            title="Riktlinjer för innehåll"
-            items={profile.contentGuidelines}
-          />
+        <section className="grid gap-4">
+          {plan.posts.map((post, index) => (
+            <Link
+              key={`${post.title}-${index}`}
+              href={`/post/${index}`}
+              className="rounded-3xl border border-black/10 bg-white/60 p-8 transition hover:bg-white"
+            >
+              <p className="mb-3 text-sm font-medium text-neutral-400">
+                Inlägg {index + 1}
+              </p>
+
+              <h2 className="text-3xl font-semibold tracking-tight">
+                {post.title}
+              </h2>
+
+              <p className="mt-4 max-w-3xl text-lg leading-8 text-neutral-700">
+                {post.text}
+              </p>
+
+              <p className="mt-6 text-sm font-medium text-neutral-900">
+                {post.cta}
+              </p>
+            </Link>
+          ))}
+        </section>
+
+        <section className="mt-16 grid gap-4 md:grid-cols-2">
+          <Link
+            href="/newsletter"
+            className="rounded-3xl border border-black/10 bg-white/60 p-8 transition hover:bg-white"
+          >
+            <p className="mb-3 text-sm font-medium text-neutral-400">
+              Nyhetsbrev
+            </p>
+            <h2 className="text-3xl font-semibold tracking-tight">
+              {plan.newsletter?.subject ?? "Nyhetsbrev"}
+            </h2>
+          </Link>
+
+          <Link
+            href="/campaign"
+            className="rounded-3xl border border-black/10 bg-white/60 p-8 transition hover:bg-white"
+          >
+            <p className="mb-3 text-sm font-medium text-neutral-400">
+              Kampanj
+            </p>
+            <h2 className="text-3xl font-semibold tracking-tight">
+              {plan.campaigns?.[0]?.title ?? "Kampanj"}
+            </h2>
+          </Link>
         </section>
       </div>
     </main>
-  );
-}
-
-function ProfileSection({
-  title,
-  items,
-}: {
-  title: string;
-  items: string[];
-}) {
-  return (
-    <div className="grid gap-6 border-b border-black/10 py-10 last:border-b-0 md:grid-cols-[0.35fr_1fr]">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
-        {title}
-      </p>
-
-      <div className="space-y-3">
-        {items.map((item, index) => (
-          <p
-            key={`${item}-${index}`}
-            className="text-2xl leading-10 tracking-tight text-neutral-700"
-          >
-            {item}
-          </p>
-        ))}
-      </div>
-    </div>
   );
 }

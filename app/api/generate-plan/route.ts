@@ -63,6 +63,12 @@ ${(profile.avoid ?? []).map((item) => `- ${item}`).join("\n")}
 Riktlinjer för innehåll:
 ${(profile.contentGuidelines ?? []).map((item) => `- ${item}`).join("\n")}
 
+VIKTIGT:
+Planen får inte innehålla information som inte finns i profilen.
+Om företaget inte har angett ort, skriv inte ort.
+Om företaget inte har angett pris, rabatt eller kampanj, skriv inte pris, rabatt eller kampanj.
+Om företaget inte har angett garanti, skriv inte garanti.
+
 Returnera ENDAST giltig JSON i exakt denna struktur:
 
 {
@@ -98,15 +104,22 @@ Regler:
 - Skriv på svenska.
 - Skapa exakt 5 sociala inlägg.
 - Skapa exakt 2 kampanjer.
-- Hitta inte på fakta om orter, antal anläggningar, priser, erbjudanden, öppettider eller garantier.
+- All text måste följa tonaliteten från profilen.
+- Allt som står under "Ska undvika" är förbjudet att använda.
+- Innehållet måste följa riktlinjerna under "Riktlinjer för innehåll".
+- Bygg planen på företagets sammanfattning, kunder, produkter/tjänster och styrkor.
+- Hitta inte på fakta om orter, antal anläggningar, priser, rabatter, erbjudanden, öppettider, garantier, certifieringar eller specifika resultat.
 - Om något inte framgår av profilen, skriv generellt.
-- Följ tonaliteten från profilen.
-- Undvik allt som profilen säger att företaget vill undvika.
+- Använd inte emojis om profilen säger att emojis ska undvikas.
+- Använd inte engelska buzzwords om profilen säger att det ska undvikas.
+- Använd inte skämtsam ton om profilen säger att det ska undvikas.
+- Använd inte billigt säljspråk om profilen säger att det ska undvikas.
 - Gör innehållet konkret, praktiskt och användbart.
 - Undvik generiska AI-formuleringar som "i dagens digitala värld".
 - Varje socialt inlägg ska vara kort nog att kunna publiceras direkt.
-- CTA ska vara konkret men inte för pushig.
+- CTA ska vara konkret men inte pushig.
 - Bildidéerna ska vara realistiska och enkla att skapa.
+- Returnera endast JSON. Ingen markdown, inga kommentarer, ingen förklaring.
 `,
     });
 

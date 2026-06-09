@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 type MarketingPost = {
   title: string;
@@ -19,8 +19,9 @@ type MarketingPlan = {
 export default function PostPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = use(params);
   const [plan, setPlan] = useState<MarketingPlan | null>(null);
 
   useEffect(() => {
@@ -45,14 +46,18 @@ export default function PostPage({
     );
   }
 
-  const index = Number(params.id) - 1;
+  const index = Number(id);
   const post = plan.posts[index];
 
   if (!post) {
     return (
       <main className="min-h-screen bg-[#F8F6F2] px-6 py-8">
         <div className="mx-auto max-w-4xl">
-          <p>Inlägget kunde inte hittas.</p>
+          <Link href="/plan" className="text-sm font-medium text-neutral-600">
+            ← Till planen
+          </Link>
+
+          <p className="mt-16 text-xl">Inlägget kunde inte hittas.</p>
         </div>
       </main>
     );
@@ -62,10 +67,7 @@ export default function PostPage({
     <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
       <div className="mx-auto max-w-4xl">
         <nav className="mb-20 flex items-center justify-between">
-          <Link
-            href="/plan"
-            className="text-sm font-medium text-neutral-600"
-          >
+          <Link href="/plan" className="text-sm font-medium text-neutral-600">
             ← Till planen
           </Link>
 
@@ -76,7 +78,7 @@ export default function PostPage({
 
         <section className="mb-20">
           <p className="mb-6 text-sm font-medium text-neutral-500">
-            {plan.company} · Socialt inlägg 0{index + 1}
+            {plan.company} · Socialt inlägg {index + 1}
           </p>
 
           <h1 className="max-w-4xl text-6xl font-semibold leading-[0.95] tracking-[-0.06em] md:text-8xl">
@@ -89,17 +91,9 @@ export default function PostPage({
         </section>
 
         <section className="border-y border-black/10 py-12">
-          <ContentBlock label="Text">
-            {post.text}
-          </ContentBlock>
-
-          <ContentBlock label="CTA">
-            {post.cta}
-          </ContentBlock>
-
-          <ContentBlock label="Bildidé">
-            {post.image}
-          </ContentBlock>
+          <ContentBlock label="Text">{post.text}</ContentBlock>
+          <ContentBlock label="CTA">{post.cta}</ContentBlock>
+          <ContentBlock label="Bildidé">{post.image}</ContentBlock>
         </section>
 
         <section className="mt-12 flex flex-wrap gap-3">
@@ -108,11 +102,11 @@ export default function PostPage({
           </button>
 
           <button className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-medium">
-            👍 Bra
+            Bra
           </button>
 
           <button className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-medium">
-            👎 Mindre bra
+            Mindre bra
           </button>
         </section>
       </div>
