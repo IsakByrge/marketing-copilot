@@ -1,4 +1,3 @@
-import { setGeneratedPlan } from "@/lib/generatedPlan";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
@@ -6,70 +5,46 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-type GeneratePlanBody = {
-  company?: string;
-  industry?: string;
-  focus?: string;
-};
-
 export async function POST(request: Request) {
   try {
-    let body: GeneratePlanBody = {};
-
-    try {
-      body = await request.json();
-    } catch {
-      body = {};
-    }
-
-    const company = body.company ?? "Gasolfyllarna";
-    const industry = body.industry ?? "Gasol";
-    const focus = body.focus ?? "Sommarens gasolsäsong";
+    const body = await request.json();
 
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
-      input: [
-        {
-          role: "system",
-          content:
-            "Du är en svensk marknadschef för småföretag. Du returnerar alltid endast giltig JSON, utan markdown och utan förklarande text.",
-        },
-        {
-          role: "user",
-          content: `
-Skapa en veckoplan för:
+      input: `
+Du är en svensk marknadschef för småföretag.
 
-Företag: ${company}
-Bransch: ${industry}
-Fokus: ${focus}
+Skapa en veckoplan baserad på detta:
 
-Returnera exakt denna JSON-struktur:
+${JSON.stringify(body, null, 2)}
+
+Returnera endast giltig JSON i exakt denna struktur:
 
 {
-  "company": "Företagsnamn",
-  "focus": "Veckans fokus",
-  "tags": ["Tagg 1", "Tagg 2", "Tagg 3", "Tagg 4"],
+  "company": "",
+  "focus": "",
+  "tags": [],
   "posts": [
     {
-      "title": "Rubrik",
-      "text": "Inläggstext",
-      "cta": "Call to action",
-      "image": "Bildidé"
+      "title": "",
+      "text": "",
+      "cta": "",
+      "image": ""
     }
   ],
   "newsletter": {
-    "subject": "Ämnesrad",
-    "preview": "Förhandsvisningstext",
-    "body": "Nyhetsbrevets innehåll",
-    "cta": "Call to action"
+    "subject": "",
+    "preview": "",
+    "body": "",
+    "cta": ""
   },
   "campaigns": [
     {
-      "title": "Kampanjtitel",
-      "goal": "Mål",
-      "message": "Budskap",
-      "channels": "Kanaler",
-      "cta": "Call to action"
+      "title": "",
+      "goal": "",
+      "message": "",
+      "channels": "",
+      "cta": ""
     }
   ]
 }
@@ -78,28 +53,17 @@ Regler:
 - Skriv på svenska.
 - Skapa exakt 5 sociala inlägg.
 - Skapa exakt 2 kampanjer.
-- Var konkret, lokalt och praktiskt.
-- Undvik AI-känsla.
-- Undvik överdrivet säljspråk.
-- Skriv som en erfaren marknadschef, inte som en reklambyrå.
-- Returnera endast JSON.
+- Hitta inte på specifika fakta.
+- Undvik generiskt AI-språk.
 `,
-        },
-      ],
     });
 
-    const text = response.output_text;
-
-    console.log("OPENAI RESPONSE:");
-    console.log(text);
-
-    const cleanedText = text
+    const text = response.output_text
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
 
-    const plan = JSON.parse(cleanedText);
-setGeneratedPlan(plan);
+    const plan = JSON.parse(text);
 
     return NextResponse.json(plan);
   } catch (error) {

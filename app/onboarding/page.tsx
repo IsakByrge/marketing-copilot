@@ -31,7 +31,7 @@ export default function OnboardingPage() {
         "marketing-copilot-company-input",
         JSON.stringify(form)
       );
-
+localStorage.removeItem("marketing-copilot-plan");
       const response = await fetch("/api/analyze-company", {
         method: "POST",
         headers: {
