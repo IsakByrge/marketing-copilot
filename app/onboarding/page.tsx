@@ -1,208 +1,170 @@
-import Link from "next/link";
+"use client";
 
-const socialPosts = [
-  {
-    title: "5 tips för säker grillning i sommar",
-    text: "Sommaren är här och många plockar fram grillen. Kontrollera alltid slangar, kopplingar och gasolflaska innan du börjar grilla.",
-    cta: "Kom in till oss om du vill fylla på eller kontrollera din gasol.",
-    imageIdea: "En familj som grillar ute en sommarkväll.",
-  },
-  {
-    title: "Är gasolflaskan redo för semestern?",
-    text: "Innan du ger dig iväg med husbil eller husvagn är det klokt att se över gasolen. En snabb kontroll kan göra resan tryggare.",
-    cta: "Besök oss innan avresa.",
-    imageIdea: "Husbil på campingplats med gasolflaska i förgrunden.",
-  },
-  {
-    title: "Gasol till grill, camping och husbil",
-    text: "Vi hjälper dig med gasolpåfyllning inför sommarens grillkvällar, campingresor och utflykter.",
-    cta: "Fyll på hos oss idag.",
-    imageIdea: "Gasolflaskor uppradade i butiksmiljö.",
-  },
-  {
-    title: "Så förvarar du gasol säkert",
-    text: "Gasol ska alltid förvaras stående, ventilerat och skyddat från stark värme. En enkel vana som gör stor skillnad.",
-    cta: "Fråga oss gärna om säker gasolförvaring.",
-    imageIdea: "Ren och trygg förvaringsplats för gasol.",
-  },
-  {
-    title: "Dags att byta gasolflaska?",
-    text: "Osäker på om flaskan räcker till helgen? Kom förbi så hjälper vi dig att fylla på inför grillning, camping eller resa.",
-    cta: "Vi hjälper dig snabbt på plats.",
-    imageIdea: "Kund som lämnar in gasolflaska för påfyllning.",
-  },
-];
+import { useState } from "react";
 
-export default function PlanPage() {
+export default function OnboardingPage() {
+  const [form, setForm] = useState({
+    companyName: "",
+    website: "",
+    industry: "",
+    products: "",
+    customers: "",
+    tone: "",
+    avoid: "",
+    previousPosts: "",
+  });
+
+  function updateField(field: string, value: string) {
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  }
+
+  async function analyzeCompany() {
+    localStorage.setItem("marketing-copilot-company-input", JSON.stringify(form));
+    window.location.href = "/profile";
+  }
+
   return (
-    <main className="min-h-screen bg-[#F8F6F2] text-neutral-950">
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <Link href="/generating" className="text-sm text-neutral-600 hover:text-black">
-              ← Till dashboard
-            </Link>
-            <h1 className="mt-3 text-4xl font-bold tracking-tight text-neutral-950">
-              Veckans marknadsplan
-            </h1>
-            <p className="mt-2 max-w-2xl text-neutral-600">
-              Allt material är färdigt att granska, kopiera och publicera.
-            </p>
-          </div>
-
-          <div className="hidden rounded-2xl bg-white px-5 py-3 shadow-sm md:block">
-            <p className="text-sm text-neutral-500">Status</p>
-            <p className="font-semibold text-green-700">Redo</p>
-          </div>
-        </div>
-
-        <section className="mb-8 rounded-3xl bg-neutral-950 p-8 text-white">
-          <p className="mb-2 text-sm uppercase tracking-widest text-neutral-400">
-            Rekommenderat fokus
+    <main className="min-h-screen bg-[#F8F6F2] px-6 py-8 text-[#111111]">
+      <div className="mx-auto max-w-4xl">
+        <section className="mb-16">
+          <p className="mb-6 text-sm font-medium text-neutral-500">
+            Onboarding
           </p>
-          <h2 className="text-3xl font-bold">Sommarens gasolsäsong</h2>
-          <p className="mt-3 max-w-3xl text-neutral-300">
-            Den här veckan bör innehållet fokusera på grillning, camping,
-            husbil och säker gasolhantering inför semestern.
+
+          <h1 className="max-w-4xl text-6xl font-semibold leading-[0.95] tracking-[-0.06em] md:text-8xl">
+            Lär upp din AI-marknadschef.
+          </h1>
+
+          <p className="mt-10 max-w-3xl text-2xl leading-10 tracking-tight text-neutral-700 md:text-3xl md:leading-[1.35]">
+            Berätta hur företaget fungerar, vilka kunder ni hjälper och hur ni
+            vill låta. Det här blir grunden för allt innehåll.
           </p>
         </section>
 
-        <section className="mb-10">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-neutral-950">
-              5 sociala medier-inlägg
-            </h2>
-            <span className="rounded-full bg-white px-4 py-2 text-sm text-neutral-600 shadow-sm">
-              Facebook / Instagram
-            </span>
-          </div>
+        <section className="space-y-10 border-y border-black/10 py-12">
+          <Field
+            label="Företagsnamn"
+            placeholder="Ex. Gasolfyllarna"
+            value={form.companyName}
+            onChange={(value) => updateField("companyName", value)}
+          />
 
-          <div className="grid gap-5 lg:grid-cols-2">
-            {socialPosts.map((post, index) => (
-              <article key={post.title} className="rounded-3xl bg-white p-6 shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="rounded-full bg-[#EDF7EF] px-3 py-1 text-sm font-medium text-green-800">
-                    Inlägg {index + 1}
-                  </span>
-                  <div className="flex gap-2">
-                    <button className="rounded-full bg-neutral-100 px-3 py-1 text-sm text-neutral-700">
-                      👍
-                    </button>
-                    <button className="rounded-full bg-neutral-100 px-3 py-1 text-sm text-neutral-700">
-                      👎
-                    </button>
-                  </div>
-                </div>
+          <Field
+            label="Hemsida"
+            placeholder="Ex. https://gasolfyllarna.se"
+            value={form.website}
+            onChange={(value) => updateField("website", value)}
+          />
 
-                <h3 className="mb-3 text-xl font-bold text-neutral-950">
-                  {post.title}
-                </h3>
+          <Field
+            label="Bransch"
+            placeholder="Ex. Gasol, VVS, bilverkstad, webshop"
+            value={form.industry}
+            onChange={(value) => updateField("industry", value)}
+          />
 
-                <div className="space-y-4 text-neutral-700">
-                  <div>
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      Text
-                    </p>
-                    <p>{post.text}</p>
-                  </div>
+          <TextArea
+            label="Vad säljer ni?"
+            placeholder="Ex. Gasolpåfyllning, gasolflaskor och rådgivning kring säker gasolhantering."
+            value={form.products}
+            onChange={(value) => updateField("products", value)}
+          />
 
-                  <div>
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      CTA
-                    </p>
-                    <p>{post.cta}</p>
-                  </div>
+          <TextArea
+            label="Vilka är era kunder?"
+            placeholder="Ex. Campingägare, husbilsägare, grillkunder och privatpersoner som behöver fylla på gasol."
+            value={form.customers}
+            onChange={(value) => updateField("customers", value)}
+          />
 
-                  <div>
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      Bildidé
-                    </p>
-                    <p>{post.imageIdea}</p>
-                  </div>
-                </div>
+          <TextArea
+            label="Hur vill ni uppfattas?"
+            placeholder="Ex. Lokala, hjälpsamma, trygga, kunniga och enkla att ha att göra med."
+            value={form.tone}
+            onChange={(value) => updateField("tone", value)}
+          />
 
-                <button className="mt-5 w-full rounded-2xl bg-neutral-950 py-3 font-medium text-white">
-                  Kopiera text
-                </button>
-              </article>
-            ))}
-          </div>
+          <TextArea
+            label="Vad vill ni undvika?"
+            placeholder="Ex. Aggressivt säljspråk, clickbait, överdrivna erbjudanden och för mycket emojis."
+            value={form.avoid}
+            onChange={(value) => updateField("avoid", value)}
+          />
+
+          <TextArea
+            label="Klistra in tidigare inlägg"
+            placeholder="Klistra gärna in 3–5 tidigare inlägg, kampanjtexter eller nyhetsbrev så AI:n lär sig tonaliteten."
+            value={form.previousPosts}
+            onChange={(value) => updateField("previousPosts", value)}
+          />
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <article className="rounded-3xl bg-white p-6 shadow-sm">
-            <span className="rounded-full bg-[#EEF2FF] px-3 py-1 text-sm font-medium text-indigo-700">
-              Nyhetsbrev
-            </span>
-
-            <h2 className="mt-4 text-2xl font-bold text-neutral-950">
-              Sommarens checklista för säker gasol
-            </h2>
-
-            <div className="mt-5 space-y-4 text-neutral-700">
-              <p>
-                <strong>Ämnesrad:</strong> Är din gasol redo för sommaren?
-              </p>
-              <p>
-                <strong>Förhandsvisning:</strong> En enkel checklista inför grillning,
-                camping och semester.
-              </p>
-              <p>
-                Sommaren innebär mer grillning, fler resor och mer användning av
-                gasol. Därför är det ett bra tillfälle att kontrollera flaskor,
-                slangar och kopplingar innan semestern börjar.
-              </p>
-              <p>
-                Hos oss kan du få hjälp med gasolpåfyllning och råd kring säker
-                hantering.
-              </p>
-              <p>
-                <strong>CTA:</strong> Kom förbi innan semestern så hjälper vi dig.
-              </p>
-            </div>
-
-            <button className="mt-6 w-full rounded-2xl bg-neutral-950 py-3 font-medium text-white">
-              Kopiera nyhetsbrev
-            </button>
-          </article>
-
-          <article className="rounded-3xl bg-white p-6 shadow-sm">
-            <span className="rounded-full bg-[#FFF7ED] px-3 py-1 text-sm font-medium text-orange-700">
-              Kampanjidéer
-            </span>
-
-            <h2 className="mt-4 text-2xl font-bold text-neutral-950">
-              2 kampanjer för veckan
-            </h2>
-
-            <div className="mt-5 space-y-5">
-              <div className="rounded-2xl border border-neutral-200 p-4">
-                <h3 className="font-bold text-neutral-950">
-                  Semesterklar gasol
-                </h3>
-                <p className="mt-2 text-neutral-700">
-                  Erbjud snabb kontroll och påfyllning för husbils- och
-                  husvagnsägare inför semestern.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-neutral-200 p-4">
-                <h3 className="font-bold text-neutral-950">
-                  Grillhelg-kampanj
-                </h3>
-                <p className="mt-2 text-neutral-700">
-                  Påminn kunder om att fylla på gasol inför helgens grillning.
-                  Enkel kampanj med lokal räckvidd.
-                </p>
-              </div>
-            </div>
-
-            <button className="mt-6 w-full rounded-2xl bg-neutral-950 py-3 font-medium text-white">
-              Kopiera kampanjidéer
-            </button>
-          </article>
+        <section className="mt-12 flex justify-end">
+          <button
+            onClick={analyzeCompany}
+            className="rounded-full bg-[#111111] px-7 py-4 text-sm font-semibold text-white transition hover:bg-black/80"
+          >
+            Analysera företaget
+          </button>
         </section>
       </div>
     </main>
+  );
+}
+
+function Field({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-3 block text-sm font-medium text-neutral-500">
+        {label}
+      </label>
+
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full border-b border-black/10 bg-transparent py-4 text-2xl outline-none placeholder:text-neutral-400 focus:border-black"
+      />
+    </div>
+  );
+}
+
+function TextArea({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-3 block text-sm font-medium text-neutral-500">
+        {label}
+      </label>
+
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="min-h-32 w-full resize-none border-b border-black/10 bg-transparent py-4 text-2xl leading-10 outline-none placeholder:text-neutral-400 focus:border-black"
+      />
+    </div>
   );
 }
