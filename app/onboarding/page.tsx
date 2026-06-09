@@ -14,6 +14,8 @@ export default function OnboardingPage() {
     previousPosts: "",
   });
 
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
   function updateField(field: string, value: string) {
     setForm((prev) => ({
       ...prev,
@@ -22,8 +24,40 @@ export default function OnboardingPage() {
   }
 
   async function analyzeCompany() {
-    localStorage.setItem("marketing-copilot-company-input", JSON.stringify(form));
-    window.location.href = "/profile";
+    try {
+      setIsAnalyzing(true);
+
+      localStorage.setItem(
+        "marketing-copilot-company-input",
+        JSON.stringify(form)
+      );
+
+      const response = await fetch("/api/analyze-company", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        throw new Error("Kunde inte analysera företaget");
+      }
+
+      const profile = await response.json();
+
+      localStorage.setItem(
+        "marketing-copilot-company-profile",
+        JSON.stringify(profile)
+      );
+
+      window.location.href = "/profile";
+    } catch (error) {
+      console.error(error);
+      alert("Kunde inte analysera företaget.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   }
 
   return (
@@ -104,10 +138,12 @@ export default function OnboardingPage() {
 
         <section className="mt-12 flex justify-end">
           <button
+            type="button"
             onClick={analyzeCompany}
-            className="rounded-full bg-[#111111] px-7 py-4 text-sm font-semibold text-white transition hover:bg-black/80"
+            disabled={isAnalyzing}
+            className="rounded-full bg-[#111111] px-7 py-4 text-sm font-semibold text-white transition hover:bg-black/80 disabled:opacity-50"
           >
-            Analysera företaget
+            {isAnalyzing ? "Analyserar..." : "Analysera företaget"}
           </button>
         </section>
       </div>
