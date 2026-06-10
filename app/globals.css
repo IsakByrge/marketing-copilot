@@ -10,8 +10,8 @@
   --mc-gold:          #c9a96e;
   --mc-gold-dim:      rgba(201, 169, 110, 0.10);
   --mc-text:          #f5f0e8;
-  --mc-muted:         rgba(245, 240, 232, 0.55);
-  --mc-subtle:        rgba(245, 240, 232, 0.30);
+  --mc-muted:         rgba(245, 240, 232, 0.72);
+  --mc-subtle:        rgba(245, 240, 232, 0.45);
   --mc-border:        rgba(255, 248, 235, 0.08);
   --mc-border-strong: rgba(255, 248, 235, 0.13);
 }
