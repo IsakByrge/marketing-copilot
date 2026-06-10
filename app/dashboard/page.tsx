@@ -157,7 +157,14 @@ export default function DashboardPage() {
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
           <NavBtn active={view === "week"} onClick={() => setView("week")}>Veckoplan</NavBtn>
+          
           <NavBtn active={view === "brain"} onClick={() => setView("brain")}>Company Brain</NavBtn>
+<a href="/create" style={{ fontSize:"0.7rem", fontWeight:400, letterSpacing:"0.08em", textTransform:"uppercase", color:T.text3, textDecoration:"none", transition:"color .2s" }}
+  onMouseOver={e => (e.currentTarget as HTMLElement).style.color = T.gold}
+  onMouseOut={e => (e.currentTarget as HTMLElement).style.color = T.text3}
+>
+  Skapa nytt
+</a>
           <button onClick={generatePlan} disabled={isGenerating} style={{
             fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400,
             letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 16px",
