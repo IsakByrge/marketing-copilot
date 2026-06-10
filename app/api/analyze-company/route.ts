@@ -23,8 +23,6 @@ async function scrapeWebsite(url: string): Promise<string> {
     if (!res.ok) return "";
 
     const html = await res.text();
-
-    // Strip scripts, styles, nav, footer
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, "")
       .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -49,7 +47,6 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // Scrape website if provided
     let websiteContent = "";
     if (body.website?.trim()) {
       websiteContent = await scrapeWebsite(body.website);
@@ -57,10 +54,10 @@ export async function POST(request: Request) {
 
     const hasWebsiteContent = websiteContent.length > 100;
 
-    const prompt = `Du är expert på att analysera svenska företag för marknadsföringsändamål.
-Svara ALLTID med exakt giltig JSON — ingen förtext, inga backticks, inget annat. Svara på svenska.
+    const systemPrompt = `Du är expert på att analysera svenska företag för marknadsföringsändamål.
+Svara ALLTID med exakt giltig JSON — ingen förtext, inga backticks, inget annat. Svara på svenska.`;
 
-Analysera detta företag och bygg en detaljerad profil:
+    const userPrompt = `Analysera detta företag och bygg en detaljerad profil:
 
 Företagsnamn: ${body.companyName || ""}
 Bransch: ${body.industry || ""}
@@ -75,7 +72,7 @@ Returnera exakt denna JSON:
 {
   "companyName": "${body.companyName || ""}",
   "industry": "bransch (ett ord)",
-  "summary": "2-3 meningar som sammanfattar företaget så specifikt att ägaren känner igen sitt företag — inte en generisk beskrivning",
+  "summary": "2-3 meningar som sammanfattar företaget så specifikt att ägaren känner igen sitt företag",
   "customers": ["specifik kundtyp 1", "specifik kundtyp 2", "specifik kundtyp 3"],
   "products": ["specifik tjänst/produkt 1", "specifik tjänst/produkt 2", "specifik tjänst/produkt 3"],
   "tone": ["tonlägesord 1", "tonlägesord 2", "tonlägesord 3"],
@@ -84,18 +81,17 @@ Returnera exakt denna JSON:
   "contentGuidelines": ["riktlinje 1", "riktlinje 2", "riktlinje 3"]
 }`;
 
-    const response = await client.responses.create({
-      model: "gpt-4.1-mini",
-      input: prompt,
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
     });
 
-    const raw = response.output_text.replace(/```json|```/g, "").trim();
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON in response");
-
-    const profile = JSON.parse(match[0]);
-
-    // Attach metadata so frontend knows if website was scraped
+    const raw = response.choices[0]?.message?.content || "";
+    const profile = JSON.parse(raw);
     profile._websiteScraped = hasWebsiteContent;
 
     return NextResponse.json(profile);
