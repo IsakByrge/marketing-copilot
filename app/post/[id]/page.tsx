@@ -4,10 +4,10 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
 const T = {
-  bg: "#0a0908", surface: "#111009", surface2: "#181510",
-  line: "rgba(255,248,235,0.08)", line2: "rgba(255,248,235,0.13)",
-  text: "#f5f0e8", text2: "rgba(245,240,232,0.55)", text3: "rgba(245,240,232,0.30)",
-  gold: "#c9a96e", goldDim: "rgba(201,169,110,0.10)", goldBorder: "rgba(201,169,110,0.22)",
+  bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
+  line: "rgba(255,255,255,0.10)", line2: "rgba(255,255,255,0.18)",
+  text: "#ffffff", text2: "#cbd5e0", text3: "#a0aec0",
+  gold: "#c9a96e", goldDim: "rgba(201,169,110,0.15)", goldBorder: "rgba(201,169,110,0.30)",
 };
 
 type MarketingPost = { title: string; text: string; cta: string; image: string; };
@@ -67,7 +67,7 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
         position: "sticky", top: 0, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: `0 ${pad}px`, height: 56,
-        background: "rgba(10,9,8,0.92)", backdropFilter: "blur(20px)",
+        background: "rgba(42,47,58,0.95)", backdropFilter: "blur(20px)",
         borderBottom: `1px solid ${T.line}`,
         gap: 8,
       }}>

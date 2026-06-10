@@ -4,10 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const T = {
-  bg: "#0a0908", surface: "#111009", surface2: "#181510",
-  line: "rgba(255,248,235,0.08)", line2: "rgba(255,248,235,0.13)",
-  text: "#f5f0e8", text2: "rgba(245,240,232,0.55)", text3: "rgba(245,240,232,0.30)",
-  gold: "#c9a96e", goldDim: "rgba(201,169,110,0.10)", goldBorder: "rgba(201,169,110,0.22)",
+  bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
+  line: "rgba(255,255,255,0.10)", line2: "rgba(255,255,255,0.18)",
+  text: "#ffffff", text2: "#cbd5e0", text3: "#a0aec0",
+  gold: "#c9a96e", goldDim: "rgba(201,169,110,0.15)", goldBorder: "rgba(201,169,110,0.30)",
 };
 
 type ContentType = {
@@ -243,7 +243,7 @@ export default function CreatePage() {
         position: "sticky", top: 0, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: `0 ${pad}px`, height: 56,
-        background: "rgba(10,9,8,0.92)", backdropFilter: "blur(20px)",
+        background: "rgba(42,47,58,0.95)", backdropFilter: "blur(20px)",
         borderBottom: `1px solid ${T.line}`,
       }}>
         <a href="/dashboard" style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 500, fontSize: "1.1rem", letterSpacing: "0.08em", textTransform: "uppercase", color: T.text, textDecoration: "none" }}>
@@ -370,7 +370,7 @@ export default function CreatePage() {
         @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin { to{transform:rotate(360deg)} }
         @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:.3} }
-        textarea::placeholder { color: rgba(245,240,232,0.22); }
+        textarea::placeholder { color: #718096; }
       `}</style>
     </main>
   );

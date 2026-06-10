@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 const T = {
-  bg: "#0a0908", surface: "#111009", surface2: "#181510",
-  line: "rgba(255,248,235,0.08)", line2: "rgba(255,248,235,0.13)",
-  text: "#f5f0e8", text2: "rgba(245,240,232,0.55)", text3: "rgba(245,240,232,0.30)",
-  gold: "#c9a96e", goldDim: "rgba(201,169,110,0.10)", goldBorder: "rgba(201,169,110,0.22)",
+  bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
+  line: "rgba(255,255,255,0.10)", line2: "rgba(255,255,255,0.18)",
+  text: "#ffffff", text2: "#cbd5e0", text3: "#a0aec0",
+  gold: "#c9a96e", goldDim: "rgba(201,169,110,0.15)", goldBorder: "rgba(201,169,110,0.30)",
 };
 
 type CompanyProfile = {
@@ -147,7 +147,7 @@ export default function DashboardPage() {
         position: "sticky", top: 0, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: `0 ${pad}px`, height: 56,
-        background: "rgba(10,9,8,0.92)", backdropFilter: "blur(20px)",
+        background: "rgba(42,47,58,0.95)", backdropFilter: "blur(20px)",
         borderBottom: `1px solid ${T.line}`,
       }}>
         <button onClick={() => setView("week")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
@@ -192,7 +192,7 @@ export default function DashboardPage() {
       {isMobile && (
         <div style={{
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200,
-          display: "flex", background: "rgba(10,9,8,0.96)", backdropFilter: "blur(20px)",
+          display: "flex", background: "rgba(42,47,58,0.98)", backdropFilter: "blur(20px)",
           borderTop: `1px solid ${T.line}`,
         }}>
           {[

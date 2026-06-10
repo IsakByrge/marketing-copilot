@@ -214,3 +214,11 @@ a {
 .mc-muted  { color: var(--mc-muted); }
 .mc-subtle { color: var(--mc-subtle); }
 .mc-gold   { color: var(--mc-gold); }
+/* Onboarding readability */
+input, textarea {
+  color: #ffffff !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #a0aec0 !important;
+}
