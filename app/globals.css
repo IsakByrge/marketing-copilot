@@ -4,16 +4,16 @@
 
 /* ─── TOKENS ─────────────────────────────────────────── */
 :root {
-  --mc-bg:            #111111;
-  --mc-surface:       #1a1a1a;
-  --mc-surface-2:     #222222;
+  --mc-bg:            #2a2f3a;
+  --mc-surface:       #323845;
+  --mc-surface-2:     #3a4050;
   --mc-gold:          #c9a96e;
-  --mc-gold-dim:      rgba(201, 169, 110, 0.10);
-  --mc-text:          #f0f0f0;
-  --mc-muted:         rgba(240, 240, 240, 0.75);
-  --mc-subtle:        rgba(240, 240, 240, 0.48);
-  --mc-border:        rgba(255, 255, 255, 0.08);
-  --mc-border-strong: rgba(255, 255, 255, 0.14);
+  --mc-gold-dim:      rgba(201, 169, 110, 0.15);
+  --mc-text:          #ffffff;
+  --mc-muted:         #cbd5e0;
+  --mc-subtle:        #a0aec0;
+  --mc-border:        rgba(255, 255, 255, 0.10);
+  --mc-border-strong: rgba(255, 255, 255, 0.18);
 }
 
 /* ─── BASE ───────────────────────────────────────────── */

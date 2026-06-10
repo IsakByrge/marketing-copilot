@@ -31,8 +31,18 @@ export default function RootLayout({
     <html
       lang="sv"
       className={`h-full ${cormorant.variable} ${outfit.variable}`}
+      style={{ background: "#111111" }}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body
+        className="min-h-full flex flex-col"
+        style={{
+          background: "#111111",
+          color: "#f0f0f0",
+          minHeight: "100svh",
+        }}
+      >
+        {children}
+      </body>
     </html>
   );
 }
