@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const T = {
@@ -10,457 +10,366 @@ const T = {
   gold: "#c9a96e", goldDim: "rgba(201,169,110,0.10)", goldBorder: "rgba(201,169,110,0.22)",
 };
 
-type FormData = {
-  companyName: string;
-  industry: string;
-  description: string;
-  customers: string;
-  products: string;
-};
-
 type CompanyProfile = {
-  companyName: string;
-  industry: string;
-  summary: string;
-  customers: string[];
-  products: string[];
-  tone: string[];
-  strengths: string[];
-  avoid: string[];
-  contentGuidelines: string[];
+  companyName: string; industry: string; summary: string;
+  customers: string[]; products: string[]; tone: string[];
+  strengths: string[]; avoid: string[]; contentGuidelines: string[];
 };
 
-const INDUSTRIES = ["Bilverkstad","VVS","Elektriker","Måleri","Städ","Fastighetsservice","Redovisning","Gasol","Annat"];
-const CUSTOMER_EXAMPLES = ["Villaägare","Småföretag","Bilägare","Fastighetsägare","Privatpersoner","Företag"];
-const PRODUCT_EXAMPLES = ["Rekond","Lackskydd","Däckhotell","Serviceavtal","Installation","Service","Rådgivning"];
+const STEPS_WITH_WEBSITE = [
+  "Analyserar hemsida…",
+  "Identifierar kunder…",
+  "Identifierar produkter och tjänster…",
+  "Identifierar tonalitet…",
+  "Identifierar styrkor…",
+  "Bygger Company Brain…",
+];
 
-function Tag({ label, onClick, active }: { label: string; onClick: () => void; active?: boolean }) {
-  return (
-    <button onClick={onClick} style={{
-      fontSize: "0.78rem", fontWeight: 300, padding: "6px 14px", borderRadius: 2,
-      cursor: "pointer", transition: "all .15s",
-      background: active ? T.goldDim : T.surface2,
-      border: `1px solid ${active ? T.goldBorder : T.line2}`,
-      color: active ? T.gold : T.text2,
-    }}>
-      {label}
-    </button>
-  );
-}
+const STEPS_WITHOUT_WEBSITE = [
+  "Analyserar företagsbeskrivning…",
+  "Identifierar kunder…",
+  "Identifierar produkter och tjänster…",
+  "Identifierar tonalitet…",
+  "Bygger Company Brain…",
+];
 
-function Field({ label, value, onChange, placeholder, type = "input" }: {
-  label: string; value: string; onChange: (v: string) => void;
-  placeholder: string; type?: "input" | "textarea";
-}) {
+const PLAN_STEPS = [
+  "Skapar sociala medier…",
+  "Skriver nyhetsbrev…",
+  "Bygger kampanjförslag…",
+  "Identifierar möjligheter…",
+];
+
+// ── Shared components ─────────────────────────────────────
+
+function StepList({ steps, current }: { steps: string[]; current: number }) {
   return (
-    <div>
-      <label style={{ display: "block", fontSize: "0.67rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>
-        {label}
-      </label>
-      {type === "input" ? (
-        <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-          style={{ width: "100%", background: "transparent", border: "none", borderBottom: `1px solid ${T.line2}`, padding: "10px 0", outline: "none", fontSize: "1.1rem", fontWeight: 300, color: T.text, fontFamily: "var(--font-outfit), sans-serif", transition: "border-color .2s" }}
-          onFocus={e => e.target.style.borderBottomColor = T.gold}
-          onBlur={e => e.target.style.borderBottomColor = T.line2}
-        />
-      ) : (
-        <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={3}
-          style={{ width: "100%", background: "transparent", border: "none", borderBottom: `1px solid ${T.line2}`, padding: "10px 0", outline: "none", fontSize: "1.1rem", fontWeight: 300, color: T.text, fontFamily: "var(--font-outfit), sans-serif", resize: "none", lineHeight: 1.7, transition: "border-color .2s" }}
-          onFocus={e => e.target.style.borderBottomColor = T.gold}
-          onBlur={e => e.target.style.borderBottomColor = T.line2}
-        />
-      )}
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      {steps.map((s, i) => {
+        const done = i < current;
+        const active = i === current;
+        return (
+          <div key={i} style={{
+            display: "flex", alignItems: "center", gap: 16,
+            padding: "13px 18px", borderRadius: 2,
+            background: active ? T.goldDim : "transparent",
+            border: `1px solid ${active ? T.goldBorder : "transparent"}`,
+            opacity: i > current ? .25 : 1,
+            transition: "all .35s",
+          }}>
+            <div style={{
+              width: 22, height: 22, borderRadius: 2, flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: done ? T.goldDim : "transparent",
+              border: `1px solid ${done || active ? T.goldBorder : T.line2}`,
+              fontSize: "0.65rem", color: T.gold,
+            }}>
+              {done ? "✓" : active ? (
+                <div style={{ width: 8, height: 8, borderRadius: "50%", border: "1.5px solid rgba(201,169,110,.25)", borderTopColor: T.gold, animation: "spin .7s linear infinite" }} />
+              ) : null}
+            </div>
+            <span style={{ fontSize: "0.88rem", fontWeight: 300, color: done || active ? T.text : T.text3 }}>
+              {s}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function ProgressDots({ total, current }: { total: number; current: number }) {
-  return (
-    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      {Array.from({ length: total }).map((_, i) => (
-        <div key={i} style={{
-          width: i === current ? 20 : 6, height: 6, borderRadius: 3,
-          background: i <= current ? T.gold : T.line2,
-          opacity: i <= current ? 1 : .4,
-          transition: "all .3s",
-        }} />
-      ))}
-    </div>
-  );
-}
-
-function Btn({ children, onClick, disabled, full }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean; full?: boolean }) {
-  return (
-    <button onClick={onClick} disabled={disabled} style={{
-      fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.75rem", fontWeight: 400,
-      letterSpacing: "0.12em", textTransform: "uppercase" as const,
-      padding: "13px 28px", borderRadius: 2, border: "none",
-      background: disabled ? T.surface2 : T.gold,
-      color: disabled ? T.text3 : T.bg,
-      cursor: disabled ? "not-allowed" : "pointer",
-      transition: "all .2s", width: full ? "100%" : "auto",
-      display: "inline-flex", alignItems: "center", gap: 8,
-    }}>
-      {children}
-    </button>
-  );
-}
-
-// ── Screens ──────────────────────────────────────────────
-
-function Screen1({ data, setData, onNext }: { data: FormData; setData: (d: FormData) => void; onNext: () => void }) {
+// ── Screen 1: Input ───────────────────────────────────────
+function InputScreen({ onSubmit }: { onSubmit: (name: string, website: string, desc: string) => void }) {
+  const [name, setName] = useState("");
+  const [website, setWebsite] = useState("");
+  const [desc, setDesc] = useState("");
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+  const canSubmit = name.trim() && desc.trim();
+
   return (
     <div style={{ animation: "fadeUp .5s ease both" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 20 }}>
-        <span style={{ width: 16, height: 1, background: T.gold, opacity: .5, display: "block" }} />
-        Onboarding · Steg 1 av 3
-      </div>
-      <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: isMobile ? "clamp(2rem,8vw,2.8rem)" : "clamp(2.4rem,5vw,3.5rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 14 }}>
-        Låt AI:n lära känna<br /><em style={{ color: T.gold, fontStyle: "italic" }}>ditt företag.</em>
-      </h1>
-      <p style={{ fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, marginBottom: 48, maxWidth: 440 }}>
-        Svara på några enkla frågor. På två minuter bygger vi en Company Brain som används för all marknadsföring.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 32, marginBottom: 48 }}>
-        <Field label="Företagsnamn" value={data.companyName} onChange={v => setData({ ...data, companyName: v })} placeholder="t.ex. Isaks Bilvård" />
-        <div>
-          <label style={{ display: "block", fontSize: "0.67rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 12 }}>Bransch</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {INDUSTRIES.map(b => (
-              <Tag key={b} label={b} active={data.industry === b} onClick={() => setData({ ...data, industry: b })} />
-            ))}
-          </div>
+      <div style={{ marginBottom: 48 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 20 }}>
+          <span style={{ width: 16, height: 1, background: T.gold, opacity: .5, display: "block" }} />
+          Company Brain
         </div>
-        <Field label="Kort beskrivning" value={data.description} onChange={v => setData({ ...data, description: v })} placeholder="t.ex. Vi erbjuder professionell bilvård för privatpersoner och företag i Stockholm." type="textarea" />
+        <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: isMobile ? "clamp(2.2rem,9vw,3rem)" : "clamp(2.6rem,5vw,3.8rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 16 }}>
+          Låt AI:n lära känna<br /><em style={{ color: T.gold, fontStyle: "italic" }}>ditt företag.</em>
+        </h1>
+        <p style={{ fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, maxWidth: 440 }}>
+          Svara på några enkla frågor. På mindre än två minuter bygger vi en Company Brain som driver all din marknadsföring.
+        </p>
       </div>
-      <Btn onClick={onNext} disabled={!data.companyName || !data.industry}>Fortsätt →</Btn>
-    </div>
-  );
-}
 
-function Screen2({ data, setData, onNext, onBack }: { data: FormData; setData: (d: FormData) => void; onNext: () => void; onBack: () => void }) {
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  function toggleExample(ex: string) {
-    const current = data.customers;
-    if (current.includes(ex)) {
-      setData({ ...data, customers: current.replace(ex, "").replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim() });
-    } else {
-      setData({ ...data, customers: current ? `${current}, ${ex}` : ex });
-    }
-  }
-  return (
-    <div style={{ animation: "fadeUp .5s ease both" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 20 }}>
-        <span style={{ width: 16, height: 1, background: T.gold, opacity: .5, display: "block" }} />
-        Onboarding · Steg 2 av 3
-      </div>
-      <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: isMobile ? "clamp(2rem,8vw,2.8rem)" : "clamp(2.4rem,5vw,3.5rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 14 }}>
-        Vilka <em style={{ color: T.gold, fontStyle: "italic" }}>hjälper ni?</em>
-      </h1>
-      <p style={{ fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, marginBottom: 48, maxWidth: 440 }}>
-        Beskriv era kunder med egna ord.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 48 }}>
-        <Field label="Vilka är era vanligaste kunder?" value={data.customers} onChange={v => setData({ ...data, customers: v })} placeholder="t.ex. Privatpersoner med bil, småföretagare" type="textarea" />
+      <div style={{ display: "flex", flexDirection: "column", gap: 36, marginBottom: 48 }}>
+
+        {/* Företagsnamn */}
         <div>
-          <div style={{ fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>Snabbval</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {CUSTOMER_EXAMPLES.map(ex => (
-              <Tag key={ex} label={ex} active={data.customers.includes(ex)} onClick={() => toggleExample(ex)} />
-            ))}
-          </div>
+          <label style={{ display: "block", fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>Företagsnamn</label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="t.ex. Lindqvists VVS"
+            style={{ width: "100%", background: "transparent", border: "none", borderBottom: `1px solid ${T.line2}`, padding: "10px 0", outline: "none", fontSize: "1.1rem", fontWeight: 300, color: T.text, fontFamily: "var(--font-outfit), sans-serif", transition: "border-color .2s" }}
+            onFocus={e => e.target.style.borderBottomColor = T.gold}
+            onBlur={e => e.target.style.borderBottomColor = T.line2}
+          />
+        </div>
+
+        {/* Hemsida */}
+        <div>
+          <label style={{ display: "block", fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>
+            Hemsida <span style={{ color: T.text3, fontStyle: "italic", textTransform: "none", letterSpacing: 0 }}>— valfritt men rekommenderat</span>
+          </label>
+          <input value={website} onChange={e => setWebsite(e.target.value)} placeholder="t.ex. lindqvistsvvs.se"
+            style={{ width: "100%", background: "transparent", border: "none", borderBottom: `1px solid ${T.line2}`, padding: "10px 0", outline: "none", fontSize: "1.1rem", fontWeight: 300, color: T.text, fontFamily: "var(--font-outfit), sans-serif", transition: "border-color .2s" }}
+            onFocus={e => e.target.style.borderBottomColor = T.gold}
+            onBlur={e => e.target.style.borderBottomColor = T.line2}
+          />
+          {website.trim() ? (
+            <p style={{ marginTop: 8, fontSize: "0.75rem", fontWeight: 300, color: T.gold, display: "flex", alignItems: "center", gap: 6 }}>
+              <span>✓</span> AI:n kommer analysera din hemsida för en mer träffsäker Company Brain
+            </p>
+          ) : (
+            <p style={{ marginTop: 8, fontSize: "0.75rem", fontWeight: 300, color: T.text3, lineHeight: 1.6 }}>
+              Om du anger din hemsida kan AI:n analysera innehållet och skapa en mer träffsäker Company Brain.
+            </p>
+          )}
+        </div>
+
+        {/* Beskrivning */}
+        <div>
+          <label style={{ display: "block", fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>Berätta om företaget</label>
+          <textarea value={desc} onChange={e => setDesc(e.target.value)}
+            placeholder="Vad gör ni, vilka kunder hjälper ni och hur vill ni uppfattas? Skriv fritt med egna ord."
+            rows={4}
+            style={{ width: "100%", background: "transparent", border: "none", borderBottom: `1px solid ${T.line2}`, padding: "10px 0", outline: "none", fontSize: "1rem", fontWeight: 300, color: T.text, fontFamily: "var(--font-outfit), sans-serif", resize: "none", lineHeight: 1.75, transition: "border-color .2s" }}
+            onFocus={e => e.target.style.borderBottomColor = T.gold}
+            onBlur={e => e.target.style.borderBottomColor = T.line2}
+          />
         </div>
       </div>
-      <div style={{ display: "flex", gap: 10 }}>
-        <button onClick={onBack} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase" as const, padding: "13px 20px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>← Tillbaka</button>
-        <Btn onClick={onNext} disabled={!data.customers.trim()}>Fortsätt →</Btn>
-      </div>
+
+      <button onClick={() => onSubmit(name, website, desc)} disabled={!canSubmit} style={{
+        fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.78rem", fontWeight: 400,
+        letterSpacing: "0.12em", textTransform: "uppercase" as const,
+        padding: "14px 32px", borderRadius: 2, border: "none",
+        background: canSubmit ? T.gold : T.surface2,
+        color: canSubmit ? T.bg : T.text3,
+        cursor: canSubmit ? "pointer" : "not-allowed",
+        transition: "all .2s", width: isMobile ? "100%" : "auto",
+      }}>
+        Bygg Company Brain →
+      </button>
     </div>
   );
 }
 
-function Screen3({ data, setData, onNext, onBack }: { data: FormData; setData: (d: FormData) => void; onNext: () => void; onBack: () => void }) {
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  function toggleExample(ex: string) {
-    const current = data.products;
-    if (current.includes(ex)) {
-      setData({ ...data, products: current.replace(ex, "").replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim() });
-    } else {
-      setData({ ...data, products: current ? `${current}, ${ex}` : ex });
-    }
-  }
-  return (
-    <div style={{ animation: "fadeUp .5s ease both" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 20 }}>
-        <span style={{ width: 16, height: 1, background: T.gold, opacity: .5, display: "block" }} />
-        Onboarding · Steg 3 av 3
-      </div>
-      <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: isMobile ? "clamp(2rem,8vw,2.8rem)" : "clamp(2.4rem,5vw,3.5rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 14 }}>
-        Vad <em style={{ color: T.gold, fontStyle: "italic" }}>erbjuder ni?</em>
-      </h1>
-      <p style={{ fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, marginBottom: 48, maxWidth: 440 }}>
-        Berätta vilka produkter eller tjänster ni säljer.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 48 }}>
-        <Field label="Produkter och tjänster" value={data.products} onChange={v => setData({ ...data, products: v })} placeholder="t.ex. Rekond, lackskydd, däckhotell och serviceavtal" type="textarea" />
-        <div>
-          <div style={{ fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>Snabbval</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {PRODUCT_EXAMPLES.map(ex => (
-              <Tag key={ex} label={ex} active={data.products.includes(ex)} onClick={() => toggleExample(ex)} />
-            ))}
-          </div>
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 10 }}>
-        <button onClick={onBack} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase" as const, padding: "13px 20px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>← Tillbaka</button>
-        <Btn onClick={onNext} disabled={!data.products.trim()}>Bygg Company Brain →</Btn>
-      </div>
-    </div>
-  );
-}
+// ── Screen 2: Building ────────────────────────────────────
+function BuildingScreen({ hasWebsite }: { hasWebsite: boolean }) {
+  const [step, setStep] = useState(0);
+  const steps = hasWebsite ? STEPS_WITH_WEBSITE : STEPS_WITHOUT_WEBSITE;
 
-function Screen4() {
-  const steps = [
-    "Analyserar kunder…",
-    "Identifierar tjänster…",
-    "Skapar tonalitet…",
-    "Bygger Company Brain…",
-  ];
-  const [current, setCurrent] = useState(0);
-  useState(() => {
-    const interval = setInterval(() => setCurrent(p => Math.min(p + 1, steps.length - 1)), 700);
-    return () => clearInterval(interval);
-  });
+  useEffect(() => {
+    const t = setInterval(() => setStep(p => Math.min(p + 1, steps.length - 1)), hasWebsite ? 550 : 650);
+    return () => clearInterval(t);
+  }, []);
+
   return (
     <div style={{ animation: "fadeUp .5s ease both" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 20 }}>
-        <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.gold, animation: "pulseDot 1.5s ease infinite" }} />
-        AI-analys pågår
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 24 }}>
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.gold, animation: "pulseDot 1.4s ease infinite" }} />
+        Bygger Company Brain
       </div>
-      <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2rem,5vw,3rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 14 }}>
+      <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2.2rem,5vw,3.2rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 16 }}>
         AI:n analyserar<br /><em style={{ color: T.gold, fontStyle: "italic" }}>ditt företag.</em>
       </h1>
       <p style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, marginBottom: 48, maxWidth: 400 }}>
-        AI:n bygger grunden för all framtida marknadsföring.
+        AI:n {hasWebsite ? "läser din hemsida och " : ""}analyserar företaget och bygger grunden för all framtida marknadsföring.
       </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {steps.map((s, i) => (
-          <div key={i} style={{
-            display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 2,
-            background: i === current ? T.goldDim : "transparent",
-            border: `1px solid ${i === current ? T.goldBorder : "transparent"}`,
-            opacity: i > current ? .3 : 1, transition: "all .3s",
-          }}>
-            <div style={{ width: 20, height: 20, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", background: i < current ? T.goldDim : "transparent", border: `1px solid ${i <= current ? T.goldBorder : T.line2}`, fontSize: "0.65rem", color: T.gold, flexShrink: 0 }}>
-              {i < current ? "✓" : i === current ? <div style={{ width: 8, height: 8, borderRadius: "50%", border: "1.5px solid rgba(201,169,110,.3)", borderTopColor: T.gold, animation: "spin .7s linear infinite" }} /> : ""}
-            </div>
-            <span style={{ fontSize: "0.85rem", fontWeight: 300, color: i <= current ? T.text : T.text3 }}>{s}</span>
-          </div>
-        ))}
-      </div>
+      <StepList steps={steps} current={step} />
     </div>
   );
 }
 
-function Screen5({ profile, onNext }: { profile: CompanyProfile | null; onNext: () => void }) {
+// ── Screen 3: Brain reveal ────────────────────────────────
+function BrainScreen({ profile, onCreatePlan }: { profile: CompanyProfile; onCreatePlan: () => void }) {
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  if (!profile) return null;
 
   const fields = [
-    ["Bransch", profile.industry],
-    ["Kunder", profile.customers?.join(", ")],
-    ["Tjänster", profile.products?.join(", ")],
-    ["Tonläge", profile.tone?.join(", ")],
-    ["Styrkor", profile.strengths?.join(", ")],
-  ].filter(([, v]) => v);
+    { label: "Bransch", value: profile.industry },
+    { label: "Kunder", value: profile.customers?.join(", ") },
+    { label: "Tjänster", value: profile.products?.join(", ") },
+    { label: "Tonläge", value: profile.tone?.join(", ") },
+    { label: "Styrkor", value: profile.strengths?.join(", ") },
+    { label: "Riktlinjer", value: profile.contentGuidelines?.join(", ") },
+  ].filter(f => f.value);
 
   return (
-    <div style={{ animation: "fadeUp .5s ease both" }}>
+    <div style={{ animation: "fadeUp .55s ease both" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 20 }}>
-        <span style={{ width: 16, height: 1, background: T.gold, opacity: .5, display: "block" }} />
-        Company Brain
+        <span>✓</span> Company Brain klar
       </div>
-      <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: isMobile ? "clamp(2rem,8vw,2.8rem)" : "clamp(2.4rem,5vw,3.2rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 14 }}>
+
+      <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: isMobile ? "clamp(2rem,8vw,2.8rem)" : "clamp(2.4rem,5vw,3.4rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 28 }}>
         AI:n har förstått<br /><em style={{ color: T.gold, fontStyle: "italic" }}>{profile.companyName}.</em>
       </h1>
 
-      {/* Summary quote */}
-      <div style={{ background: T.surface, border: `1px solid ${T.line2}`, borderRadius: 2, padding: "20px 24px", marginBottom: 32, marginTop: 24 }}>
-        <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>Sammanfattning</div>
-        <p style={{ fontFamily: "var(--font-cormorant), serif", fontSize: "1.15rem", fontWeight: 400, fontStyle: "italic", color: T.text, lineHeight: 1.6 }}>
+      {/* Summary — the "wow" moment */}
+      <div style={{ background: T.surface, border: `1px solid ${T.goldBorder}`, borderRadius: 2, padding: "24px 28px", marginBottom: 32, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent, ${T.gold}, transparent)`, opacity: .5 }} />
+        <div style={{ fontSize: "0.6rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 12, opacity: .7 }}>Sammanfattning</div>
+        <p style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 400, fontStyle: "italic", fontSize: isMobile ? "1.1rem" : "1.25rem", lineHeight: 1.65, color: T.text }}>
           "{profile.summary}"
         </p>
       </div>
 
       {/* Fields */}
       <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 40 }}>
-        {fields.map(([label, value]) => (
-          <div key={label} style={{ display: "flex", gap: 20, padding: "14px 0", borderBottom: `1px solid ${T.line}`, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 4 : 20 }}>
-            <span style={{ fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: T.text3, width: isMobile ? "auto" : 100, flexShrink: 0 }}>{label}</span>
-            <span style={{ fontSize: "0.85rem", fontWeight: 300, color: T.text2, lineHeight: 1.65 }}>{value}</span>
+        {fields.map(f => (
+          <div key={f.label} style={{
+            display: "grid", gridTemplateColumns: isMobile ? "1fr" : "100px 1fr",
+            gap: isMobile ? 4 : 20, padding: "15px 0", borderBottom: `1px solid ${T.line}`,
+          }}>
+            <span style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: T.text3, paddingTop: 2 }}>{f.label}</span>
+            <span style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2, lineHeight: 1.7 }}>{f.value}</span>
           </div>
         ))}
       </div>
 
-      <Btn onClick={onNext} full>Skapa veckoplan →</Btn>
+      <button onClick={onCreatePlan} style={{
+        fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.78rem", fontWeight: 400,
+        letterSpacing: "0.12em", textTransform: "uppercase" as const,
+        padding: "14px 32px", borderRadius: 2, border: "none",
+        background: T.gold, color: T.bg, cursor: "pointer",
+        transition: "all .2s", width: isMobile ? "100%" : "auto",
+      }}>
+        Skapa veckoplan →
+      </button>
     </div>
   );
 }
 
-function Screen6() {
-  const steps = ["Skapar sociala medier…", "Skriver nyhetsbrev…", "Bygger kampanjer…", "Skapar möjligheter…"];
-  const [current, setCurrent] = useState(0);
-  useState(() => {
-    const interval = setInterval(() => setCurrent(p => Math.min(p + 1, steps.length - 1)), 900);
-    return () => clearInterval(interval);
-  });
+// ── Screen 4: Generating plan ─────────────────────────────
+function GeneratingScreen() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setStep(p => Math.min(p + 1, PLAN_STEPS.length - 1)), 950);
+    return () => clearInterval(t);
+  }, []);
+
   return (
     <div style={{ animation: "fadeUp .5s ease both" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 20 }}>
-        <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.gold, animation: "pulseDot 1.5s ease infinite" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 24 }}>
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.gold, animation: "pulseDot 1.4s ease infinite" }} />
         Genererar veckoplan
       </div>
-      <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2rem,5vw,3rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 14 }}>
-        AI:n bygger din<br /><em style={{ color: T.gold, fontStyle: "italic" }}>första marknadsplan.</em>
+      <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2.2rem,5vw,3.2rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 16 }}>
+        Bygger din första<br /><em style={{ color: T.gold, fontStyle: "italic" }}>marknadsplan.</em>
       </h1>
-      <p style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, marginBottom: 48, maxWidth: 400 }}>
-        Baserat på din Company Brain skapas nu färdigt innehåll för veckan.
+      <p style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, marginBottom: 48, maxWidth: 380 }}>
+        AI:n bygger din första marknadsplan baserat på din Company Brain.
       </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {steps.map((s, i) => (
-          <div key={i} style={{
-            display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 2,
-            background: i === current ? T.goldDim : "transparent",
-            border: `1px solid ${i === current ? T.goldBorder : "transparent"}`,
-            opacity: i > current ? .3 : 1, transition: "all .3s",
-          }}>
-            <div style={{ width: 20, height: 20, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", background: i < current ? T.goldDim : "transparent", border: `1px solid ${i <= current ? T.goldBorder : T.line2}`, fontSize: "0.65rem", color: T.gold, flexShrink: 0 }}>
-              {i < current ? "✓" : i === current ? <div style={{ width: 8, height: 8, borderRadius: "50%", border: "1.5px solid rgba(201,169,110,.3)", borderTopColor: T.gold, animation: "spin .7s linear infinite" }} /> : ""}
-            </div>
-            <span style={{ fontSize: "0.85rem", fontWeight: 300, color: i <= current ? T.text : T.text3 }}>{s}</span>
-          </div>
-        ))}
-      </div>
+      <StepList steps={PLAN_STEPS} current={step} />
     </div>
   );
 }
 
-// ── Main ──────────────────────────────────────────────────
-
+// ── Root ──────────────────────────────────────────────────
 export default function OnboardingPage() {
   const router = useRouter();
-  const [screen, setScreen] = useState(1);
-  const [data, setData] = useState<FormData>({ companyName: "", industry: "", description: "", customers: "", products: "" });
+  const [screen, setScreen] = useState<"input" | "building" | "brain" | "generating">("input");
+  const [hasWebsite, setHasWebsite] = useState(false);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
-
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
   const pad = isMobile ? 20 : 56;
 
-  const progress = screen <= 3 ? ((screen - 1) / 2) * 100 : 100;
+  async function handleSubmit(name: string, website: string, desc: string) {
+    const trimmedSite = website.trim();
+    setHasWebsite(!!trimmedSite);
+    setScreen("building");
 
-  async function analyzeCompany() {
-    setScreen(4);
-    try {
-      localStorage.setItem("marketing-copilot-company-input", JSON.stringify({
-        companyName: data.companyName,
-        website: "",
-        industry: data.industry,
-        products: data.products,
-        customers: data.customers,
-        tone: "",
-        avoid: "",
-        previousPosts: data.description,
-      }));
-      const res = await fetch("/api/analyze-company", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyName: data.companyName,
-          industry: data.industry,
-          products: data.products,
-          customers: data.customers,
-          description: data.description,
-        }),
-      });
-      if (!res.ok) throw new Error();
-      const result = await res.json();
-      localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(result));
-      setProfile(result);
-      setTimeout(() => setScreen(5), 800);
-    } catch {
-      // fallback profile
-      const fallback: CompanyProfile = {
-        companyName: data.companyName,
-        industry: data.industry,
-        summary: `${data.companyName} erbjuder ${data.products} till ${data.customers}.`,
-        customers: data.customers.split(",").map(s => s.trim()).filter(Boolean),
-        products: data.products.split(",").map(s => s.trim()).filter(Boolean),
-        tone: ["Professionellt", "Hjälpsamt", "Tillgängligt"],
-        strengths: ["Lokalt", "Kunnigt", "Pålitligt"],
-        avoid: ["Aggressivt säljspråk"],
-        contentGuidelines: ["Konkret och faktabaserat"],
-      };
-      localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(fallback));
-      setProfile(fallback);
-      setTimeout(() => setScreen(5), 800);
-    }
+    const input = {
+      companyName: name, website: trimmedSite, industry: "", products: "",
+      customers: "", description: desc, tone: "", avoid: "", previousPosts: desc,
+    };
+    localStorage.setItem("marketing-copilot-company-input", JSON.stringify(input));
+
+    // Minimum animation time
+    const [result] = await Promise.all([
+      fetch("/api/analyze-company", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }).then(r => r.json()).catch(() => null),
+      new Promise(r => setTimeout(r, trimmedSite ? 3800 : 3200)),
+    ]);
+
+    const p: CompanyProfile = result || {
+      companyName: name, industry: "",
+      summary: `${name} hjälper sina kunder med professionella tjänster och lösningar.`,
+      customers: ["Privatpersoner", "Företag"],
+      products: [desc.split(" ").slice(0, 5).join(" ")],
+      tone: ["Professionellt", "Tillgängligt"],
+      strengths: ["Lokalt", "Kunnigt"],
+      avoid: ["Aggressivt säljspråk"],
+      contentGuidelines: ["Konkret och faktabaserat"],
+    };
+
+    localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(p));
+    setProfile(p);
+    setScreen("brain");
   }
 
-  async function generatePlan() {
-    setScreen(6);
-    try {
-      const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
-      const companyProfile = savedProfile ? JSON.parse(savedProfile) : profile;
-      const res = await fetch("/api/generate-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+  async function handleCreatePlan() {
+    setScreen("generating");
+
+    const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
+    const companyProfile = savedProfile ? JSON.parse(savedProfile) : profile;
+
+    const [result] = await Promise.all([
+      fetch("/api/generate-plan", {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyProfile }),
-      });
-      if (!res.ok) throw new Error();
-      const plan = await res.json();
-      localStorage.setItem("marketing-copilot-plan", JSON.stringify({ id: "ai-generated-plan", ...plan }));
-      setTimeout(() => router.push("/dashboard"), 800);
-    } catch {
-      setTimeout(() => router.push("/dashboard"), 1200);
+      }).then(r => r.json()).catch(() => null),
+      new Promise(r => setTimeout(r, 4200)),
+    ]);
+
+    if (result) {
+      localStorage.setItem("marketing-copilot-plan", JSON.stringify({ id: "ai-generated-plan", ...result }));
     }
+
+    router.push("/dashboard");
   }
 
   return (
     <main style={{ minHeight: "100svh", background: T.bg }}>
-
-      {/* Nav */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${pad}px`, height: 56, background: "rgba(10,9,8,0.92)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${T.line}` }}>
+      <nav style={{
+        position: "sticky", top: 0, zIndex: 100,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: `0 ${pad}px`, height: 56,
+        background: "rgba(10,9,8,0.92)", backdropFilter: "blur(20px)",
+        borderBottom: `1px solid ${T.line}`,
+      }}>
         <span style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 500, fontSize: "1.1rem", letterSpacing: "0.08em", textTransform: "uppercase", color: T.text }}>
           Marketing<span style={{ color: T.gold }}>Copilot</span>
         </span>
-        {screen <= 3 && <ProgressDots total={3} current={screen - 1} />}
+        <div style={{ fontSize: "0.68rem", fontWeight: 300, color: screen === "brain" ? T.gold : T.text3, letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: 6 }}>
+          {screen === "input" && "Under 2 minuter"}
+          {(screen === "building" || screen === "generating") && <><div style={{ width: 5, height: 5, borderRadius: "50%", background: T.gold, animation: "pulseDot 1.4s ease infinite" }} />Arbetar…</>}
+          {screen === "brain" && <><span>✓</span> Company Brain klar</>}
+        </div>
       </nav>
 
-      {/* Progress bar */}
-      <div style={{ height: 2, background: T.line }}>
-        <div style={{ height: "100%", background: T.gold, opacity: .5, width: `${progress}%`, transition: "width .5s ease" }} />
-      </div>
-
-      {/* Content */}
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: `60px ${pad}px 100px` }}>
-        {screen === 1 && <Screen1 data={data} setData={setData} onNext={() => setScreen(2)} />}
-        {screen === 2 && <Screen2 data={data} setData={setData} onNext={() => setScreen(3)} onBack={() => setScreen(1)} />}
-        {screen === 3 && <Screen3 data={data} setData={setData} onNext={analyzeCompany} onBack={() => setScreen(2)} />}
-        {screen === 4 && <Screen4 />}
-        {screen === 5 && <Screen5 profile={profile} onNext={generatePlan} />}
-        {screen === 6 && <Screen6 />}
+      <div style={{ maxWidth: 580, margin: "0 auto", padding: `64px ${pad}px 100px` }}>
+        {screen === "input" && <InputScreen onSubmit={handleSubmit} />}
+        {screen === "building" && <BuildingScreen hasWebsite={hasWebsite} />}
+        {screen === "brain" && profile && <BrainScreen profile={profile} onCreatePlan={handleCreatePlan} />}
+        {screen === "generating" && <GeneratingScreen />}
       </div>
 
       <style>{`
-        @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin { to{transform:rotate(360deg)} }
         @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:.3} }
-        input::placeholder, textarea::placeholder { color: rgba(245,240,232,0.28); }
-        @media (max-width: 640px) {
-          nav { padding: 0 20px !important; }
-        }
+        input::placeholder, textarea::placeholder { color: rgba(245,240,232,0.22); }
       `}</style>
     </main>
   );
