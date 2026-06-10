@@ -17,10 +17,15 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   const { id } = use(params);
   const [plan, setPlan] = useState<MarketingPlan | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("marketing-copilot-plan");
     if (saved) try { setPlan(JSON.parse(saved)); } catch {}
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, []);
 
   function copyPost() {
@@ -31,7 +36,7 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   }
 
   if (!plan) return (
-    <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 48px" }}>
+    <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 20px" }}>
       <p style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2 }}>Laddar inlägg…</p>
     </main>
   );
@@ -40,11 +45,13 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   const post = plan.posts[index];
 
   if (!post) return (
-    <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 48px" }}>
+    <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 20px" }}>
       <Link href="/plan" style={{ fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, textDecoration: "none" }}>← Till planen</Link>
       <p style={{ marginTop: 80, fontSize: "1rem", fontWeight: 300, color: T.text2 }}>Inlägget kunde inte hittas.</p>
     </main>
   );
+
+  const pad = isMobile ? 20 : 48;
 
   const blocks = [
     { label: "Text", content: post.text },
@@ -59,46 +66,62 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
       <nav style={{
         position: "sticky", top: 0, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 48px", height: 56,
+        padding: `0 ${pad}px`, height: 56,
         background: "rgba(10,9,8,0.92)", backdropFilter: "blur(20px)",
         borderBottom: `1px solid ${T.line}`,
+        gap: 8,
       }}>
-        <Link href="/plan" style={{ fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, textDecoration: "none", transition: "color .2s" }}
-          onMouseOver={e => (e.currentTarget as HTMLElement).style.color = T.text2}
-          onMouseOut={e => (e.currentTarget as HTMLElement).style.color = T.text3}
-        >
-          ← Planen
+        <Link href="/plan" style={{
+          fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.1em",
+          textTransform: "uppercase", color: T.text3, textDecoration: "none",
+          flexShrink: 0,
+        }}>
+          ← {isMobile ? "" : "Planen"}
         </Link>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {index > 0 && (
-            <Link href={`/post/${index - 1}`} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 14px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, textDecoration: "none" }}>← Föregående</Link>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          {/* Prev/next only on desktop */}
+          {!isMobile && index > 0 && (
+            <Link href={`/post/${index - 1}`} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, textDecoration: "none" }}>← Föregående</Link>
           )}
-          {index < plan.posts.length - 1 && (
-            <Link href={`/post/${index + 1}`} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 14px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, textDecoration: "none" }}>Nästa →</Link>
+          {!isMobile && index < plan.posts.length - 1 && (
+            <Link href={`/post/${index + 1}`} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, textDecoration: "none" }}>Nästa →</Link>
+          )}
+          {/* On mobile: show inlägg X/Y */}
+          {isMobile && (
+            <span style={{ fontSize: "0.68rem", fontWeight: 300, color: T.text3, letterSpacing: "0.06em" }}>
+              {index + 1} / {plan.posts.length}
+            </span>
           )}
           <button onClick={copyPost} style={{
-            fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400,
-            letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 16px",
-            borderRadius: 2, border: "none", background: T.gold, color: T.bg,
-            cursor: "pointer", transition: "all .2s",
+            fontFamily: "var(--font-outfit), sans-serif",
+            fontSize: "0.68rem", fontWeight: 400,
+            letterSpacing: "0.1em", textTransform: "uppercase",
+            padding: "7px 14px", borderRadius: 2,
+            border: "none", background: T.gold, color: T.bg,
+            cursor: "pointer", flexShrink: 0,
           }}>
-            {copied ? "✓ Kopierat" : "Kopiera"}
+            {copied ? "✓" : "Kopiera"}
           </button>
         </div>
       </nav>
 
-      <div style={{ maxWidth: 800, margin: "0 auto", padding: "60px 48px 100px" }}>
+      <div style={{ maxWidth: 800, margin: "0 auto", padding: `48px ${pad}px 100px` }}>
 
         {/* Header */}
-        <div style={{ marginBottom: 56 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "0.65rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase", color: T.gold, marginBottom: 16 }}>
-            <span style={{ width: 18, height: 1, background: T.gold, opacity: .5, display: "block" }} />
+        <div style={{ marginBottom: 48 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase", color: T.gold, marginBottom: 14 }}>
+            <span style={{ width: 16, height: 1, background: T.gold, opacity: .5, display: "block" }} />
             {plan.company} · Inlägg {index + 1} av {plan.posts.length}
           </div>
-          <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2.4rem,5vw,4rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 16 }}>
+          <h1 style={{
+            fontFamily: "var(--font-cormorant), serif", fontWeight: 300,
+            fontSize: isMobile ? "clamp(2rem,8vw,2.8rem)" : "clamp(2.4rem,5vw,4rem)",
+            lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 12,
+          }}>
             {post.title}
           </h1>
-          <p style={{ fontSize: "0.85rem", fontWeight: 300, color: T.text3, letterSpacing: "0.04em" }}>
+          <p style={{ fontSize: "0.8rem", fontWeight: 300, color: T.text3, letterSpacing: "0.04em" }}>
             Färdigt att publicera
           </p>
         </div>
@@ -106,31 +129,34 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
         {/* Content blocks */}
         <div style={{ borderTop: `1px solid ${T.line}` }}>
           {blocks.map(b => (
-            <div key={b.label} style={{ padding: "28px 0", borderBottom: `1px solid ${T.line}` }}>
-              <div style={{ fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 12 }}>{b.label}</div>
-              <p style={{ fontSize: "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8, maxWidth: 620 }}>{b.content}</p>
+            <div key={b.label} style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
+              <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 10 }}>{b.label}</div>
+              <p style={{ fontSize: isMobile ? "0.95rem" : "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8 }}>{b.content}</p>
             </div>
           ))}
         </div>
 
         {/* Actions */}
-        <div style={{ display: "flex", gap: 10, marginTop: 36, flexWrap: "wrap" }}>
-          <button onClick={copyPost} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 24px", borderRadius: 2, border: "none", background: T.gold, color: T.bg, cursor: "pointer" }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 32, flexWrap: "wrap" }}>
+          <button onClick={copyPost} style={{
+            fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400,
+            letterSpacing: "0.1em", textTransform: "uppercase",
+            padding: "11px 22px", borderRadius: 2, border: "none",
+            background: T.gold, color: T.bg, cursor: "pointer",
+            flex: isMobile ? 1 : "none",
+          }}>
             {copied ? "✓ Kopierat" : "Kopiera inlägg"}
           </button>
-          <button style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 18px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>
-            Bra
-          </button>
-          <button style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 18px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>
-            Mindre bra
-          </button>
+          <button style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 16px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>Bra</button>
+          <button style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 16px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>Mindre bra</button>
         </div>
 
-        {/* Post navigation */}
-        <div style={{ display: "flex", gap: 2, marginTop: 48, borderTop: `1px solid ${T.line}`, paddingTop: 28 }}>
-          {plan.posts.map((p, i) => (
+        {/* Post navigation dots */}
+        <div style={{ display: "flex", gap: 2, marginTop: 40, borderTop: `1px solid ${T.line}`, paddingTop: 24 }}>
+          {plan.posts.map((_, i) => (
             <Link key={i} href={`/post/${i}`} style={{
-              flex: 1, padding: "10px 8px", textAlign: "center",
+              flex: 1, padding: isMobile ? "8px 4px" : "10px 8px",
+              textAlign: "center",
               background: i === index ? T.goldDim : T.surface,
               border: `1px solid ${i === index ? T.goldBorder : T.line}`,
               borderRadius: 2, textDecoration: "none", transition: "all .15s",
@@ -141,14 +167,19 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
             </Link>
           ))}
         </div>
-      </div>
 
-      <style>{`
-        @media (max-width: 640px) {
-          nav { padding: 0 20px !important; }
-          div[style*="padding: 60px 48px"] { padding: 40px 20px 80px !important; }
-        }
-      `}</style>
+        {/* Mobile prev/next */}
+        {isMobile && (
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            {index > 0 ? (
+              <Link href={`/post/${index - 1}`} style={{ flex: 1, textAlign: "center", fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px", borderRadius: 2, border: `1px solid ${T.line2}`, color: T.text3, textDecoration: "none" }}>← Föregående</Link>
+            ) : <div style={{ flex: 1 }} />}
+            {index < plan.posts.length - 1 ? (
+              <Link href={`/post/${index + 1}`} style={{ flex: 1, textAlign: "center", fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px", borderRadius: 2, border: `1px solid ${T.line2}`, color: T.text3, textDecoration: "none" }}>Nästa →</Link>
+            ) : <div style={{ flex: 1 }} />}
+          </div>
+        )}
+      </div>
     </main>
   );
 }
