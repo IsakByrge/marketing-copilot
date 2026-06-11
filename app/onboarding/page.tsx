@@ -1,5 +1,6 @@
 "use client";
 
+import { createClient } from "@/lib/supabase-browser";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -368,25 +369,48 @@ export default function OnboardingPage() {
   }
 
   async function handleCreatePlan() {
-    setScreen("generating");
+  setScreen("generating");
 
-    const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
-    const companyProfile = savedProfile ? JSON.parse(savedProfile) : profile;
+  const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
+  const companyProfile = savedProfile ? JSON.parse(savedProfile) : profile;
 
-    const [result] = await Promise.all([
-      fetch("/api/generate-plan", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyProfile }),
-      }).then(r => r.json()).catch(() => null),
-      new Promise(r => setTimeout(r, 4200)),
-    ]);
+  const sb = createClient();
+  const { data: { user } } = await sb.auth.getUser();
 
-    if (result) {
-      localStorage.setItem("marketing-copilot-plan", JSON.stringify({ id: "ai-generated-plan", ...result }));
+  // Spara profil till Supabase
+  if (user) {
+    try {
+      await sb.from("companies").upsert({
+        name: companyProfile.companyName,
+        industry: companyProfile.industry,
+        summary: companyProfile.summary,
+        customers: companyProfile.customers,
+        products: companyProfile.products,
+        tone: companyProfile.tone,
+        strengths: companyProfile.strengths,
+        avoid: companyProfile.avoid,
+        content_guidelines: companyProfile.contentGuidelines,
+        user_id: user.id,
+      }, { onConflict: "name" });
+    } catch (e) {
+      console.warn("Kunde inte spara profil till Supabase:", e);
     }
-
-    router.push("/dashboard");
   }
+
+  const [result] = await Promise.all([
+    fetch("/api/generate-plan", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyProfile, userId: user?.id }),
+    }).then(r => r.json()).catch(() => null),
+    new Promise(r => setTimeout(r, 4200)),
+  ]);
+
+  if (result) {
+    localStorage.setItem("marketing-copilot-plan", JSON.stringify({ id: "ai-generated-plan", ...result }));
+  }
+
+  router.push("/dashboard");
+}
 
   return (
     <main style={{ minHeight: "100svh", background: T.bg }}>
