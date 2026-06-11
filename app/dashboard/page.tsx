@@ -77,13 +77,53 @@ async function signOut() {
   router.push("/login");
 }
   useEffect(() => {
-    const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
+  async function loadData() {
+    const sb = createClient();
+    const { data: { user } } = await sb.auth.getUser();
+
+    // Försök hämta profil från Supabase först
+    if (user) {
+      try {
+        const { data: company } = await sb
+          .from("companies")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+
+        if (company) {
+          const p: CompanyProfile = {
+            companyName: company.name,
+            industry: company.industry,
+            summary: company.summary,
+            customers: company.customers ?? [],
+            products: company.products ?? [],
+            tone: company.tone ?? [],
+            strengths: company.strengths ?? [],
+            avoid: company.avoid ?? [],
+            contentGuidelines: company.content_guidelines ?? [],
+          };
+          setProfile(p);
+          localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(p));
+        }
+      } catch (e) {
+        // Fallback till localStorage
+        const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
+        if (savedProfile) try { setProfile(JSON.parse(savedProfile)); } catch {}
+      }
+    } else {
+      const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
+      if (savedProfile) try { setProfile(JSON.parse(savedProfile)); } catch {}
+    }
+
+    // Plan och datum läses alltid från localStorage
     const savedPlan = localStorage.getItem("marketing-copilot-plan");
     const savedDate = localStorage.getItem("marketing-copilot-last-generated");
-    if (savedProfile) try { setProfile(JSON.parse(savedProfile)); } catch {}
     if (savedPlan) try { setPlan(JSON.parse(savedPlan)); } catch {}
     if (savedDate) setLastGenerated(savedDate);
-  }, []);
+  }
+
+  loadData();
+}, []);
 
   async function generatePlan() {
     if (!profile) return;
