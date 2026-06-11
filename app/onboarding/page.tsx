@@ -40,8 +40,6 @@ const PLAN_STEPS = [
   "Identifierar möjligheter…",
 ];
 
-// ── Shared components ─────────────────────────────────────
-
 function StepList({ steps, current }: { steps: string[]; current: number }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -78,13 +76,47 @@ function StepList({ steps, current }: { steps: string[]; current: number }) {
   );
 }
 
-// ── Screen 1: Input ───────────────────────────────────────
-function InputScreen({ onSubmit }: { onSubmit: (name: string, website: string, desc: string) => void }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 6 }}>
+        {label}
+      </label>
+      {hint && <p style={{ fontSize: "0.78rem", fontWeight: 300, color: T.text3, lineHeight: 1.6, marginBottom: 10 }}>{hint}</p>}
+      {children}
+    </div>
+  );
+}
+
+const inputStyle = {
+  width: "100%", background: "transparent", border: "none",
+  borderBottom: `1px solid rgba(255,255,255,0.18)`, padding: "10px 0",
+  outline: "none", fontSize: "1rem", fontWeight: 300, color: "#ffffff",
+  fontFamily: "var(--font-outfit), sans-serif", transition: "border-color .2s",
+};
+
+const textareaStyle = {
+  ...inputStyle,
+  resize: "none" as const, lineHeight: 1.75,
+};
+
+function InputScreen({ onSubmit }: { onSubmit: (data: Record<string, string>) => void }) {
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
-  const [desc, setDesc] = useState("");
+  const [bestCustomer, setBestCustomer] = useState("");
+  const [commonQuestion, setCommonQuestion] = useState("");
+  const [differentiator, setDifferentiator] = useState("");
+  const [recentJob, setRecentJob] = useState("");
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  const canSubmit = name.trim() && desc.trim();
+
+  const canSubmit = name.trim() && bestCustomer.trim() && commonQuestion.trim() && differentiator.trim();
+
+  function handleFocus(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
+    e.target.style.borderBottomColor = T.gold;
+  }
+  function handleBlur(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
+    e.target.style.borderBottomColor = T.line2;
+  }
 
   return (
     <div style={{ animation: "fadeUp .5s ease both" }}>
@@ -97,72 +129,89 @@ function InputScreen({ onSubmit }: { onSubmit: (name: string, website: string, d
           Låt AI:n lära känna<br /><em style={{ color: T.gold, fontStyle: "italic" }}>ditt företag.</em>
         </h1>
         <p style={{ fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, maxWidth: 440 }}>
-          Svara på några enkla frågor. På mindre än två minuter bygger vi en Company Brain som driver all din marknadsföring.
+          Fyra konkreta frågor. Under två minuter bygger vi en Company Brain som driver all din marknadsföring.
         </p>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 36, marginBottom: 48 }}>
 
-        {/* Företagsnamn */}
-        <div>
-          <label style={{ display: "block", fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>Företagsnamn</label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="t.ex. Lindqvists VVS"
-            style={{ width: "100%", background: "transparent", border: "none", borderBottom: `1px solid ${T.line2}`, padding: "10px 0", outline: "none", fontSize: "1.1rem", fontWeight: 300, color: T.text, fontFamily: "var(--font-outfit), sans-serif", transition: "border-color .2s" }}
-            onFocus={e => e.target.style.borderBottomColor = T.gold}
-            onBlur={e => e.target.style.borderBottomColor = T.line2}
+        <Field label="Företagsnamn">
+          <input value={name} onChange={e => setName(e.target.value)}
+            placeholder="t.ex. Gasolfyllarna Norrköping"
+            style={inputStyle} onFocus={handleFocus} onBlur={handleBlur}
           />
-        </div>
+        </Field>
 
-        {/* Hemsida */}
-        <div>
-          <label style={{ display: "block", fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>
-            Hemsida <span style={{ color: T.text3, fontStyle: "italic", textTransform: "none", letterSpacing: 0 }}>— valfritt men rekommenderat</span>
-          </label>
-          <input value={website} onChange={e => setWebsite(e.target.value)} placeholder="t.ex. lindqvistsvvs.se"
-            style={{ width: "100%", background: "transparent", border: "none", borderBottom: `1px solid ${T.line2}`, padding: "10px 0", outline: "none", fontSize: "1.1rem", fontWeight: 300, color: T.text, fontFamily: "var(--font-outfit), sans-serif", transition: "border-color .2s" }}
-            onFocus={e => e.target.style.borderBottomColor = T.gold}
-            onBlur={e => e.target.style.borderBottomColor = T.line2}
+        <Field label="Hemsida" hint="Valfritt men rekommenderat — AI:n analyserar innehållet för en skarpare profil.">
+          <input value={website} onChange={e => setWebsite(e.target.value)}
+            placeholder="t.ex. gasolfyllarna.se"
+            style={inputStyle} onFocus={handleFocus} onBlur={handleBlur}
           />
-          {website.trim() ? (
-            <p style={{ marginTop: 8, fontSize: "0.75rem", fontWeight: 300, color: T.gold, display: "flex", alignItems: "center", gap: 6 }}>
-              <span>✓</span> AI:n kommer analysera din hemsida för en mer träffsäker Company Brain
-            </p>
-          ) : (
-            <p style={{ marginTop: 8, fontSize: "0.75rem", fontWeight: 300, color: T.text3, lineHeight: 1.6 }}>
-              Om du anger din hemsida kan AI:n analysera innehållet och skapa en mer träffsäker Company Brain.
+          {website.trim() && (
+            <p style={{ marginTop: 8, fontSize: "0.75rem", color: T.gold, display: "flex", alignItems: "center", gap: 6 }}>
+              <span>✓</span> AI:n analyserar din hemsida
             </p>
           )}
-        </div>
+        </Field>
 
-        {/* Beskrivning */}
-        <div>
-          <label style={{ display: "block", fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>Berätta om företaget</label>
-          <textarea value={desc} onChange={e => setDesc(e.target.value)}
-            placeholder="Vad gör ni, vilka kunder hjälper ni och hur vill ni uppfattas? Skriv fritt med egna ord."
-            rows={4}
-            style={{ width: "100%", background: "transparent", border: "none", borderBottom: `1px solid ${T.line2}`, padding: "10px 0", outline: "none", fontSize: "1rem", fontWeight: 300, color: T.text, fontFamily: "var(--font-outfit), sans-serif", resize: "none", lineHeight: 1.75, transition: "border-color .2s" }}
-            onFocus={e => e.target.style.borderBottomColor = T.gold}
-            onBlur={e => e.target.style.borderBottomColor = T.line2}
+        <Field
+          label="Beskriv din bästa kund"
+          hint="Inte 'privatpersoner' — beskriv en verklig person. Vem är de, vad gör de, varför anlitar de er?"
+        >
+          <textarea value={bestCustomer} onChange={e => setBestCustomer(e.target.value)}
+            placeholder="t.ex. Husbilsägare 50–70 år som åker på längre resor och behöver fylla sin gastank snabbt och säkert inför semestern."
+            rows={3} style={textareaStyle} onFocus={handleFocus} onBlur={handleBlur}
           />
-        </div>
+        </Field>
+
+        <Field
+          label="Vad frågar folk om mest?"
+          hint="Vad ringer eller mejlar kunder och frågar om? Det avslöjar vad marknadsföringen ska svara på."
+        >
+          <textarea value={commonQuestion} onChange={e => setCommonQuestion(e.target.value)}
+            placeholder="t.ex. Hur lång tid tar det? Kan jag köra direkt efteråt? Fyller ni alla typer av gasflaskor?"
+            rows={3} style={textareaStyle} onFocus={handleFocus} onBlur={handleBlur}
+          />
+        </Field>
+
+        <Field
+          label="Vad skiljer er från konkurrenterna?"
+          hint="Varför väljer kunder er framför någon annan? Var ärlig — generiska svar ger generisk marknadsföring."
+        >
+          <textarea value={differentiator} onChange={e => setDifferentiator(e.target.value)}
+            placeholder="t.ex. Vi fyller på plats medan kunden väntar — inga köer, ingen väntetid. Öppet kvällar och helger."
+            rows={3} style={textareaStyle} onFocus={handleFocus} onBlur={handleBlur}
+          />
+        </Field>
+
+        <Field
+          label="Beskriv ett jobb ni gjort nyligen"
+          hint="Valfritt men kraftfullt — ett konkret uppdrag ger AI:n verkligt material att skriva om."
+        >
+          <textarea value={recentJob} onChange={e => setRecentJob(e.target.value)}
+            placeholder="t.ex. En familj kom in dagen innan de skulle åka på tre veckors husbildssemester. Vi fyllde deras 33-liters tank på 20 minuter och de var iväg."
+            rows={3} style={textareaStyle} onFocus={handleFocus} onBlur={handleBlur}
+          />
+        </Field>
+
       </div>
 
-      <button onClick={() => onSubmit(name, website, desc)} disabled={!canSubmit} style={{
-        fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.78rem", fontWeight: 400,
-        letterSpacing: "0.12em", textTransform: "uppercase" as const,
-        padding: "14px 32px", borderRadius: 2, border: "none",
-        background: canSubmit ? T.gold : T.surface2,
-        color: canSubmit ? T.bg : T.text3,
-        cursor: canSubmit ? "pointer" : "not-allowed",
-        transition: "all .2s", width: isMobile ? "100%" : "auto",
-      }}>
+      <button onClick={() => onSubmit({ name, website, bestCustomer, commonQuestion, differentiator, recentJob })}
+        disabled={!canSubmit} style={{
+          fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.78rem", fontWeight: 400,
+          letterSpacing: "0.12em", textTransform: "uppercase" as const,
+          padding: "14px 32px", borderRadius: 2, border: "none",
+          background: canSubmit ? T.gold : T.surface2,
+          color: canSubmit ? T.bg : T.text3,
+          cursor: canSubmit ? "pointer" : "not-allowed",
+          transition: "all .2s", width: isMobile ? "100%" : "auto",
+        }}>
         Bygg Company Brain →
       </button>
     </div>
   );
 }
 
-// ── Screen 2: Building ────────────────────────────────────
 function BuildingScreen({ hasWebsite }: { hasWebsite: boolean }) {
   const [step, setStep] = useState(0);
   const steps = hasWebsite ? STEPS_WITH_WEBSITE : STEPS_WITHOUT_WEBSITE;
@@ -189,7 +238,6 @@ function BuildingScreen({ hasWebsite }: { hasWebsite: boolean }) {
   );
 }
 
-// ── Screen 3: Brain reveal ────────────────────────────────
 function BrainScreen({ profile, onCreatePlan }: { profile: CompanyProfile; onCreatePlan: () => void }) {
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 
@@ -212,7 +260,6 @@ function BrainScreen({ profile, onCreatePlan }: { profile: CompanyProfile; onCre
         AI:n har förstått<br /><em style={{ color: T.gold, fontStyle: "italic" }}>{profile.companyName}.</em>
       </h1>
 
-      {/* Summary — the "wow" moment */}
       <div style={{ background: T.surface, border: `1px solid ${T.goldBorder}`, borderRadius: 2, padding: "24px 28px", marginBottom: 32, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent, ${T.gold}, transparent)`, opacity: .5 }} />
         <div style={{ fontSize: "0.6rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 12, opacity: .7 }}>Sammanfattning</div>
@@ -221,7 +268,6 @@ function BrainScreen({ profile, onCreatePlan }: { profile: CompanyProfile; onCre
         </p>
       </div>
 
-      {/* Fields */}
       <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 40 }}>
         {fields.map(f => (
           <div key={f.label} style={{
@@ -247,7 +293,6 @@ function BrainScreen({ profile, onCreatePlan }: { profile: CompanyProfile; onCre
   );
 }
 
-// ── Screen 4: Generating plan ─────────────────────────────
 function GeneratingScreen() {
   const [step, setStep] = useState(0);
 
@@ -273,7 +318,6 @@ function GeneratingScreen() {
   );
 }
 
-// ── Root ──────────────────────────────────────────────────
 export default function OnboardingPage() {
   const router = useRouter();
   const [screen, setScreen] = useState<"input" | "building" | "brain" | "generating">("input");
@@ -282,18 +326,23 @@ export default function OnboardingPage() {
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
   const pad = isMobile ? 20 : 56;
 
-  async function handleSubmit(name: string, website: string, desc: string) {
-    const trimmedSite = website.trim();
+  async function handleSubmit(data: Record<string, string>) {
+    const trimmedSite = data.website.trim();
     setHasWebsite(!!trimmedSite);
     setScreen("building");
 
     const input = {
-      companyName: name, website: trimmedSite, industry: "", products: "",
-      customers: "", description: desc, tone: "", avoid: "", previousPosts: desc,
+      companyName: data.name,
+      website: trimmedSite,
+      bestCustomer: data.bestCustomer,
+      commonQuestion: data.commonQuestion,
+      differentiator: data.differentiator,
+      recentJob: data.recentJob,
+      description: `Bästa kund: ${data.bestCustomer}\n\nVanligaste frågan: ${data.commonQuestion}\n\nVad skiljer oss: ${data.differentiator}\n\nNyligt jobb: ${data.recentJob}`,
     };
+
     localStorage.setItem("marketing-copilot-company-input", JSON.stringify(input));
 
-    // Minimum animation time
     const [result] = await Promise.all([
       fetch("/api/analyze-company", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -303,12 +352,12 @@ export default function OnboardingPage() {
     ]);
 
     const p: CompanyProfile = result || {
-      companyName: name, industry: "",
-      summary: `${name} hjälper sina kunder med professionella tjänster och lösningar.`,
-      customers: ["Privatpersoner", "Företag"],
-      products: [desc.split(" ").slice(0, 5).join(" ")],
+      companyName: data.name, industry: "",
+      summary: `${data.name} hjälper sina kunder med professionella tjänster och lösningar.`,
+      customers: [data.bestCustomer.split(" ").slice(0, 6).join(" ")],
+      products: ["Professionella tjänster"],
       tone: ["Professionellt", "Tillgängligt"],
-      strengths: ["Lokalt", "Kunnigt"],
+      strengths: [data.differentiator.split(" ").slice(0, 6).join(" ")],
       avoid: ["Aggressivt säljspråk"],
       contentGuidelines: ["Konkret och faktabaserat"],
     };

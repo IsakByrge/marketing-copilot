@@ -60,25 +60,32 @@ Svara ALLTID med exakt giltig JSON — ingen förtext, inga backticks, inget ann
     const userPrompt = `Analysera detta företag och bygg en detaljerad profil:
 
 Företagsnamn: ${body.companyName || ""}
-Bransch: ${body.industry || ""}
-Beskrivning från användaren: ${body.description || body.previousPosts || ""}
 ${hasWebsiteContent ? `\nHEMSIDA (analyserad):\n${websiteContent}` : ""}
 
+SPECIFIK INPUT FRÅN ÄGAREN:
+Bästa kunden: ${body.bestCustomer || ""}
+Vanligaste frågan kunder ställer: ${body.commonQuestion || ""}
+Vad skiljer dem från konkurrenter: ${body.differentiator || ""}
+Nyligt genomfört jobb: ${body.recentJob || ""}
+${body.description ? `Övrig beskrivning: ${body.description}` : ""}
+
 ${hasWebsiteContent
-  ? "Basera profilen primärt på hemsidans innehåll. Använd beskrivningen som komplement."
-  : "Basera profilen på beskrivningen från användaren. Var specifik och undvik generiska fraser."}
+  ? "Basera profilen primärt på hemsidans innehåll. Använd ägarens svar som komplement och för att fylla luckor."
+  : "Basera profilen på ägarens svar. Var extremt specifik — använd deras egna ord och exempel."}
+
+VIKTIGT: Profilen ska vara så specifik att ägaren känner igen sitt eget företag. Inga generiska fraser.
 
 Returnera exakt denna JSON:
 {
   "companyName": "${body.companyName || ""}",
   "industry": "bransch (ett ord)",
-  "summary": "2-3 meningar som sammanfattar företaget så specifikt att ägaren känner igen sitt företag",
-  "customers": ["specifik kundtyp 1", "specifik kundtyp 2", "specifik kundtyp 3"],
+  "summary": "2-3 meningar som sammanfattar företaget så specifikt att ägaren känner igen sitt företag — använd deras egna exempel och formuleringar",
+  "customers": ["specifik kundtyp baserad på ägarens beskrivning", "specifik kundtyp 2", "specifik kundtyp 3"],
   "products": ["specifik tjänst/produkt 1", "specifik tjänst/produkt 2", "specifik tjänst/produkt 3"],
   "tone": ["tonlägesord 1", "tonlägesord 2", "tonlägesord 3"],
-  "strengths": ["styrka 1", "styrka 2", "styrka 3"],
+  "strengths": ["styrka baserad på vad ägaren sa skiljer dem", "styrka 2", "styrka 3"],
   "avoid": ["undvik 1", "undvik 2"],
-  "contentGuidelines": ["riktlinje 1", "riktlinje 2", "riktlinje 3"]
+  "contentGuidelines": ["riktlinje baserad på vanligaste frågan", "riktlinje 2", "riktlinje 3"]
 }`;
 
     const response = await client.chat.completions.create({

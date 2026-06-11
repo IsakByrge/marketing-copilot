@@ -11,7 +11,18 @@ export default function AuthCallback() {
     const supabase = createClient();
     supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
-        router.push("/dashboard");
+        if (event === "SIGNED_IN") {
+          // Rensa localStorage så ny användare börjar från onboarding
+          localStorage.removeItem("marketing-copilot-company-profile");
+          localStorage.removeItem("marketing-copilot-plan");
+          localStorage.removeItem("marketing-copilot-last-generated");
+          localStorage.removeItem("marketing-copilot-rhythm");
+          localStorage.removeItem("marketing-copilot-brain-files");
+          router.push("/onboarding");
+        } else {
+          const profile = localStorage.getItem("marketing-copilot-company-profile");
+          router.push(profile ? "/dashboard" : "/onboarding");
+        }
       } else {
         router.push("/login");
       }
