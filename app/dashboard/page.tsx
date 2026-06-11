@@ -91,7 +91,8 @@ async function signOut() {
     try {
       const savedFiles = localStorage.getItem("marketing-copilot-brain-files");
       const brainFiles = savedFiles ? JSON.parse(savedFiles) : [];
-
+      const sb = createClient();
+const { data: { user } } = await sb.auth.getUser();
       const response = await fetch("/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -111,44 +112,51 @@ async function signOut() {
       setSection("social");
 
       // Supabase — dubbel-skrivning (tyst fel om det misslyckas)
-      try {
-        const { data: company } = await supabase
-          .from("companies")
-          .upsert({
-            name: profile.companyName,
-            industry: profile.industry,
-            summary: profile.summary,
-            customers: profile.customers,
-            products: profile.products,
-            tone: profile.tone,
-            strengths: profile.strengths,
-            avoid: profile.avoid,
-            content_guidelines: profile.contentGuidelines,
-          }, { onConflict: "name" })
-          .select()
-          .single();
+try {
+  const sb = createClient();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error("Ingen inloggad användare");
 
-        if (company) {
-          await supabase.from("plans").insert({
-            company_id: company.id,
-            focus: newPlan.focus,
-            tags: newPlan.tags,
-            posts: newPlan.posts,
-            newsletter: newPlan.newsletter,
-            campaigns: newPlan.campaigns,
-          });
+  const { data: company } = await sb
+    .from("companies")
+    .upsert({
+      name: profile.companyName,
+      industry: profile.industry,
+      summary: profile.summary,
+      customers: profile.customers,
+      products: profile.products,
+      tone: profile.tone,
+      strengths: profile.strengths,
+      avoid: profile.avoid,
+      content_guidelines: profile.contentGuidelines,
+      user_id: user.id,
+    }, { onConflict: "name" })
+    .select()
+    .single();
 
-          const savedRhythm = localStorage.getItem("marketing-copilot-rhythm");
-          if (savedRhythm) {
-            await supabase.from("marketing_rhythm").upsert({
-              company_id: company.id,
-              rhythm: savedRhythm,
-            }, { onConflict: "company_id" });
-          }
-        }
-      } catch (sbError) {
-        console.warn("Supabase sync misslyckades:", sbError);
-      }
+  if (company) {
+    await sb.from("plans").insert({
+      company_id: company.id,
+      user_id: user.id,
+      focus: newPlan.focus,
+      tags: newPlan.tags,
+      posts: newPlan.posts,
+      newsletter: newPlan.newsletter,
+      campaigns: newPlan.campaigns,
+    });
+
+    const savedRhythm = localStorage.getItem("marketing-copilot-rhythm");
+    if (savedRhythm) {
+      await sb.from("marketing_rhythm").upsert({
+        company_id: company.id,
+        user_id: user.id,
+        rhythm: savedRhythm,
+      }, { onConflict: "company_id" });
+    }
+  }
+} catch (sbError) {
+  console.warn("Supabase sync misslyckades:", sbError);
+}
 
     } catch (e) { console.error(e); }
     finally { setIsGenerating(false); }

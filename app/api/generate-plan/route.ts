@@ -24,6 +24,7 @@ type BrainFile = {
 type GeneratePlanBody = {
   companyProfile?: CompanyProfile;
   brainFiles?: BrainFile[];
+  userId?: string;
 };
 
 type PastPlan = {
@@ -33,12 +34,13 @@ type PastPlan = {
   posts: { title: string }[];
 };
 
-async function getPastPlans(companyName: string): Promise<PastPlan[]> {
+async function getPastPlans(companyName: string, userId: string): Promise<PastPlan[]> {
   try {
     const { data: company } = await supabase
       .from("companies")
       .select("id")
       .eq("name", companyName)
+      .eq("user_id", userId)
       .single();
 
     if (!company) return [];
@@ -47,6 +49,7 @@ async function getPastPlans(companyName: string): Promise<PastPlan[]> {
       .from("plans")
       .select("created_at, focus, tags, posts")
       .eq("company_id", company.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(3);
 
@@ -78,7 +81,8 @@ export async function POST(request: Request) {
     const upcomingDates = getUpcomingDates(now);
 
     // Hämta historik från Supabase
-    const pastPlans = await getPastPlans(profile.companyName ?? "");
+    const userId = body.userId ?? "";
+const pastPlans = await getPastPlans(profile.companyName ?? "", userId);
     const historyContext = pastPlans.length > 0
       ? `\nTIDIGARE PLANER (undvik att upprepa dessa teman och inläggstitlar):
 ${pastPlans.map((p, i) => {
