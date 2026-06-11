@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
+import { useRouter } from "next/navigation";
 
 const T = {
   bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
@@ -12,25 +13,46 @@ const T = {
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"email" | "code">("email");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  async function handleSubmit() {
+  async function sendCode() {
     if (!email) return;
     setLoading(true);
     setError(null);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+  email,
+  options: {
+    emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin}/auth/callback`,
+    shouldCreateUser: true,
+  },
+});
     if (error) {
       setError(error.message);
     } else {
-      setSent(true);
+      setStep("code");
+    }
+    setLoading(false);
+  }
+
+  async function verifyCode() {
+    if (!code) return;
+    setLoading(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code,
+      type: "email",
+    });
+    if (error) {
+      setError("Felaktig kod. Försök igen.");
+    } else {
+      router.push("/dashboard");
     }
     setLoading(false);
   }
@@ -42,13 +64,13 @@ export default function LoginPage() {
         Marketing Copilot
       </div>
 
-      {!sent ? (
+      {step === "email" ? (
         <>
           <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2.8rem,7vw,6rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, margin: "0 0 20px" }}>
             Välkommen<br /><em style={{ color: T.gold, fontStyle: "italic" }}>tillbaka.</em>
           </h1>
           <p style={{ fontSize: "0.95rem", fontWeight: 300, color: T.text2, lineHeight: 1.8, maxWidth: 400, marginBottom: 36 }}>
-            Skriv in din e-post så skickar vi en inloggningslänk — inget lösenord behövs.
+            Skriv in din e-post så skickar vi en engångskod — inget lösenord behövs.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 400 }}>
             <input
@@ -56,7 +78,7 @@ export default function LoginPage() {
               placeholder="din@epost.se"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleSubmit()}
+              onKeyDown={e => e.key === "Enter" && sendCode()}
               style={{
                 padding: "13px 16px", borderRadius: 2,
                 border: `1px solid ${T.line2}`, background: T.surface,
@@ -64,11 +86,9 @@ export default function LoginPage() {
                 outline: "none",
               }}
             />
-            {error && (
-              <p style={{ fontSize: "0.75rem", color: "#fc8181", margin: 0 }}>{error}</p>
-            )}
+            {error && <p style={{ fontSize: "0.75rem", color: "#fc8181", margin: 0 }}>{error}</p>}
             <button
-              onClick={handleSubmit}
+              onClick={sendCode}
               disabled={loading || !email}
               style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10,
@@ -80,7 +100,7 @@ export default function LoginPage() {
               }}
             >
               {loading && <span style={{ width: 13, height: 13, borderRadius: "50%", border: `1.5px solid rgba(201,169,110,.3)`, borderTopColor: T.bg, display: "inline-block", animation: "spin .7s linear infinite" }} />}
-              {loading ? "Skickar…" : "Skicka inloggningslänk"}
+              {loading ? "Skickar…" : "Skicka kod"}
             </button>
           </div>
         </>
@@ -90,14 +110,46 @@ export default function LoginPage() {
             Kolla<br /><em style={{ color: T.gold, fontStyle: "italic" }}>inkorgen.</em>
           </h1>
           <p style={{ fontSize: "0.95rem", fontWeight: 300, color: T.text2, lineHeight: 1.8, maxWidth: 400, marginBottom: 36 }}>
-            Vi har skickat en inloggningslänk till <span style={{ color: T.text }}>{email}</span>. Klicka på länken för att logga in.
+            Vi skickade en 6-siffrig kod till <span style={{ color: T.text }}>{email}</span>. Skriv in den nedan.
           </p>
-          <button
-            onClick={() => { setSent(false); setEmail(""); }}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, padding: 0, textAlign: "left" }}
-          >
-            ← Använd en annan e-post
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 400 }}>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="123456"
+              value={code}
+              onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              onKeyDown={e => e.key === "Enter" && verifyCode()}
+              style={{
+                padding: "13px 16px", borderRadius: 2,
+                border: `1px solid ${T.line2}`, background: T.surface,
+                color: T.text, fontSize: "1.4rem", fontFamily: "var(--font-outfit), sans-serif",
+                outline: "none", letterSpacing: "0.3em", textAlign: "center",
+              }}
+            />
+            {error && <p style={{ fontSize: "0.75rem", color: "#fc8181", margin: 0 }}>{error}</p>}
+            <button
+              onClick={verifyCode}
+              disabled={loading || code.length < 6}
+              style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10,
+                fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.75rem", fontWeight: 400,
+                letterSpacing: "0.12em", textTransform: "uppercase", padding: "13px 28px",
+                borderRadius: 2, background: loading || code.length < 6 ? T.surface2 : T.gold,
+                color: loading || code.length < 6 ? T.text3 : T.bg, border: "none",
+                cursor: loading || code.length < 6 ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading && <span style={{ width: 13, height: 13, borderRadius: "50%", border: `1.5px solid rgba(201,169,110,.3)`, borderTopColor: T.bg, display: "inline-block", animation: "spin .7s linear infinite" }} />}
+              {loading ? "Verifierar…" : "Logga in"}
+            </button>
+            <button
+              onClick={() => { setStep("email"); setCode(""); setError(null); }}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, padding: 0, textAlign: "left" }}
+            >
+              ← Ändra e-post
+            </button>
+          </div>
         </>
       )}
 
