@@ -1,9 +1,15 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 type CompanyProfile = {
   companyName?: string; industry?: string; summary?: string;
@@ -19,6 +25,36 @@ type GeneratePlanBody = {
   companyProfile?: CompanyProfile;
   brainFiles?: BrainFile[];
 };
+
+type PastPlan = {
+  created_at: string;
+  focus: string;
+  tags: string[];
+  posts: { title: string }[];
+};
+
+async function getPastPlans(companyName: string): Promise<PastPlan[]> {
+  try {
+    const { data: company } = await supabase
+      .from("companies")
+      .select("id")
+      .eq("name", companyName)
+      .single();
+
+    if (!company) return [];
+
+    const { data: plans } = await supabase
+      .from("plans")
+      .select("created_at, focus, tags, posts")
+      .eq("company_id", company.id)
+      .order("created_at", { ascending: false })
+      .limit(3);
+
+    return (plans as PastPlan[]) ?? [];
+  } catch {
+    return [];
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -39,8 +75,21 @@ export async function POST(request: Request) {
       ((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7
     );
 
-    // Build upcoming dates context for the next 2 weeks
     const upcomingDates = getUpcomingDates(now);
+
+    // Hämta historik från Supabase
+    const pastPlans = await getPastPlans(profile.companyName ?? "");
+    const historyContext = pastPlans.length > 0
+      ? `\nTIDIGARE PLANER (undvik att upprepa dessa teman och inläggstitlar):
+${pastPlans.map((p, i) => {
+  const date = new Date(p.created_at).toLocaleDateString("sv-SE", { day: "numeric", month: "long" });
+  const titles = Array.isArray(p.posts) ? p.posts.map((post: { title: string }) => `  - ${post.title}`).join("\n") : "";
+  return `Plan ${i + 1} (${date}):
+  Fokus: ${p.focus}
+  Teman: ${Array.isArray(p.tags) ? p.tags.join(", ") : ""}
+  Inläggstitlar:\n${titles}`;
+}).join("\n\n")}`
+      : "";
 
     const fileContext = brainFiles.length > 0
       ? `\nUPPLADDAT MATERIAL:\n${brainFiles.map(f => {
@@ -58,6 +107,7 @@ Svara ALLTID med exakt giltig JSON — ingen förtext, inga backticks. Svara på
 
 KOMMANDE HÄNDELSER OCH DATUM (nästa 2 veckor):
 ${upcomingDates}
+${historyContext}
 
 FÖRETAGSPROFIL:
 Företagsnamn: ${profile.companyName ?? ""}
@@ -77,6 +127,7 @@ KRITISKA REGLER:
 3. Matcha branschens verkliga språk
 4. CTA:er ska vara konkreta handlingar, inte "Kontakta oss"
 5. Hitta INTE på fakta som inte framgår av profilen
+6. Variera innehållet — upprepa INTE teman, fokus eller inläggstitlar från tidigare planer
 
 FÖRBJUDNA FRASER:
 - "Vi strävar efter att leverera kvalitet"
@@ -146,7 +197,6 @@ Returnera exakt denna JSON:
   }
 }
 
-// Build a list of upcoming Swedish dates/events for the next 14 days
 function getUpcomingDates(from: Date): string {
   const events: { month: number; day: number; name: string }[] = [
     { month: 1, day: 1, name: "Nyårsdagen" },
@@ -185,14 +235,12 @@ function getUpcomingDates(from: Date): string {
     if (eventDate >= from && eventDate <= end) {
       upcoming.push(`- ${event.day} ${eventDate.toLocaleString("sv-SE", { month: "long" })}: ${event.name}`);
     }
-    // Check next year too (for events near year end)
     const eventDateNextYear = new Date(from.getFullYear() + 1, event.month - 1, event.day);
     if (eventDateNextYear >= from && eventDateNextYear <= end) {
       upcoming.push(`- ${event.day} ${eventDateNextYear.toLocaleString("sv-SE", { month: "long" })}: ${event.name}`);
     }
   }
 
-  // Add season context
   const m = from.getMonth() + 1;
   if (m >= 6 && m <= 8) upcoming.push("- SÄSONG: Högsommar — semester, camping, friluftsliv");
   if (m >= 9 && m <= 11) upcoming.push("- SÄSONG: Höst — förberedelser, service inför vintern");
