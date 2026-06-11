@@ -22,7 +22,7 @@ export default function Home() {
         }}>
           Marketing<span style={{ color: "#c9a96e" }}>Copilot</span>
         </span>
-        <Link href="/onboarding" style={{
+        <Link href="/login" style={{
           fontFamily: "var(--font-outfit), sans-serif",
           fontSize: "0.72rem", fontWeight: 400,
           letterSpacing: "0.1em", textTransform: "uppercase",
@@ -44,14 +44,12 @@ export default function Home() {
         padding: "80px 48px 64px", maxWidth: 1200, margin: "0 auto", width: "100%",
         position: "relative", overflow: "hidden",
       }}>
-        {/* Background glow */}
         <div style={{
           position: "absolute", bottom: 0, left: 0,
           width: "50%", height: "60%",
           background: "radial-gradient(ellipse at bottom left, rgba(201,169,110,0.05) 0%, transparent 65%)",
           pointerEvents: "none",
         }} />
-        {/* Large background numeral */}
         <div style={{
           position: "absolute", bottom: "-0.1em", right: "-0.05em",
           fontFamily: "var(--font-cormorant), serif",
@@ -62,7 +60,6 @@ export default function Home() {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "flex-end", position: "relative" }}>
           <div>
-            {/* Eyebrow */}
             <div style={{
               display: "flex", alignItems: "center", gap: 12,
               fontSize: "0.67rem", fontWeight: 400, letterSpacing: "0.18em",
@@ -93,7 +90,7 @@ export default function Home() {
             </p>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Link href="/onboarding" style={{
+              <Link href="/login" style={{
                 fontFamily: "var(--font-outfit), sans-serif",
                 fontSize: "0.75rem", fontWeight: 400,
                 letterSpacing: "0.12em", textTransform: "uppercase",
@@ -125,7 +122,6 @@ export default function Home() {
             boxShadow: "0 40px 100px rgba(0,0,0,0.5)",
             overflow: "hidden",
           }}>
-            {/* Card header */}
             <div style={{
               background: "#181510", borderBottom: "1px solid rgba(255,248,235,0.08)",
               padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -146,7 +142,6 @@ export default function Home() {
               </span>
             </div>
 
-            {/* Card items */}
             <div style={{ padding: "10px 10px" }}>
               {[
                 { icon: "📧", label: "Nyhetsbrev", desc: "Färdigt att skicka", tag: "1 st" },
@@ -181,7 +176,7 @@ export default function Home() {
             </div>
 
             <div style={{ padding: "12px 20px 16px" }}>
-              <Link href="/dashboard" style={{
+              <Link href="/login" style={{
                 display: "block", textAlign: "center",
                 fontFamily: "var(--font-outfit), sans-serif",
                 fontSize: "0.72rem", fontWeight: 400,
@@ -226,7 +221,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Mobile styles */}
       <style>{`
         @media (max-width: 768px) {
           nav { padding: 0 20px !important; }
