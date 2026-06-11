@@ -444,21 +444,48 @@ function CampaignSection({ campaigns }: { campaigns: Campaign[] }) {
   );
 }
 
-function OpportunitiesSection({ plan }: { plan: MarketingPlan }) {
+function OpportunitiesSection({ plan }: { plan: MarketingPlan & { opportunities?: { title: string; date: string; relevance: string }[] } }) {
+  const opportunities = plan.opportunities;
+  const tags = plan.tags;
+
   return (
     <div style={{ maxWidth: 680 }}>
       <SLabel>Möjligheter</SLabel>
       <h2 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2rem,4vw,3.5rem)", letterSpacing: "-0.02em", lineHeight: .95, color: T.text, margin: "16px 0 40px" }}>
-        Nästa saker att testa.
+        Aktuella tillfällen.
       </h2>
-      <div style={{ borderTop: `1px solid ${T.line}` }}>
-        {plan.tags?.slice(0, 5).map((tag, i) => (
-          <div key={i} style={{ display: "flex", gap: 20, padding: "18px 0", borderBottom: `1px solid ${T.line}`, alignItems: "baseline" }}>
-            <span style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "0.85rem", color: T.text3, flexShrink: 0, width: 28 }}>{String(i + 1).padStart(2, "0")}</span>
-            <p style={{ fontSize: "0.95rem", fontWeight: 300, color: T.text2, lineHeight: 1.6 }}>{tag}</p>
-          </div>
-        ))}
-      </div>
+
+      {opportunities && opportunities.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {opportunities.map((opp, i) => (
+            <div key={i} style={{ padding: "24px 24px", background: T.surface, border: `1px solid ${T.line}`, borderRadius: 2, transition: "border-color .2s" }}
+            onMouseOver={e => (e.currentTarget as HTMLElement).style.borderColor = T.line2}
+            onMouseOut={e => (e.currentTarget as HTMLElement).style.borderColor = T.line}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                <h3 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 400, fontSize: "1.2rem", letterSpacing: "-0.01em", color: T.text }}>
+                  {opp.title}
+                </h3>
+                {opp.date && (
+                  <span style={{ fontSize: "0.65rem", fontWeight: 400, letterSpacing: "0.08em", textTransform: "uppercase", color: T.gold, background: T.goldDim, border: `1px solid ${T.goldBorder}`, padding: "3px 10px", borderRadius: 2, flexShrink: 0 }}>
+                    {opp.date}
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: "0.85rem", fontWeight: 300, color: T.text2, lineHeight: 1.7 }}>{opp.relevance}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ borderTop: `1px solid ${T.line}` }}>
+          {tags?.slice(0, 5).map((tag, i) => (
+            <div key={i} style={{ display: "flex", gap: 20, padding: "18px 0", borderBottom: `1px solid ${T.line}`, alignItems: "baseline" }}>
+              <span style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "0.85rem", color: T.text3, flexShrink: 0, width: 28 }}>{String(i + 1).padStart(2, "0")}</span>
+              <p style={{ fontSize: "0.95rem", fontWeight: 300, color: T.text2, lineHeight: 1.6 }}>{tag}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

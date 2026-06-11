@@ -33,10 +33,14 @@ export async function POST(request: Request) {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.toLocaleString("sv-SE", { month: "long" });
+    const day = now.getDate();
     const jan1 = new Date(now.getFullYear(), 0, 1);
     const week = Math.ceil(
       ((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7
     );
+
+    // Build upcoming dates context for the next 2 weeks
+    const upcomingDates = getUpcomingDates(now);
 
     const fileContext = brainFiles.length > 0
       ? `\nUPPLADDAT MATERIAL:\n${brainFiles.map(f => {
@@ -50,7 +54,10 @@ export async function POST(request: Request) {
 Skapa marknadsinnehåll som känns skrivet av någon som KÄNNER företaget inifrån — inte av en AI.
 Svara ALLTID med exakt giltig JSON — ingen förtext, inga backticks. Svara på svenska.`;
 
-    const userPrompt = `NULÄGE: ${month} ${year}, vecka ${week}.
+    const userPrompt = `NULÄGE: ${day} ${month} ${year}, vecka ${week}.
+
+KOMMANDE HÄNDELSER OCH DATUM (nästa 2 veckor):
+${upcomingDates}
 
 FÖRETAGSPROFIL:
 Företagsnamn: ${profile.companyName ?? ""}
@@ -66,14 +73,14 @@ ${fileContext}
 
 KRITISKA REGLER:
 1. Använd ALLTID företagets faktiska namn och specifika tjänster
-2. Anpassa till ${month} ${year} — rätt år är ${year}, INTE 2024
+2. Anpassa till ${day} ${month} ${year} — rätt år är ${year}
 3. Matcha branschens verkliga språk
 4. CTA:er ska vara konkreta handlingar, inte "Kontakta oss"
 5. Hitta INTE på fakta som inte framgår av profilen
 
 FÖRBJUDNA FRASER:
 - "Vi strävar efter att leverera kvalitet"
-- "Nöjda kunder är vår prioritet"  
+- "Nöjda kunder är vår prioritet"
 - "Med lång erfarenhet inom branschen"
 - "Tveka inte att höra av dig"
 - "I dagens digitala värld"
@@ -83,7 +90,7 @@ Returnera exakt denna JSON:
 {
   "company": "${profile.companyName ?? ""}",
   "focus": "En mening om veckans tema — specifik och säsongsanpassad för ${month} ${year}",
-  "tags": ["tema 1", "tema 2", "tema 3"],
+  "tags": ["3-5 konkreta teman för veckan, ej enkla ord utan fraser som 'Midsommarförberedelser' eller 'Campingsäsongen startar'"],
   "posts": [
     { "title": "Rubrik som fångar ett konkret problem", "text": "Max 3 meningar. Konkret scenario.", "cta": "Specifik uppmaning", "image": "Realistisk bildidé" },
     { "title": "Tips-format", "text": "Praktisk insikt från branschen", "cta": "Konkret CTA", "image": "Bildidé" },
@@ -100,6 +107,23 @@ Returnera exakt denna JSON:
   "campaigns": [
     { "title": "Kampanj för ${month} ${year}", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" },
     { "title": "Kampanj för ${profile.products?.[0] ?? "huvudtjänst"}", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" }
+  ],
+  "opportunities": [
+    {
+      "title": "Konkret händelse, temadag eller säsongstillfälle inom 2 veckor",
+      "date": "Datum eller tidsperiod t.ex. '21 juni' eller 'Denna vecka'",
+      "relevance": "Exakt hur ${profile.companyName ?? "företaget"} kan använda detta — konkret innehållsidé kopplad till deras tjänster"
+    },
+    {
+      "title": "Säsongsbeteende hos målgruppen just nu",
+      "date": "Denna vecka eller nästa vecka",
+      "relevance": "Konkret marknadsföringsidé kopplad till vad målgruppen gör just nu"
+    },
+    {
+      "title": "Branschspecifikt tillfälle eller lokal händelse",
+      "date": "Tidsangivelse",
+      "relevance": "Hur företaget kan agera på detta med specifikt innehåll eller erbjudande"
+    }
   ]
 }`;
 
@@ -120,4 +144,62 @@ Returnera exakt denna JSON:
     console.error("GENERATE_PLAN_ERROR:", error);
     return NextResponse.json({ error: "Kunde inte generera marknadsplan." }, { status: 500 });
   }
+}
+
+// Build a list of upcoming Swedish dates/events for the next 14 days
+function getUpcomingDates(from: Date): string {
+  const events: { month: number; day: number; name: string }[] = [
+    { month: 1, day: 1, name: "Nyårsdagen" },
+    { month: 1, day: 6, name: "Trettondedag jul" },
+    { month: 2, day: 14, name: "Alla hjärtans dag" },
+    { month: 3, day: 8, name: "Internationella kvinnodagen" },
+    { month: 4, day: 1, name: "April fools / Första april" },
+    { month: 4, day: 30, name: "Valborg" },
+    { month: 5, day: 1, name: "Första maj / Arbetarnas dag" },
+    { month: 5, day: 31, name: "Nationaldagen (nästan)" },
+    { month: 6, day: 6, name: "Sveriges nationaldag" },
+    { month: 6, day: 21, name: "Midsommarafton" },
+    { month: 6, day: 22, name: "Midsommardagen" },
+    { month: 7, day: 1, name: "Sommarlovets mitt — semesterhögsäsong" },
+    { month: 8, day: 1, name: "Högsommaren — sista semesterveckorna" },
+    { month: 8, day: 15, name: "Semestern tar slut för många" },
+    { month: 9, day: 1, name: "Hösten börjar — tillbaka till jobbet" },
+    { month: 10, day: 31, name: "Halloween" },
+    { month: 11, day: 1, name: "Alla helgons dag" },
+    { month: 11, day: 11, name: "Mårtensgås" },
+    { month: 11, day: 25, name: "Black Friday (nästan)" },
+    { month: 11, day: 29, name: "Black Friday" },
+    { month: 12, day: 1, name: "Advent börjar" },
+    { month: 12, day: 13, name: "Lucia" },
+    { month: 12, day: 24, name: "Julafton" },
+    { month: 12, day: 25, name: "Juldagen" },
+    { month: 12, day: 31, name: "Nyårsafton" },
+  ];
+
+  const upcoming: string[] = [];
+  const end = new Date(from);
+  end.setDate(end.getDate() + 14);
+
+  for (const event of events) {
+    const eventDate = new Date(from.getFullYear(), event.month - 1, event.day);
+    if (eventDate >= from && eventDate <= end) {
+      upcoming.push(`- ${event.day} ${eventDate.toLocaleString("sv-SE", { month: "long" })}: ${event.name}`);
+    }
+    // Check next year too (for events near year end)
+    const eventDateNextYear = new Date(from.getFullYear() + 1, event.month - 1, event.day);
+    if (eventDateNextYear >= from && eventDateNextYear <= end) {
+      upcoming.push(`- ${event.day} ${eventDateNextYear.toLocaleString("sv-SE", { month: "long" })}: ${event.name}`);
+    }
+  }
+
+  // Add season context
+  const m = from.getMonth() + 1;
+  if (m >= 6 && m <= 8) upcoming.push("- SÄSONG: Högsommar — semester, camping, friluftsliv");
+  if (m >= 9 && m <= 11) upcoming.push("- SÄSONG: Höst — förberedelser, service inför vintern");
+  if (m === 12 || m <= 2) upcoming.push("- SÄSONG: Vinter — inomhusaktiviteter, julkänsla, nyår");
+  if (m >= 3 && m <= 5) upcoming.push("- SÄSONG: Vår — uppstart, städning, förberedelser");
+
+  return upcoming.length > 0
+    ? upcoming.join("\n")
+    : `- Ingen specifik högtid denna vecka — fokusera på säsongsrelevant innehåll för ${from.toLocaleString("sv-SE", { month: "long" })}`;
 }
