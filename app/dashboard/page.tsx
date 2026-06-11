@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase-browser";
+import { useRouter } from "next/navigation";
 
 const T = {
   bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
@@ -67,7 +69,13 @@ export default function DashboardPage() {
   const [lastGenerated, setLastGenerated] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const pad = isMobile ? 20 : 48;
+const router = useRouter();
 
+async function signOut() {
+  const sb = createClient();
+  await sb.auth.signOut();
+  router.push("/login");
+}
   useEffect(() => {
     const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
     const savedPlan = localStorage.getItem("marketing-copilot-plan");
@@ -229,6 +237,14 @@ export default function DashboardPage() {
           }}>
             {isGenerating ? "…" : isMobile ? "Ny" : "Ny plan"}
           </button>
+          <button onClick={signOut} style={{
+  fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400,
+  letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 12px",
+  borderRadius: 2, border: `1px solid ${T.line}`, background: "transparent",
+  color: T.text3, cursor: "pointer", transition: "all .2s", flexShrink: 0,
+}}>
+  {isMobile ? "↩" : "Logga ut"}
+</button>
         </div>
       </nav>
 
