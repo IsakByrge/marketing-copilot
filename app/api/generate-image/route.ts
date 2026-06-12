@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       quality: "standard",
     });
 
-    const imageUrl = response.data[0]?.url;
+    const imageUrl = response.data?.[0]?.url;
     return NextResponse.json({ url: imageUrl });
   } catch (error) {
     console.error("IMAGE_GEN_ERROR:", error);
