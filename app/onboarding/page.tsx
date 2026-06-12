@@ -380,8 +380,34 @@ export default function OnboardingPage() {
 
   // Spara profil till Supabase
   if (user) {
-    try {
-      await sb.from("companies").upsert({
+  try {
+    // Försök hitta befintligt företag för denna användare
+    const { data: existing } = await sb
+      .from("companies")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (existing) {
+      // Uppdatera befintligt
+      const { error } = await sb
+        .from("companies")
+        .update({
+          name: companyProfile.companyName,
+          industry: companyProfile.industry,
+          summary: companyProfile.summary,
+          customers: companyProfile.customers,
+          products: companyProfile.products,
+          tone: companyProfile.tone,
+          strengths: companyProfile.strengths,
+          avoid: companyProfile.avoid,
+          content_guidelines: companyProfile.contentGuidelines,
+        })
+        .eq("user_id", user.id);
+      console.log("UPDATE ERROR:", error);
+    } else {
+      // Skapa nytt
+      const { error } = await sb.from("companies").insert({
         name: companyProfile.companyName,
         industry: companyProfile.industry,
         summary: companyProfile.summary,
@@ -392,11 +418,13 @@ export default function OnboardingPage() {
         avoid: companyProfile.avoid,
         content_guidelines: companyProfile.contentGuidelines,
         user_id: user.id,
-      }, { onConflict: "name" });
-    } catch (e) {
-      console.warn("Kunde inte spara profil till Supabase:", e);
+      });
+      console.log("INSERT ERROR:", error);
     }
+  } catch (e) {
+    console.warn("Supabase fel:", e);
   }
+}
   
 
   const [result] = await Promise.all([
