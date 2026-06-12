@@ -18,6 +18,8 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   const [plan, setPlan] = useState<MarketingPlan | null>(null);
   const [copied, setCopied] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
+const [generatedImage, setGeneratedImage] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("marketing-copilot-plan");
@@ -34,6 +36,20 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+  async function generateImage() {
+  if (!post || !plan) return;
+  setGeneratingImage(true);
+  try {
+    const response = await fetch("/api/generate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: post.image, companyName: plan.company }),
+    });
+    const data = await response.json();
+    if (data.url) setGeneratedImage(data.url);
+  } catch (e) { console.error(e); }
+  finally { setGeneratingImage(false); }
+}
 
   if (!plan) return (
     <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 20px" }}>
@@ -56,7 +72,6 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   const blocks = [
     { label: "Text", content: post.text },
     { label: "Call to action", content: post.cta },
-    { label: "Bildidé", content: post.image },
   ];
 
   return (
@@ -127,14 +142,40 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
         </div>
 
         {/* Content blocks */}
-        <div style={{ borderTop: `1px solid ${T.line}` }}>
-          {blocks.map(b => (
-            <div key={b.label} style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
-              <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 10 }}>{b.label}</div>
-              <p style={{ fontSize: isMobile ? "0.95rem" : "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8 }}>{b.content}</p>
-            </div>
-          ))}
-        </div>
+<div style={{ borderTop: `1px solid ${T.line}` }}>
+  {blocks.map(b => (
+    <div key={b.label} style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
+      <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 10 }}>{b.label}</div>
+      <p style={{ fontSize: isMobile ? "0.95rem" : "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8 }}>{b.content}</p>
+    </div>
+  ))}
+
+  {/* Bildsektion */}
+  <div style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
+    <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 10 }}>Bildidé</div>
+    <p style={{ fontSize: isMobile ? "0.95rem" : "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8, marginBottom: 16 }}>{post.image}</p>
+
+    {generatedImage ? (
+      <div>
+        <img src={generatedImage} alt="Genererad bild" style={{ width: "100%", borderRadius: 2, border: `1px solid ${T.line}` }} />
+        <button onClick={generateImage} disabled={generatingImage} style={{ marginTop: 12, fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 14px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>
+          Generera ny
+        </button>
+      </div>
+    ) : (
+      <button onClick={generateImage} disabled={generatingImage} style={{
+        display: "inline-flex", alignItems: "center", gap: 8,
+        fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400,
+        letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 22px",
+        borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent",
+        color: generatingImage ? T.text3 : T.text2, cursor: generatingImage ? "not-allowed" : "pointer",
+      }}>
+        {generatingImage && <span style={{ width: 12, height: 12, borderRadius: "50%", border: `1.5px solid ${T.line2}`, borderTopColor: T.gold, display: "inline-block", animation: "spin .7s linear infinite" }} />}
+        {generatingImage ? "Genererar…" : "✦ Generera bild"}
+      </button>
+    )}
+  </div>
+</div>
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 8, marginTop: 32, flexWrap: "wrap" }}>
