@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase-browser";
 import { useRouter } from "next/navigation";
 
@@ -67,63 +66,63 @@ export default function DashboardPage() {
   const [view, setView] = useState<View>("week");
   const [section, setSection] = useState<Section>("social");
   const [lastGenerated, setLastGenerated] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const pad = isMobile ? 20 : 48;
-const router = useRouter();
+  const router = useRouter();
 
-async function signOut() {
-  const sb = createClient();
-  await sb.auth.signOut();
-  router.push("/login");
-}
-  useEffect(() => {
-  async function loadData() {
+  async function signOut() {
     const sb = createClient();
-    const { data: { user } } = await sb.auth.getUser();
+    await sb.auth.signOut();
+    router.push("/login");
+  }
 
-    // Försök hämta profil från Supabase först
-    if (user) {
-      try {
-        const { data: company } = await sb
-          .from("companies")
-          .select("*")
-          .eq("user_id", user.id)
-          .single();
+  useEffect(() => {
+    async function loadData() {
+      const sb = createClient();
+      const { data: { user } } = await sb.auth.getUser();
 
-        if (company) {
-          const p: CompanyProfile = {
-            companyName: company.name,
-            industry: company.industry,
-            summary: company.summary,
-            customers: company.customers ?? [],
-            products: company.products ?? [],
-            tone: company.tone ?? [],
-            strengths: company.strengths ?? [],
-            avoid: company.avoid ?? [],
-            contentGuidelines: company.content_guidelines ?? [],
-          };
-          setProfile(p);
-          localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(p));
+      if (user) {
+        setEmail(user.email ?? null);
+        try {
+          const { data: company } = await sb
+            .from("companies")
+            .select("*")
+            .eq("user_id", user.id)
+            .single();
+
+          if (company) {
+            const p: CompanyProfile = {
+              companyName: company.name,
+              industry: company.industry,
+              summary: company.summary,
+              customers: company.customers ?? [],
+              products: company.products ?? [],
+              tone: company.tone ?? [],
+              strengths: company.strengths ?? [],
+              avoid: company.avoid ?? [],
+              contentGuidelines: company.content_guidelines ?? [],
+            };
+            setProfile(p);
+            localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(p));
+          }
+        } catch {
+          const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
+          if (savedProfile) try { setProfile(JSON.parse(savedProfile)); } catch {}
         }
-      } catch (e) {
-        // Fallback till localStorage
+      } else {
         const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
         if (savedProfile) try { setProfile(JSON.parse(savedProfile)); } catch {}
       }
-    } else {
-      const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
-      if (savedProfile) try { setProfile(JSON.parse(savedProfile)); } catch {}
+
+      const savedPlan = localStorage.getItem("marketing-copilot-plan");
+      const savedDate = localStorage.getItem("marketing-copilot-last-generated");
+      if (savedPlan) try { setPlan(JSON.parse(savedPlan)); } catch {}
+      if (savedDate) setLastGenerated(savedDate);
     }
 
-    // Plan och datum läses alltid från localStorage
-    const savedPlan = localStorage.getItem("marketing-copilot-plan");
-    const savedDate = localStorage.getItem("marketing-copilot-last-generated");
-    if (savedPlan) try { setPlan(JSON.parse(savedPlan)); } catch {}
-    if (savedDate) setLastGenerated(savedDate);
-  }
-
-  loadData();
-}, []);
+    loadData();
+  }, []);
 
   async function generatePlan() {
     if (!profile) return;
@@ -132,17 +131,17 @@ async function signOut() {
       const savedFiles = localStorage.getItem("marketing-copilot-brain-files");
       const brainFiles = savedFiles ? JSON.parse(savedFiles) : [];
       const sb = createClient();
-const { data: { user } } = await sb.auth.getUser();
+      const { data: { user } } = await sb.auth.getUser();
+
       const response = await fetch("/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyProfile: profile, brainFiles }),
+        body: JSON.stringify({ companyProfile: profile, brainFiles, userId: user?.id }),
       });
       if (!response.ok) throw new Error("Kunde inte generera plan.");
       const newPlan = await response.json();
       const planWithId = { id: "ai-generated-plan", ...newPlan };
 
-      // localStorage — primär lagring
       localStorage.setItem("marketing-copilot-plan", JSON.stringify(planWithId));
       setPlan(planWithId);
       const now = new Date().toISOString();
@@ -151,52 +150,48 @@ const { data: { user } } = await sb.auth.getUser();
       setView("week");
       setSection("social");
 
-      // Supabase — dubbel-skrivning (tyst fel om det misslyckas)
-try {
-  const sb = createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) throw new Error("Ingen inloggad användare");
+      try {
+        if (!user) throw new Error("Ingen inloggad användare");
+        const { data: company } = await sb
+          .from("companies")
+          .upsert({
+            name: profile.companyName,
+            industry: profile.industry,
+            summary: profile.summary,
+            customers: profile.customers,
+            products: profile.products,
+            tone: profile.tone,
+            strengths: profile.strengths,
+            avoid: profile.avoid,
+            content_guidelines: profile.contentGuidelines,
+            user_id: user.id,
+          }, { onConflict: "name" })
+          .select()
+          .single();
 
-  const { data: company } = await sb
-    .from("companies")
-    .upsert({
-      name: profile.companyName,
-      industry: profile.industry,
-      summary: profile.summary,
-      customers: profile.customers,
-      products: profile.products,
-      tone: profile.tone,
-      strengths: profile.strengths,
-      avoid: profile.avoid,
-      content_guidelines: profile.contentGuidelines,
-      user_id: user.id,
-    }, { onConflict: "name" })
-    .select()
-    .single();
+        if (company) {
+          await sb.from("plans").insert({
+            company_id: company.id,
+            user_id: user.id,
+            focus: newPlan.focus,
+            tags: newPlan.tags,
+            posts: newPlan.posts,
+            newsletter: newPlan.newsletter,
+            campaigns: newPlan.campaigns,
+          });
 
-  if (company) {
-    await sb.from("plans").insert({
-      company_id: company.id,
-      user_id: user.id,
-      focus: newPlan.focus,
-      tags: newPlan.tags,
-      posts: newPlan.posts,
-      newsletter: newPlan.newsletter,
-      campaigns: newPlan.campaigns,
-    });
-
-    const savedRhythm = localStorage.getItem("marketing-copilot-rhythm");
-    if (savedRhythm) {
-      await sb.from("marketing_rhythm").upsert({
-        company_id: company.id,
-        user_id: user.id,
-        rhythm: savedRhythm,
-      }, { onConflict: "company_id" });
-    }
-  }
-} catch (sbError) {
-  console.warn("Supabase sync misslyckades:", sbError);
-}
+          const savedRhythm = localStorage.getItem("marketing-copilot-rhythm");
+          if (savedRhythm) {
+            await sb.from("marketing_rhythm").upsert({
+              company_id: company.id,
+              user_id: user.id,
+              rhythm: savedRhythm,
+            }, { onConflict: "company_id" });
+          }
+        }
+      } catch (sbError) {
+        console.warn("Supabase sync misslyckades:", sbError);
+      }
 
     } catch (e) { console.error(e); }
     finally { setIsGenerating(false); }
@@ -285,14 +280,19 @@ try {
           }}>
             {isGenerating ? "…" : isMobile ? "Ny" : "Ny plan"}
           </button>
+          {!isMobile && email && (
+            <span style={{ fontSize: "0.65rem", fontWeight: 300, color: T.text3, letterSpacing: "0.04em" }}>
+              {email}
+            </span>
+          )}
           <button onClick={signOut} style={{
-  fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400,
-  letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 12px",
-  borderRadius: 2, border: `1px solid ${T.line}`, background: "transparent",
-  color: T.text3, cursor: "pointer", transition: "all .2s", flexShrink: 0,
-}}>
-  {isMobile ? "↩" : "Logga ut"}
-</button>
+            fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400,
+            letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 12px",
+            borderRadius: 2, border: `1px solid ${T.line}`, background: "transparent",
+            color: T.text3, cursor: "pointer", transition: "all .2s", flexShrink: 0,
+          }}>
+            {isMobile ? "↩" : "Logga ut"}
+          </button>
         </div>
       </nav>
 
@@ -518,18 +518,15 @@ function OpportunitiesSection({ plan }: { plan: MarketingPlan & { opportunities?
       <h2 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2rem,4vw,3.5rem)", letterSpacing: "-0.02em", lineHeight: .95, color: T.text, margin: "16px 0 40px" }}>
         Aktuella tillfällen.
       </h2>
-
       {opportunities && opportunities.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {opportunities.map((opp, i) => (
-            <div key={i} style={{ padding: "24px 24px", background: T.surface, border: `1px solid ${T.line}`, borderRadius: 2, transition: "border-color .2s" }}
-            onMouseOver={e => (e.currentTarget as HTMLElement).style.borderColor = T.line2}
-            onMouseOut={e => (e.currentTarget as HTMLElement).style.borderColor = T.line}
+            <div key={i} style={{ padding: "24px 24px", background: T.surface, border: `1px solid ${T.line}`, borderRadius: 2 }}
+              onMouseOver={e => (e.currentTarget as HTMLElement).style.borderColor = T.line2}
+              onMouseOut={e => (e.currentTarget as HTMLElement).style.borderColor = T.line}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                <h3 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 400, fontSize: "1.2rem", letterSpacing: "-0.01em", color: T.text }}>
-                  {opp.title}
-                </h3>
+                <h3 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 400, fontSize: "1.2rem", letterSpacing: "-0.01em", color: T.text }}>{opp.title}</h3>
                 {opp.date && (
                   <span style={{ fontSize: "0.65rem", fontWeight: 400, letterSpacing: "0.08em", textTransform: "uppercase", color: T.gold, background: T.goldDim, border: `1px solid ${T.goldBorder}`, padding: "3px 10px", borderRadius: 2, flexShrink: 0 }}>
                     {opp.date}
@@ -595,37 +592,24 @@ function BrainView({ profile, isMobile, pad }: { profile: CompanyProfile; isMobi
         <div style={{ marginBottom: 32 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <span style={{ width: 18, height: 1, background: T.gold, opacity: .5, display: "block" }} />
-            <span style={{ fontSize: "0.65rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold }}>
-              Marketing Rhythm
-            </span>
+            <span style={{ fontSize: "0.65rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold }}>Marketing Rhythm</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {rhythmOptions.map(opt => {
               const active = rhythm === opt.id;
               return (
-                <button
-                  key={opt.id}
-                  onClick={() => selectRhythm(opt.id)}
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "14px 16px", borderRadius: 2, cursor: "pointer",
-                    background: active ? T.goldDim : T.surface,
-                    border: `1px solid ${active ? T.goldBorder : T.line}`,
-                    transition: "all .15s", textAlign: "left",
-                  }}
-                >
+                <button key={opt.id} onClick={() => selectRhythm(opt.id)} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "14px 16px", borderRadius: 2, cursor: "pointer",
+                  background: active ? T.goldDim : T.surface,
+                  border: `1px solid ${active ? T.goldBorder : T.line}`,
+                  transition: "all .15s", textAlign: "left",
+                }}>
                   <div>
-                    <div style={{ fontSize: "0.85rem", fontWeight: 400, color: active ? T.gold : T.text2, marginBottom: 2 }}>
-                      {opt.label}
-                    </div>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 400, color: active ? T.gold : T.text2, marginBottom: 2 }}>{opt.label}</div>
                     <div style={{ fontSize: "0.7rem", fontWeight: 300, color: T.text3 }}>{opt.sub}</div>
                   </div>
-                  <div style={{
-                    width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
-                    border: `1.5px solid ${active ? T.gold : T.line2}`,
-                    background: active ? T.gold : "transparent",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
+                  <div style={{ width: 16, height: 16, borderRadius: "50%", flexShrink: 0, border: `1.5px solid ${active ? T.gold : T.line2}`, background: active ? T.gold : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {active && <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.bg }} />}
                   </div>
                 </button>
