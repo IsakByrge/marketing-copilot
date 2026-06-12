@@ -376,6 +376,7 @@ export default function OnboardingPage() {
 
   const sb = createClient();
   const { data: { user } } = await sb.auth.getUser();
+  console.log("USER:", user?.id, user?.email);
 
   // Spara profil till Supabase
   if (user) {
