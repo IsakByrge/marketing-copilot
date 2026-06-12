@@ -19,7 +19,10 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   const [copied, setCopied] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
-const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
+  const [editedImage, setEditedImage] = useState<string | null>(null);
+  const [editingImage, setEditingImage] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("marketing-copilot-plan");
@@ -36,20 +39,40 @@ const [generatedImage, setGeneratedImage] = useState<string | null>(null);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+
   async function generateImage() {
-  if (!post || !plan) return;
-  setGeneratingImage(true);
-  try {
-    const response = await fetch("/api/generate-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: post.image, companyName: plan.company }),
-    });
-    const data = await response.json();
-if (data.image) setGeneratedImage(data.image);
-  } catch (e) { console.error(e); }
-  finally { setGeneratingImage(false); }
-}
+    if (!post || !plan) return;
+    setGeneratingImage(true);
+    try {
+      const response = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: post.image, companyName: plan.company }),
+      });
+      const data = await response.json();
+      if (data.image) setGeneratedImage(data.image);
+    } catch (e) { console.error(e); }
+    finally { setGeneratingImage(false); }
+  }
+
+  async function editImage() {
+    if (!post || !plan || !uploadedImage) return;
+    setEditingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", uploadedImage);
+      formData.append("prompt", post.image);
+      formData.append("companyName", plan.company);
+
+      const response = await fetch("/api/edit-image", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+      if (data.image) setEditedImage(data.image);
+    } catch (e) { console.error(e); }
+    finally { setEditingImage(false); }
+  }
 
   if (!plan) return (
     <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 20px" }}>
@@ -74,6 +97,8 @@ if (data.image) setGeneratedImage(data.image);
     { label: "Call to action", content: post.cta },
   ];
 
+  const displayImage = editedImage || generatedImage;
+
   return (
     <main style={{ minHeight: "100svh", background: T.bg }}>
 
@@ -95,14 +120,12 @@ if (data.image) setGeneratedImage(data.image);
         </Link>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          {/* Prev/next only on desktop */}
           {!isMobile && index > 0 && (
             <Link href={`/post/${index - 1}`} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, textDecoration: "none" }}>← Föregående</Link>
           )}
           {!isMobile && index < plan.posts.length - 1 && (
             <Link href={`/post/${index + 1}`} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, textDecoration: "none" }}>Nästa →</Link>
           )}
-          {/* On mobile: show inlägg X/Y */}
           {isMobile && (
             <span style={{ fontSize: "0.68rem", fontWeight: 300, color: T.text3, letterSpacing: "0.06em" }}>
               {index + 1} / {plan.posts.length}
@@ -142,40 +165,73 @@ if (data.image) setGeneratedImage(data.image);
         </div>
 
         {/* Content blocks */}
-<div style={{ borderTop: `1px solid ${T.line}` }}>
-  {blocks.map(b => (
-    <div key={b.label} style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
-      <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 10 }}>{b.label}</div>
-      <p style={{ fontSize: isMobile ? "0.95rem" : "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8 }}>{b.content}</p>
-    </div>
-  ))}
+        <div style={{ borderTop: `1px solid ${T.line}` }}>
+          {blocks.map(b => (
+            <div key={b.label} style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
+              <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 10 }}>{b.label}</div>
+              <p style={{ fontSize: isMobile ? "0.95rem" : "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8 }}>{b.content}</p>
+            </div>
+          ))}
 
-  {/* Bildsektion */}
-  <div style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
-    <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 10 }}>Bildidé</div>
-    <p style={{ fontSize: isMobile ? "0.95rem" : "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8, marginBottom: 16 }}>{post.image}</p>
+          {/* Bildsektion */}
+          <div style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
+            <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 10 }}>Bild</div>
+            <p style={{ fontSize: isMobile ? "0.95rem" : "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8, marginBottom: 16 }}>{post.image}</p>
 
-    {generatedImage ? (
-      <div>
-        <img src={generatedImage} alt="Genererad bild" style={{ width: "100%", borderRadius: 2, border: `1px solid ${T.line}` }} />
-        <button onClick={generateImage} disabled={generatingImage} style={{ marginTop: 12, fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.68rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "7px 14px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>
-          Generera ny
-        </button>
-      </div>
-    ) : (
-      <button onClick={generateImage} disabled={generatingImage} style={{
-        display: "inline-flex", alignItems: "center", gap: 8,
-        fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400,
-        letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 22px",
-        borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent",
-        color: generatingImage ? T.text3 : T.text2, cursor: generatingImage ? "not-allowed" : "pointer",
-      }}>
-        {generatingImage && <span style={{ width: 12, height: 12, borderRadius: "50%", border: `1.5px solid ${T.line2}`, borderTopColor: T.gold, display: "inline-block", animation: "spin .7s linear infinite" }} />}
-        {generatingImage ? "Genererar…" : "✦ Generera bild"}
-      </button>
-    )}
-  </div>
-</div>
+            {/* Visa genererad eller redigerad bild */}
+            {displayImage && (
+              <div style={{ marginBottom: 16 }}>
+                <img src={displayImage} alt="Bild" style={{ width: "100%", borderRadius: 2, border: `1px solid ${T.line}` }} />
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Ladda upp egen bild */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, marginBottom: 8 }}>
+                  Ladda upp din produktbild
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={e => setUploadedImage(e.target.files?.[0] || null)}
+                  style={{ fontSize: "0.8rem", color: T.text2, background: "transparent", border: "none", cursor: "pointer" }}
+                />
+                {uploadedImage && (
+                  <p style={{ marginTop: 4, fontSize: "0.72rem", color: T.gold }}>✓ {uploadedImage.name}</p>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {/* Redigera med uppladdad bild */}
+                {uploadedImage && (
+                  <button onClick={editImage} disabled={editingImage} style={{
+                    display: "inline-flex", alignItems: "center", gap: 8,
+                    fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400,
+                    letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 22px",
+                    borderRadius: 2, border: "none", background: T.gold,
+                    color: T.bg, cursor: editingImage ? "not-allowed" : "pointer",
+                  }}>
+                    {editingImage && <span style={{ width: 12, height: 12, borderRadius: "50%", border: `1.5px solid rgba(0,0,0,0.2)`, borderTopColor: T.bg, display: "inline-block", animation: "spin .7s linear infinite" }} />}
+                    {editingImage ? "Redigerar…" : "✦ Placera i ny miljö"}
+                  </button>
+                )}
+
+                {/* Generera helt ny AI-bild */}
+                <button onClick={generateImage} disabled={generatingImage} style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400,
+                  letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 22px",
+                  borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent",
+                  color: generatingImage ? T.text3 : T.text2, cursor: generatingImage ? "not-allowed" : "pointer",
+                }}>
+                  {generatingImage && <span style={{ width: 12, height: 12, borderRadius: "50%", border: `1.5px solid ${T.line2}`, borderTopColor: T.gold, display: "inline-block", animation: "spin .7s linear infinite" }} />}
+                  {generatingImage ? "Genererar…" : "Generera AI-bild"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 8, marginTop: 32, flexWrap: "wrap" }}>
@@ -221,6 +277,10 @@ if (data.image) setGeneratedImage(data.image);
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </main>
   );
 }
