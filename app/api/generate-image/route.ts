@@ -8,7 +8,6 @@ export async function POST(request: Request) {
     const { prompt, companyName } = await request.json();
 
     const response = await client.images.generate({
-  model: "dall-e-2",
   prompt: `Professionell marknadsföringsbild för ${companyName}: ${prompt}. Fotorealistisk, ljus och inbjudande. Inga texter eller logotyper i bilden.`,
   n: 1,
   size: "1024x1024",
