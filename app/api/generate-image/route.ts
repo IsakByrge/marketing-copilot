@@ -17,8 +17,9 @@ export async function POST(request: Request) {
     const imageUrl = response.data?.[0]?.url;
     return NextResponse.json({ url: imageUrl });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("IMAGE_GEN_ERROR:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("IMAGE_GEN_ERROR:", message);
+  console.error("IMAGE_GEN_ERROR full:", JSON.stringify(error));
+  return NextResponse.json({ error: message }, { status: 500 });
+}
 }
