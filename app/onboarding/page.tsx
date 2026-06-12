@@ -397,6 +397,7 @@ export default function OnboardingPage() {
       console.warn("Kunde inte spara profil till Supabase:", e);
     }
   }
+  
 
   const [result] = await Promise.all([
     fetch("/api/generate-plan", {
