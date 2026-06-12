@@ -17,8 +17,8 @@ export async function POST(request: Request) {
 
     const imageUrl = response.data?.[0]?.url;
     return NextResponse.json({ url: imageUrl });
-  } catch (error) {
-    console.error("IMAGE_GEN_ERROR:", error);
-    return NextResponse.json({ error: "Kunde inte generera bild." }, { status: 500 });
-  }
+  } catch (error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("IMAGE_GEN_ERROR:", message);
+  return NextResponse.json({ error: message }, { status: 500 });
 }
