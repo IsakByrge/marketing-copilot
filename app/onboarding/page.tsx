@@ -376,7 +376,7 @@ export default function OnboardingPage() {
 
   const sb = createClient();
   const { data: { user } } = await sb.auth.getUser();
-  console.log("USER:", user?.id, user?.email);
+  
 
   // Spara profil till Supabase
   if (user) {
@@ -404,7 +404,7 @@ export default function OnboardingPage() {
           content_guidelines: companyProfile.contentGuidelines,
         })
         .eq("user_id", user.id);
-      console.log("UPDATE ERROR:", error);
+      
     } else {
       // Skapa nytt
       const { error } = await sb.from("companies").insert({
@@ -419,7 +419,7 @@ export default function OnboardingPage() {
         content_guidelines: companyProfile.contentGuidelines,
         user_id: user.id,
       });
-      console.log("INSERT ERROR:", error);
+      
     }
   } catch (e) {
     console.warn("Supabase fel:", e);
