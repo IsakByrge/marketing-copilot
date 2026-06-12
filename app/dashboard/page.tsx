@@ -85,11 +85,14 @@ export default function DashboardPage() {
       if (user) {
         setEmail(user.email ?? null);
         try {
-          const { data: company } = await sb
-            .from("companies")
-            .select("*")
-            .eq("user_id", user.id)
-            .single();
+          const { data: companies } = await sb
+  .from("companies")
+  .select("*")
+  .eq("user_id", user.id)
+  .order("created_at", { ascending: false })
+  .limit(1);
+
+const company = companies?.[0] ?? null;
 
           if (company) {
             const p: CompanyProfile = {
