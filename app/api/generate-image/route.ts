@@ -8,12 +8,11 @@ export async function POST(request: Request) {
     const { prompt, companyName } = await request.json();
 
     const response = await client.images.generate({
-      model: "dall-e-3",
-      prompt: `Professionell marknadsföringsbild för ${companyName}: ${prompt}. Fotorealistisk, ljus och inbjudande. Inga texter eller logotyper i bilden.`,
-      n: 1,
-      size: "1024x1024",
-      quality: "standard",
-    });
+  model: "dall-e-2",
+  prompt: `Professionell marknadsföringsbild för ${companyName}: ${prompt}. Fotorealistisk, ljus och inbjudande. Inga texter eller logotyper i bilden.`,
+  n: 1,
+  size: "1024x1024",
+});
 
     const imageUrl = response.data?.[0]?.url;
     return NextResponse.json({ url: imageUrl });
