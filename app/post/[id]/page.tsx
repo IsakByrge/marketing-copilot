@@ -46,7 +46,7 @@ const [generatedImage, setGeneratedImage] = useState<string | null>(null);
       body: JSON.stringify({ prompt: post.image, companyName: plan.company }),
     });
     const data = await response.json();
-    if (data.url) setGeneratedImage(data.url);
+if (data.image) setGeneratedImage(data.image);
   } catch (e) { console.error(e); }
   finally { setGeneratingImage(false); }
 }
