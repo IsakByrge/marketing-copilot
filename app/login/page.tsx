@@ -50,16 +50,18 @@ export default function LoginPage() {
       }
 
       const { data: { user } } = await sb.auth.getUser();
+      let target = "/onboarding";
       if (user) {
         const { data: companies } = await sb
           .from("companies")
           .select("id")
           .eq("user_id", user.id)
           .limit(1);
-        router.push(companies && companies.length > 0 ? "/dashboard" : "/onboarding");
-      } else {
-        router.push("/onboarding");
+        if (companies && companies.length > 0) target = "/dashboard";
       }
+      // Full omladdning så att sessionscookien hinner följa med
+      window.location.href = target;
+      
     } catch {
       setError("Något gick fel. Försök igen.");
       setLoading(false);
