@@ -1,5 +1,6 @@
 "use client";
 
+import { createClient } from "@/lib/supabase-browser";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -399,7 +400,31 @@ export default function OnboardingPage() {
     }
 
     localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(finalProfile));
-
+// Spara till Supabase så dashboarden hittar profilen (kopplad till kontot)
+    try {
+      const sb = createClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (user) {
+        await sb.from("companies").upsert({
+          name: finalProfile.companyName,
+          industry: finalProfile.industry,
+          summary: finalProfile.summary,
+          customers: finalProfile.customers,
+          products: finalProfile.products,
+          tone: finalProfile.tone,
+          strengths: finalProfile.strengths,
+          avoid: finalProfile.avoid,
+          content_guidelines: finalProfile.contentGuidelines,
+          best_customer: finalProfile.bestCustomer,
+          common_question: finalProfile.commonQuestion,
+          differentiator: finalProfile.differentiator,
+          recent_job: finalProfile.recentJob,
+          user_id: user.id,
+        }, { onConflict: "user_id,name" });
+      }
+    } catch (sbError) {
+      console.warn("Kunde inte spara företag till Supabase:", sbError);
+    }
     const [result] = await Promise.all([
       fetch("/api/generate-plan", {
         method: "POST", headers: { "Content-Type": "application/json" },
