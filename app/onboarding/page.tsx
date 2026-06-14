@@ -1,6 +1,5 @@
 "use client";
 
-import { createClient } from "@/lib/supabase-browser";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -15,6 +14,10 @@ type CompanyProfile = {
   companyName: string; industry: string; summary: string;
   customers: string[]; products: string[]; tone: string[];
   strengths: string[]; avoid: string[]; contentGuidelines: string[];
+  bestCustomer?: string;
+  commonQuestion?: string;
+  differentiator?: string;
+  recentJob?: string;
 };
 
 const STEPS_WITH_WEBSITE = [
@@ -190,7 +193,7 @@ function InputScreen({ onSubmit }: { onSubmit: (data: Record<string, string>) =>
           hint="Valfritt men kraftfullt — ett konkret uppdrag ger AI:n verkligt material att skriva om."
         >
           <textarea value={recentJob} onChange={e => setRecentJob(e.target.value)}
-            placeholder="t.ex. En familj kom in dagen innan de skulle åka på tre veckors husbildssemester. Vi fyllde deras 33-liters tank på 20 minuter och de var iväg."
+            placeholder="t.ex. En familj kom in dagen innan de skulle åka på tre veckors husbilssemester. Vi fyllde deras 33-liters tank på 20 minuter och de var iväg."
             rows={3} style={textareaStyle} onFocus={handleFocus} onBlur={handleBlur}
           />
         </Field>
@@ -363,84 +366,38 @@ export default function OnboardingPage() {
       contentGuidelines: ["Konkret och faktabaserat"],
     };
 
+    // Säkra att ägarens råa svar alltid finns i profilen — även om AI:n
+    // skulle misslyckas. Detta är det material generate-plan bygger på.
+    p.bestCustomer = data.bestCustomer;
+    p.commonQuestion = data.commonQuestion;
+    p.differentiator = data.differentiator;
+    p.recentJob = data.recentJob;
+
     localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(p));
     setProfile(p);
     setScreen("brain");
   }
 
   async function handleCreatePlan() {
-  setScreen("generating");
+    setScreen("generating");
 
-  const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
-  const companyProfile = savedProfile ? JSON.parse(savedProfile) : profile;
+    const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
+    const companyProfile = savedProfile ? JSON.parse(savedProfile) : profile;
 
-  const sb = createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  
+    const [result] = await Promise.all([
+      fetch("/api/generate-plan", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyProfile }),
+      }).then(r => r.json()).catch(() => null),
+      new Promise(r => setTimeout(r, 4200)),
+    ]);
 
-  // Spara profil till Supabase
-  if (user) {
-  try {
-    // Försök hitta befintligt företag för denna användare
-    const { data: existing } = await sb
-      .from("companies")
-      .select("id")
-      .eq("user_id", user.id)
-      .single();
-
-    if (existing) {
-      // Uppdatera befintligt
-      const { error } = await sb
-        .from("companies")
-        .update({
-          name: companyProfile.companyName,
-          industry: companyProfile.industry,
-          summary: companyProfile.summary,
-          customers: companyProfile.customers,
-          products: companyProfile.products,
-          tone: companyProfile.tone,
-          strengths: companyProfile.strengths,
-          avoid: companyProfile.avoid,
-          content_guidelines: companyProfile.contentGuidelines,
-        })
-        .eq("user_id", user.id);
-      
-    } else {
-      // Skapa nytt
-      const { error } = await sb.from("companies").insert({
-        name: companyProfile.companyName,
-        industry: companyProfile.industry,
-        summary: companyProfile.summary,
-        customers: companyProfile.customers,
-        products: companyProfile.products,
-        tone: companyProfile.tone,
-        strengths: companyProfile.strengths,
-        avoid: companyProfile.avoid,
-        content_guidelines: companyProfile.contentGuidelines,
-        user_id: user.id,
-      });
-      
+    if (result) {
+      localStorage.setItem("marketing-copilot-plan", JSON.stringify({ id: "ai-generated-plan", ...result }));
     }
-  } catch (e) {
-    console.warn("Supabase fel:", e);
+
+    router.push("/dashboard");
   }
-}
-  
-
-  const [result] = await Promise.all([
-    fetch("/api/generate-plan", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyProfile, userId: user?.id }),
-    }).then(r => r.json()).catch(() => null),
-    new Promise(r => setTimeout(r, 4200)),
-  ]);
-
-  if (result) {
-    localStorage.setItem("marketing-copilot-plan", JSON.stringify({ id: "ai-generated-plan", ...result }));
-  }
-
-  router.push("/dashboard");
-}
 
   return (
     <main style={{ minHeight: "100svh", background: T.bg }}>

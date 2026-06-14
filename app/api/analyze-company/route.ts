@@ -101,6 +101,14 @@ Returnera exakt denna JSON:
     const profile = JSON.parse(raw);
     profile._websiteScraped = hasWebsiteContent;
 
+    // ── Bär med ägarens råa svar oförändrade in i profilen ──
+    // AI:n tolkar dem till summary/customers osv, men originaltexten
+    // är guld för generate-plan och ska aldrig tappas.
+    profile.bestCustomer = body.bestCustomer || "";
+    profile.commonQuestion = body.commonQuestion || "";
+    profile.differentiator = body.differentiator || "";
+    profile.recentJob = body.recentJob || "";
+
     return NextResponse.json(profile);
 
   } catch (error) {
