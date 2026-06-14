@@ -30,8 +30,8 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && request.nextUrl.pathname === "/login") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
+  return NextResponse.redirect(new URL("/auth/callback", request.url));
+}
 
   return supabaseResponse;
 }
