@@ -108,6 +108,31 @@ const company = companies?.[0] ?? null;
             };
             setProfile(p);
             localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(p));
+            // Hämta senaste planen för det här företaget
+            const { data: plans } = await sb
+              .from("plans")
+              .select("*")
+              .eq("company_id", company.id)
+              .order("created_at", { ascending: false })
+              .limit(1);
+
+            const latestPlan = plans?.[0] ?? null;
+            if (latestPlan) {
+              const planFromDb = {
+                id: "ai-generated-plan",
+                company: company.name,
+                focus: latestPlan.focus,
+                tags: latestPlan.tags ?? [],
+                posts: latestPlan.posts ?? [],
+                newsletter: latestPlan.newsletter,
+                campaigns: latestPlan.campaigns ?? [],
+                opportunities: latestPlan.opportunities ?? [],
+              };
+              setPlan(planFromDb);
+              localStorage.setItem("marketing-copilot-plan", JSON.stringify(planFromDb));
+              setLastGenerated(latestPlan.created_at);
+              localStorage.setItem("marketing-copilot-last-generated", latestPlan.created_at);
+            }
           }
         } catch {
           const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
@@ -168,7 +193,7 @@ const company = companies?.[0] ?? null;
             avoid: profile.avoid,
             content_guidelines: profile.contentGuidelines,
             user_id: user.id,
-          }, { onConflict: "name" })
+          }, { onConflict: "user_id,name" })
           .select()
           .single();
 
