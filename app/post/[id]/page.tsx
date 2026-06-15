@@ -45,12 +45,12 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
         if (!user) return;
         const { data } = await sb
           .from("content_feedback")
-          .select("rating")
+          .select("rating_text")
           .eq("user_id", user.id)
           .eq("company_name", parsedPlan.company)
           .eq("post_index", index)
           .limit(1);
-        if (data && data[0]) setFeedback(data[0].rating === "up" ? "up" : "down");
+        if (data && data[0]) setFeedback(data[0].rating_text === "up" ? "up" : "down");
       } catch {}
     })();
 
@@ -79,7 +79,7 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
         company_name: plan.company,
         post_index: index,
         post_title: post.title,
-        rating,
+        rating_text: rating,
       }, { onConflict: "user_id,company_name,post_index" });
     } catch (e) {
       console.warn("Kunde inte spara feedback:", e);
