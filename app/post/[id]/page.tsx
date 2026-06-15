@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase-browser";
 
 const T = {
   bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
@@ -23,21 +24,66 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const [editedImage, setEditedImage] = useState<string | null>(null);
   const [editingImage, setEditingImage] = useState(false);
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const [feedbackSaved, setFeedbackSaved] = useState(false);
+
+  const index = Number(id);
 
   useEffect(() => {
     const saved = localStorage.getItem("marketing-copilot-plan");
-    if (saved) try { setPlan(JSON.parse(saved)); } catch {}
+    let parsedPlan: MarketingPlan | null = null;
+    if (saved) try { parsedPlan = JSON.parse(saved); setPlan(parsedPlan); } catch {}
     const check = () => setIsMobile(window.innerWidth < 640);
     check();
     window.addEventListener("resize", check);
+
+    (async () => {
+      try {
+        if (!parsedPlan) return;
+        const sb = createClient();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) return;
+        const { data } = await sb
+          .from("content_feedback")
+          .select("rating")
+          .eq("user_id", user.id)
+          .eq("company_name", parsedPlan.company)
+          .eq("post_index", index)
+          .limit(1);
+        if (data && data[0]) setFeedback(data[0].rating === "up" ? "up" : "down");
+      } catch {}
+    })();
+
     return () => window.removeEventListener("resize", check);
-  }, []);
+  }, [index]);
 
   function copyPost() {
     if (!post) return;
     navigator.clipboard.writeText(`${post.title}\n\n${post.text}\n\n${post.cta}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function saveFeedback(rating: "up" | "down") {
+    if (!plan || !post) return;
+    setFeedback(rating);
+    setFeedbackSaved(true);
+    setTimeout(() => setFeedbackSaved(false), 2000);
+
+    try {
+      const sb = createClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      await sb.from("content_feedback").upsert({
+        user_id: user.id,
+        company_name: plan.company,
+        post_index: index,
+        post_title: post.title,
+        rating,
+      }, { onConflict: "user_id,company_name,post_index" });
+    } catch (e) {
+      console.warn("Kunde inte spara feedback:", e);
+    }
   }
 
   async function generateImage() {
@@ -80,7 +126,6 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
     </main>
   );
 
-  const index = Number(id);
   const post = plan.posts[index];
 
   if (!post) return (
@@ -102,7 +147,6 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   return (
     <main style={{ minHeight: "100svh", background: T.bg }}>
 
-      {/* Nav */}
       <nav style={{
         position: "sticky", top: 0, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -146,7 +190,6 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
 
       <div style={{ maxWidth: 800, margin: "0 auto", padding: `48px ${pad}px 100px` }}>
 
-        {/* Header */}
         <div style={{ marginBottom: 48 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase", color: T.gold, marginBottom: 14 }}>
             <span style={{ width: 16, height: 1, background: T.gold, opacity: .5, display: "block" }} />
@@ -164,7 +207,6 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
           </p>
         </div>
 
-        {/* Content blocks */}
         <div style={{ borderTop: `1px solid ${T.line}` }}>
           {blocks.map(b => (
             <div key={b.label} style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
@@ -173,12 +215,10 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
             </div>
           ))}
 
-          {/* Bildsektion */}
           <div style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
             <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 10 }}>Bild</div>
             <p style={{ fontSize: isMobile ? "0.95rem" : "1rem", fontWeight: 300, color: T.text2, lineHeight: 1.8, marginBottom: 16 }}>{post.image}</p>
 
-            {/* Visa genererad eller redigerad bild */}
             {displayImage && (
               <div style={{ marginBottom: 16 }}>
                 <img src={displayImage} alt="Bild" style={{ width: "100%", borderRadius: 2, border: `1px solid ${T.line}` }} />
@@ -186,7 +226,6 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
             )}
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {/* Ladda upp egen bild */}
               <div>
                 <label style={{ display: "block", fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, marginBottom: 8 }}>
                   Ladda upp din produktbild
@@ -203,7 +242,6 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {/* Redigera med uppladdad bild */}
                 {uploadedImage && (
                   <button onClick={editImage} disabled={editingImage} style={{
                     display: "inline-flex", alignItems: "center", gap: 8,
@@ -217,7 +255,6 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
                   </button>
                 )}
 
-                {/* Generera helt ny AI-bild */}
                 <button onClick={generateImage} disabled={generatingImage} style={{
                   display: "inline-flex", alignItems: "center", gap: 8,
                   fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400,
@@ -233,8 +270,7 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
           </div>
         </div>
 
-        {/* Actions */}
-        <div style={{ display: "flex", gap: 8, marginTop: 32, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 32, flexWrap: "wrap", alignItems: "center" }}>
           <button onClick={copyPost} style={{
             fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400,
             letterSpacing: "0.1em", textTransform: "uppercase",
@@ -244,11 +280,34 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
           }}>
             {copied ? "✓ Kopierat" : "Kopiera inlägg"}
           </button>
-          <button style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 16px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>Bra</button>
-          <button style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 16px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>Mindre bra</button>
+
+          <button onClick={() => saveFeedback("up")} style={{
+            fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400,
+            letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 16px", borderRadius: 2,
+            border: `1px solid ${feedback === "up" ? T.goldBorder : T.line2}`,
+            background: feedback === "up" ? T.goldDim : "transparent",
+            color: feedback === "up" ? T.gold : T.text3, cursor: "pointer", transition: "all .15s",
+          }}>
+            👍 Bra
+          </button>
+
+          <button onClick={() => saveFeedback("down")} style={{
+            fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400,
+            letterSpacing: "0.1em", textTransform: "uppercase", padding: "11px 16px", borderRadius: 2,
+            border: `1px solid ${feedback === "down" ? T.goldBorder : T.line2}`,
+            background: feedback === "down" ? T.goldDim : "transparent",
+            color: feedback === "down" ? T.gold : T.text3, cursor: "pointer", transition: "all .15s",
+          }}>
+            👎 Mindre bra
+          </button>
+
+          {feedbackSaved && (
+            <span style={{ fontSize: "0.72rem", fontWeight: 300, color: T.gold, letterSpacing: "0.04em" }}>
+              ✓ Tack, AI:n lär sig
+            </span>
+          )}
         </div>
 
-        {/* Post navigation dots */}
         <div style={{ display: "flex", gap: 2, marginTop: 40, borderTop: `1px solid ${T.line}`, paddingTop: 24 }}>
           {plan.posts.map((_, i) => (
             <Link key={i} href={`/post/${i}`} style={{
@@ -265,7 +324,6 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
           ))}
         </div>
 
-        {/* Mobile prev/next */}
         {isMobile && (
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             {index > 0 ? (
