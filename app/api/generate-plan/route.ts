@@ -58,6 +58,21 @@ async function getPastPlans(companyName: string, userId: string): Promise<PastPl
     return [];
   }
 }
+async function getFeedback(companyName: string, userId: string) {
+  try {
+    const { data } = await supabase
+      .from("content_feedback")
+      .select("post_title, rating_text")
+      .eq("company_name", companyName)
+      .eq("user_id", userId);
+
+    const liked = (data ?? []).filter(f => f.rating_text === "up").map(f => f.post_title);
+    const disliked = (data ?? []).filter(f => f.rating_text === "down").map(f => f.post_title);
+    return { liked, disliked };
+  } catch {
+    return { liked: [], disliked: [] };
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -82,7 +97,16 @@ export async function POST(request: Request) {
 
     // Hämta historik från Supabase
     const userId = body.userId ?? "";
-const pastPlans = await getPastPlans(profile.companyName ?? "", userId);
+    const pastPlans = await getPastPlans(profile.companyName ?? "", userId);
+
+    // Hämta tidigare feedback (tummar)
+    const { liked, disliked } = await getFeedback(profile.companyName ?? "", userId);
+    const feedbackContext = (liked.length > 0 || disliked.length > 0)
+      ? `\nANVÄNDARENS FEEDBACK PÅ TIDIGARE INLÄGG:
+${liked.length > 0 ? `Gillade (skapa fler i denna stil och ton):\n${liked.map(t => `  + ${t}`).join("\n")}` : ""}
+${disliked.length > 0 ? `Gillade INTE (undvik dessa mönster, ämnen och denna ton):\n${disliked.map(t => `  - ${t}`).join("\n")}` : ""}`
+      : "";
+
     const historyContext = pastPlans.length > 0
       ? `\nTIDIGARE PLANER (undvik att upprepa dessa teman och inläggstitlar):
 ${pastPlans.map((p, i) => {
@@ -112,6 +136,7 @@ Svara ALLTID med exakt giltig JSON — ingen förtext, inga backticks. Svara på
 KOMMANDE HÄNDELSER OCH DATUM (nästa 2 veckor):
 ${upcomingDates}
 ${historyContext}
+${feedbackContext}
 
 FÖRETAGSPROFIL:
 Företagsnamn: ${profile.companyName ?? ""}
@@ -132,6 +157,7 @@ KRITISKA REGLER:
 4. CTA:er ska vara konkreta handlingar, inte "Kontakta oss"
 5. Hitta INTE på fakta som inte framgår av profilen
 6. Variera innehållet — upprepa INTE teman, fokus eller inläggstitlar från tidigare planer
+7. Om användaren gett feedback ovan: luta tydligt mot de gillade inläggens stil och ton, och undvik mönstren i de ogillade
 
 FÖRBJUDNA FRASER:
 - "Vi strävar efter att leverera kvalitet"
