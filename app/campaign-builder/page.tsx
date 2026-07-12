@@ -2,20 +2,28 @@
 
 // ─────────────────────────────────────────────────────────────
 // Marketing Copilot 2.0 — Campaign Builder
-// En konversation, inte ett formulär. Marknadschefen ställer en fråga
-// i taget, reagerar personligt och "tänker" mellan frågorna.
-// Ingen AI anropas — upplevelsen är skriptad men kontextberoende.
+// Dynamic Interview Engine: efter varje relevant svar frågar frontend
+// /api/campaign-interview vad marknadschefen ska göra härnäst
+// (confirm/deepen/challenge/skip/finish). Intervjun är inte längre
+// ett förutbestämt manus. Faller tillbaka till ett skriptat läge om
+// AI-anropet misslyckas. Ingen kampanjtext genereras här.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  buildNodes, fmtDate, daysBetween, getGoal, GOALS,
-  type Ctx, type CompanyLite, type ConvNode,
+  buildFieldRegistry, fmtDate, daysBetween, getGoal, GOALS,
+  type Ctx, type CompanyLite, type FieldEntry, type NodeKind,
 } from "./config";
 import {
   EMPTY_BASICS,
   type CampaignBasics, type CampaignBrief, type CampaignGoal, type GoalSpecificAnswers, type YesNo,
 } from "./types";
+import {
+  LIMITS, validateDecision,
+  type InterviewDecision, type InterviewField, type InterviewRequest,
+} from "./interview";
+
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 const T = {
   bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
@@ -30,6 +38,16 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 type Msg =
   | { role: "ai"; kind: "prompt" | "reaction" | "note"; text: string; nodeId?: string }
   | { role: "user"; text: string; nodeId: string };
+
+/** Den fråga som just nu ställs (kan komma från registret eller AI:n). */
+interface CurrentQuestion {
+  targetField: string;
+  text: string;
+  kind: NodeKind;
+  optional?: boolean;
+  placeholder?: string;
+  suggestions?: string[];
+}
 
 /* ── Hooks ──────────────────────────────────────────────────── */
 function useIsMobile() {
@@ -254,7 +272,7 @@ function SummaryView({ brief }: { brief: CampaignBrief }) {
             Vad du berättade
           </div>
           <div style={{ borderTop: `1px solid ${T.line}`, marginTop: 12 }}>
-            {cfg.questions.map((q) => (
+            {cfg.questions.filter((q) => (answers[q.id] ?? "").trim()).map((q) => (
               <SummaryRow key={q.id} label={q.prompt({ record: {}, goal: brief.goal })} value={answers[q.id] ?? ""} />
             ))}
           </div>
@@ -264,8 +282,8 @@ function SummaryView({ brief }: { brief: CampaignBrief }) {
   );
 }
 
-/* ── Utvecklingspanel ───────────────────────────────────────── */
-function DevPanel({ brief }: { brief: CampaignBrief }) {
+/* ── Utvecklingspanel: rå CampaignBrief (endast dev) ────────── */
+function BriefDevPanel({ brief }: { brief: CampaignBrief }) {
   return (
     <div style={{ marginTop: 36, background: "#1f232c", border: `1px solid ${T.line}`, borderRadius: 2, overflow: "hidden", animation: "fadeUp .4s ease both" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 18px", borderBottom: `1px solid ${T.line}`, fontSize: "0.61rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3 }}>
@@ -279,6 +297,46 @@ function DevPanel({ brief }: { brief: CampaignBrief }) {
   );
 }
 
+/* ── Debugläge: senaste intervjubeslutet (endast dev) ───────── */
+function DecisionDebug({ decision, calls }: { decision: InterviewDecision; calls: number }) {
+  const rows: [string, string][] = [
+    ["action", decision.action],
+    ["reasonCategory", decision.reasonCategory],
+    ["targetField", decision.targetField ?? "—"],
+    ["canRecommend", String(decision.canRecommend)],
+    ["missingCriticalInformation", decision.missingCriticalInformation.join(" · ") || "—"],
+    ["ai-anrop", `${calls} / ${LIMITS.MAX_AI_CALLS}`],
+  ];
+  return (
+    <div style={{ marginBottom: 12, background: "#1f232c", border: `1px dashed ${T.line2}`, borderRadius: 2, padding: "10px 14px" }}>
+      <div style={{ fontSize: "0.58rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase", color: T.gold, marginBottom: 8 }}>
+        Debug · Interview Engine (dev)
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "3px 14px", fontSize: "0.72rem", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+        {rows.map(([k, v]) => (
+          <div key={k} style={{ display: "contents" }}>
+            <span style={{ color: T.text3 }}>{k}</span>
+            <span style={{ color: T.text2 }}>{v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Diskret felruta (inte tekniskt) ────────────────────────── */
+function ErrorNote({ text }: { text: string }) {
+  return (
+    <div style={{
+      marginBottom: 12, padding: "10px 14px", borderRadius: 2,
+      background: "rgba(201,169,110,0.06)", border: `1px solid ${T.goldBorder}`,
+      fontSize: "0.8rem", fontWeight: 300, color: T.text2, lineHeight: 1.5,
+    }}>
+      {text}
+    </div>
+  );
+}
+
 /* ── Root ───────────────────────────────────────────────────── */
 export default function CampaignBuilderPage() {
   const isMobile = useIsMobile();
@@ -287,12 +345,18 @@ export default function CampaignBuilderPage() {
   const [company, setCompany] = useState<CompanyLite | null>(null);
   const [goal, setGoal] = useState<CampaignGoal | null>(null);
   const [record, setRecord] = useState<Record<string, string>>({});
+  const [handled, setHandled] = useState<string[]>([]);
+  const [history, setHistory] = useState<{ question: string; answer: string }[]>([]);
   const [messages, setMessages] = useState<Msg[]>([]);
-  const [idx, setIdx] = useState(0);
-  const [phase, setPhase] = useState<"interview" | "summary">("interview");
+  const [current, setCurrent] = useState<CurrentQuestion | null>(null);
+  const [phase, setPhase] = useState<"goal" | "interview" | "summary">("goal");
   const [thinking, setThinking] = useState(false);
   const [draft, setDraft] = useState("");
   const [created, setCreated] = useState<CampaignBrief | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [fallbackMode, setFallbackMode] = useState(false);
+  const [aiCalls, setAiCalls] = useState(0);
+  const [lastDecision, setLastDecision] = useState<InterviewDecision | null>(null);
 
   const busy = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -314,18 +378,18 @@ export default function CampaignBuilderPage() {
     } catch { /* ignorera trasig data */ }
   }, []);
 
-  const nodes = useMemo(() => buildNodes(goal, record), [goal, record]);
+  const registry = useMemo(() => buildFieldRegistry(goal), [goal]);
+  const registryMap = useMemo(() => new Map(registry.map((e) => [e.key, e])), [registry]);
   const ctx: Ctx = useMemo(() => ({ record, goal, company }), [record, goal, company]);
-  const current = nodes[idx];
 
-  // Öppningshälsning + första frågan.
+  // Öppningshälsning + målfrågan.
   useEffect(() => {
     const greeting = company?.companyName
       ? `Hej! Jag är din marknadschef för det här. Vi ska bygga en kampanj för ${company.companyName} — svara som du pratar, så tänker jag med dig.`
       : "Hej! Jag är din marknadschef för det här. Jag ställer några frågor, en i taget — svara som du pratar, så tänker jag med dig.";
     setMessages([
       { role: "ai", kind: "note", text: greeting },
-      { role: "ai", kind: "prompt", text: buildNodes(null, {})[0].prompt({ record: {}, goal: null, company }), nodeId: "goal" },
+      { role: "ai", kind: "prompt", text: "Först och främst — vad vill du uppnå med den här kampanjen?", nodeId: "goal" },
     ]);
   }, [company]);
 
@@ -336,103 +400,267 @@ export default function CampaignBuilderPage() {
 
   // Fokusera inmatningen när en ny fråga väntar.
   useEffect(() => {
-    if (phase === "interview" && !thinking && current?.kind !== "goal" && current?.kind !== "yesno") {
+    if (phase === "interview" && current && !thinking && current.kind !== "yesno") {
       inputRef.current?.focus();
     }
-  }, [idx, thinking, phase, current?.kind]);
+  }, [current, thinking, phase]);
 
-  const displayValue = useCallback((node: ConvNode, value: string): string => {
+  const displayValue = useCallback((kind: NodeKind, value: string): string => {
     if (!value.trim()) return "Hoppar över det här";
-    if (node.kind === "goal") return getGoal(value as CampaignGoal)?.title ?? value;
-    if (node.kind === "yesno") return value === "ja" ? "Ja" : "Nej";
-    if (node.kind === "date") return fmtDate(value);
+    if (kind === "yesno") return value === "ja" ? "Ja" : "Nej";
+    if (kind === "date") return fmtDate(value);
     return value;
   }, []);
 
-  const submit = useCallback(async (rawValue: string) => {
-    if (busy.current || phase !== "interview") return;
-    const node = current;
-    if (!node) return;
-    const value = rawValue.trim();
-    if (!value && !node.optional && node.kind !== "goal") return; // validering
+  const push = useCallback((msg: Msg) => setMessages((m) => [...m, msg]), []);
 
-    busy.current = true;
-    setDraft("");
+  const questionFrom = useCallback((entry: FieldEntry, rec: Record<string, string>): CurrentQuestion => {
+    const c: Ctx = { record: rec, goal, company };
+    return {
+      targetField: entry.key,
+      text: entry.question(c),
+      kind: entry.kind,
+      optional: entry.optional,
+      placeholder: entry.placeholder,
+      suggestions: entry.suggestions?.(c).filter(Boolean),
+    };
+  }, [goal, company]);
 
-    // Uppdaterade värden att räkna vidare på (undvik stale state).
-    const nextGoal = node.kind === "goal" ? (value as CampaignGoal) : goal;
-    const nextRecord = { ...record, [node.id]: value };
-    const nextCtx: Ctx = { record: nextRecord, goal: nextGoal, company };
+  /* Nästa obesvarade, relevanta fält (skriptat läge). */
+  const nextField = useCallback((rec: Record<string, string>, done: string[]): FieldEntry | null => {
+    const relevant = registry.filter((e) => !e.relevant || e.relevant(rec));
+    return relevant.find((e) => !done.includes(e.key)) ?? null;
+  }, [registry]);
 
-    setMessages((m) => [...m, { role: "user", text: displayValue(node, value), nodeId: node.id }]);
-    if (node.kind === "goal") setGoal(nextGoal);
-    setRecord(nextRecord);
-
-    // Marknadschefen "tänker" och reagerar.
-    setThinking(true);
-    await sleep(720);
-    setThinking(false);
-    setMessages((m) => [...m, { role: "ai", kind: "reaction", text: node.react(value, nextCtx), nodeId: node.id }]);
-
-    // Nästa fråga (räknat på uppdaterad nodlista).
-    const nextNodes = buildNodes(nextGoal, nextRecord);
-    const nextIdx = idx + 1;
-    if (nextIdx < nextNodes.length) {
+  /* Skriptad framdrift (används i fallback-läge och som säker väg). */
+  const localAdvance = useCallback(async (
+    rec: Record<string, string>, done: string[],
+    react?: { entry: FieldEntry; value: string },
+  ) => {
+    if (react) {
       setThinking(true);
-      await sleep(680);
+      await sleep(500);
       setThinking(false);
-      const nextNode = nextNodes[nextIdx];
-      setMessages((m) => [...m, { role: "ai", kind: "prompt", text: nextNode.prompt(nextCtx), nodeId: nextNode.id }]);
-      setIdx(nextIdx);
-    } else {
-      setIdx(nextIdx);
-      setPhase("summary");
+      push({ role: "ai", kind: "reaction", text: react.entry.react(react.value, { record: rec, goal, company }), nodeId: react.entry.key });
     }
-    busy.current = false;
-  }, [current, phase, goal, record, company, idx, displayValue]);
+    const next = nextField(rec, done);
+    if (!next) { setPhase("summary"); setCurrent(null); return; }
+    setThinking(true);
+    await sleep(450);
+    setThinking(false);
+    const q = questionFrom(next, rec);
+    push({ role: "ai", kind: "prompt", text: q.text, nodeId: q.targetField });
+    setCurrent(q);
+  }, [nextField, questionFrom, push, goal, company]);
 
-  // Gå tillbaka ett steg och låt användaren ändra sitt svar.
-  const stepBack = useCallback(() => {
-    if (busy.current) return;
-    const targetIdx = phase === "summary" ? nodes.length - 1 : idx - 1;
-    if (targetIdx < 0) return;
-    const node = nodes[targetIdx];
-
-    setMessages((m) => {
-      const cut = m.findIndex((x) => x.role === "user" && x.nodeId === node.id);
-      return cut === -1 ? m : m.slice(0, cut); // behåll frågan, ta bort svar + reaktion + ev. nästa fråga
-    });
-    setDraft(node.kind === "date" || node.kind === "yesno" ? "" : (record[node.id] ?? ""));
-    setRecord((r) => { const c = { ...r }; delete c[node.id]; return c; });
+  /* ── Målval ───────────────────────────────────────────────── */
+  const pickGoal = useCallback(async (goalId: CampaignGoal) => {
+    if (busy.current || phase !== "goal") return;
+    busy.current = true;
+    const cfg = getGoal(goalId);
+    setGoal(goalId);
     setPhase("interview");
-    setCreated(null);
-    setIdx(targetIdx);
-  }, [phase, nodes, idx, record]);
+    push({ role: "user", text: cfg?.title ?? goalId, nodeId: "goal" });
 
-  /* ── Bygg CampaignBrief ur record ─────────────────────────── */
-  const buildBrief = useCallback((): CampaignBrief => {
+    setThinking(true);
+    await sleep(650);
+    setThinking(false);
+    push({ role: "ai", kind: "reaction", text: cfg?.intro ?? "Okej — då sätter vi igång.", nodeId: "goal" });
+
+    // Första frågan är alltid det första grundfältet (produkt/tjänst).
+    const reg = buildFieldRegistry(goalId);
+    const first = reg[0];
+    setThinking(true);
+    await sleep(500);
+    setThinking(false);
+    const c: Ctx = { record: {}, goal: goalId, company };
+    const q: CurrentQuestion = {
+      targetField: first.key, text: first.question(c), kind: first.kind,
+      optional: first.optional, placeholder: first.placeholder,
+      suggestions: first.suggestions?.(c).filter(Boolean),
+    };
+    push({ role: "ai", kind: "prompt", text: q.text, nodeId: q.targetField });
+    setCurrent(q);
+    busy.current = false;
+  }, [phase, company, push]);
+
+  /* ── Bygg CampaignBrief ur ett record ─────────────────────── */
+  const briefFrom = useCallback((rec: Record<string, string>): CampaignBrief => {
     const b: CampaignBasics = { ...EMPTY_BASICS };
     (Object.keys(EMPTY_BASICS) as (keyof CampaignBasics)[]).forEach((k) => {
-      if (k === "hasExistingOffer") b.hasExistingOffer = (record.hasExistingOffer as YesNo) || "";
-      else (b[k] as string) = record[k] ?? "";
+      if (k === "hasExistingOffer") b.hasExistingOffer = (rec.hasExistingOffer as YesNo) || "";
+      else (b[k] as string) = rec[k] ?? "";
     });
     const cfg = getGoal(goal);
     const answers: GoalSpecificAnswers = {};
-    cfg?.questions.forEach((qn) => { answers[qn.id] = record[`q_${qn.id}`] ?? ""; });
+    cfg?.questions.forEach((qn) => { answers[qn.id] = rec[`q_${qn.id}`] ?? ""; });
     return { goal: goal as CampaignGoal, goalTitle: cfg?.title ?? "", basics: b, answers, createdAt: new Date().toISOString() };
-  }, [record, goal]);
+  }, [goal]);
+
+  /* ── Anropa intervjumotorn ────────────────────────────────── */
+  const askEngine = useCallback(async (
+    rec: Record<string, string>, done: string[],
+    hist: { question: string; answer: string }[],
+    lastQuestion: string, lastAnswer: string, callCount: number,
+  ): Promise<InterviewDecision> => {
+    const relevant = registry.filter((e) => !e.relevant || e.relevant(rec));
+    const answeredFields: InterviewField[] = relevant
+      .filter((e) => done.includes(e.key))
+      .map((e) => ({ key: e.key, label: e.label, value: (rec[e.key] ?? "").slice(0, 200) }));
+    const unansweredFields: InterviewField[] = relevant
+      .filter((e) => !done.includes(e.key))
+      .map((e) => ({ key: e.key, label: e.label }));
+
+    const body: InterviewRequest = {
+      goal: goal ?? "",
+      goalTitle: getGoal(goal)?.title ?? "",
+      company: company ? {
+        companyName: company.companyName,
+        products: company.products?.slice(0, 6),
+        customers: company.customers?.slice(0, 6),
+        bestCustomer: company.bestCustomer,
+      } : undefined,
+      lastQuestion: lastQuestion.slice(0, 300),
+      lastAnswer: lastAnswer.slice(0, LIMITS.MAX_ANSWER_LEN),
+      history: hist.slice(-LIMITS.MAX_HISTORY),
+      answeredFields,
+      unansweredFields,
+      callCount,
+    };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LIMITS.TIMEOUT_MS + 3000);
+    try {
+      const res = await fetch("/api/campaign-interview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const data = await res.json();
+      const decision = validateDecision(data);
+      if (!decision) throw new Error("invalid decision");
+      return decision;
+    } finally {
+      clearTimeout(timer);
+    }
+  }, [registry, goal, company]);
+
+  /* ── Svara på aktuell fråga ───────────────────────────────── */
+  const answer = useCallback(async (rawValue: string) => {
+    if (busy.current || phase !== "interview" || !current) return;
+    const value = rawValue.trim();
+    if (!value && !current.optional) return; // validering: obligatoriskt fält
+    busy.current = true;
+    setError(null);
+    setDraft("");
+
+    const key = current.targetField;
+    const question = current.text;
+    const nextRecord = { ...record, [key]: value };
+    const nextHandled = handled.includes(key) ? handled : [...handled, key];
+    const nextHistory = [...history, { question, answer: value }].slice(-LIMITS.MAX_HISTORY - 4);
+
+    setRecord(nextRecord);
+    setHandled(nextHandled);
+    setHistory(nextHistory);
+    push({ role: "user", text: displayValue(current.kind, value), nodeId: key });
+    setCurrent(null); // lås inmatning medan beslutet hämtas
+
+    const entry = registryMap.get(key);
+
+    // Fallback-läge: helt lokal framdrift, inga anrop.
+    if (fallbackMode) {
+      await localAdvance(nextRecord, nextHandled, entry ? { entry, value } : undefined);
+      busy.current = false;
+      return;
+    }
+
+    // Adaptivt läge: fråga motorn.
+    setThinking(true);
+    try {
+      const decision = await askEngine(nextRecord, nextHandled, nextHistory, question, value, aiCalls);
+      setThinking(false);
+      const nextCalls = aiCalls + 1;
+      setAiCalls(nextCalls);
+      setLastDecision(decision);
+      push({ role: "ai", kind: "reaction", text: decision.response, nodeId: key });
+
+      if (decision.action === "finish" || nextCalls >= LIMITS.MAX_AI_CALLS) {
+        await sleep(420);
+        setPhase("summary");
+        setCurrent(null);
+      } else {
+        const tField = decision.targetField && decision.targetField.trim()
+          ? decision.targetField.trim()
+          : `extra_${nextHistory.length}`;
+        const known = registryMap.get(tField);
+        setThinking(true);
+        await sleep(460);
+        setThinking(false);
+        const c: Ctx = { record: nextRecord, goal, company };
+        const q: CurrentQuestion = {
+          targetField: tField,
+          text: decision.nextQuestion as string,
+          kind: known?.kind ?? "text",
+          optional: known?.optional,
+          placeholder: known?.placeholder,
+          suggestions: known?.suggestions?.(c).filter(Boolean),
+        };
+        push({ role: "ai", kind: "prompt", text: q.text, nodeId: q.targetField });
+        setCurrent(q);
+      }
+    } catch {
+      // Anropet misslyckades → gå över till skriptat läge och fortsätt.
+      setThinking(false);
+      setFallbackMode(true);
+      setError("Jag tappade uppkopplingen ett ögonblick — men vi behöver inte börja om. Vi fortsätter här.");
+      push({ role: "ai", kind: "note", text: "Vi kör vidare med mina planerade frågor så länge — allt du redan berättat finns kvar." });
+      await localAdvance(nextRecord, nextHandled);
+    }
+    busy.current = false;
+  }, [phase, current, record, handled, history, fallbackMode, aiCalls, registryMap, displayValue, push, localAdvance, askEngine, goal, company]);
+
+  /* ── Tillbaka och ändra (från sammanfattningen) ───────────── */
+  const editLast = useCallback(() => {
+    if (busy.current || handled.length === 0) return;
+    const key = handled[handled.length - 1];
+    const promptMsg = [...messages].reverse().find((x) => x.role === "ai" && x.kind === "prompt" && x.nodeId === key);
+    const entry = registryMap.get(key);
+
+    setMessages((m) => {
+      const cut = m.findIndex((x) => x.role === "user" && x.nodeId === key);
+      return cut === -1 ? m : m.slice(0, cut);
+    });
+    setHandled((h) => h.slice(0, -1));
+    setHistory((h) => h.slice(0, -1));
+    setCreated(null);
+    setError(null);
+    setPhase("interview");
+    setDraft(entry && (entry.kind === "date" || entry.kind === "yesno") ? "" : (record[key] ?? ""));
+    setCurrent({
+      targetField: key,
+      text: promptMsg?.text ?? entry?.question(ctx) ?? "Vill du ändra ditt svar?",
+      kind: entry?.kind ?? "text",
+      optional: entry?.optional,
+      placeholder: entry?.placeholder,
+      suggestions: entry?.suggestions?.(ctx).filter(Boolean),
+    });
+  }, [handled, messages, registryMap, record, ctx]);
 
   const handleCreate = useCallback(() => {
-    const brief = buildBrief();
-    console.log("CampaignBrief", brief);
+    const brief = briefFrom(record);
+    if (IS_DEV) console.log("CampaignBrief", brief);
     setCreated(brief);
-  }, [buildBrief]);
+  }, [briefFrom, record]);
 
-  // Progress (0–1) genom intervjun.
-  const totalGuess = goal ? nodes.length : 12;
-  const progress = phase === "summary" ? 1 : Math.min(idx / Math.max(totalGuess - 1, 1), 0.96);
+  // Progress (0–1). Adaptivt → uppskattat mot ~8 relevanta frågor.
+  const progress = phase === "summary" ? 1
+    : phase === "goal" ? 0.04
+    : Math.min(handled.length / 8, 0.95);
 
-  const suggestions = current?.suggestions?.(ctx).filter(Boolean) ?? [];
+  const inputLocked = thinking || busy.current || !current;
 
   return (
     <main style={{ minHeight: "100svh", background: T.bg, display: "flex", flexDirection: "column" }}>
@@ -449,7 +677,7 @@ export default function CampaignBuilderPage() {
         </Link>
         <span style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.66rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.gold }}>
           <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.gold, animation: "blink 1.6s ease infinite", display: "block" }} />
-          {phase === "summary" ? "Analys påbörjad" : "Intervju"}
+          {phase === "summary" ? "Analys påbörjad" : fallbackMode ? "Intervju (offline)" : "Intervju"}
         </span>
       </nav>
       <div style={{ height: 2, background: T.line }}>
@@ -461,8 +689,8 @@ export default function CampaignBuilderPage() {
         <div style={{ maxWidth: 640, margin: "0 auto", padding: `40px ${pad}px 32px`, display: "flex", flexDirection: "column", gap: 22 }}>
           {phase === "summary" ? (
             <>
-              <SummaryView brief={buildBrief()} />
-              {created && <DevPanel brief={created} />}
+              <SummaryView brief={briefFrom(record)} />
+              {IS_DEV && created && <BriefDevPanel brief={created} />}
             </>
           ) : (
             <>
@@ -483,21 +711,29 @@ export default function CampaignBuilderPage() {
         borderTop: phase === "summary" ? "none" : `1px solid ${T.line}`,
       }}>
         <div style={{ maxWidth: 640, margin: "0 auto", padding: `18px ${pad}px 28px` }}>
-          {phase === "summary" ? (
-            <SummaryActions onBack={stepBack} onCreate={handleCreate} created={!!created} isMobile={isMobile} />
+          {IS_DEV && phase === "interview" && lastDecision && <DecisionDebug decision={lastDecision} calls={aiCalls} />}
+          {error && phase !== "summary" && <ErrorNote text={error} />}
+
+          {phase === "goal" ? (
+            <GoalCards disabled={busy.current || thinking} onPick={pickGoal} isMobile={isMobile} />
+          ) : phase === "summary" ? (
+            <SummaryActions onBack={editLast} onCreate={handleCreate} created={!!created} isMobile={isMobile} />
           ) : current ? (
             <Composer
-              node={current}
+              kind={current.kind}
+              placeholder={current.placeholder}
+              optional={current.optional}
+              suggestions={current.suggestions ?? []}
               draft={draft}
               setDraft={setDraft}
-              onSubmit={submit}
-              onBack={idx > 0 ? stepBack : undefined}
-              disabled={thinking || busy.current}
-              suggestions={suggestions}
+              onSubmit={answer}
+              disabled={inputLocked}
               inputRef={inputRef}
               isMobile={isMobile}
             />
-          ) : null}
+          ) : (
+            <p style={{ fontSize: "0.8rem", color: T.text3, fontWeight: 300 }}>Ett ögonblick…</p>
+          )}
         </div>
       </div>
 
@@ -512,75 +748,75 @@ export default function CampaignBuilderPage() {
   );
 }
 
+/* ── Målval — kort ──────────────────────────────────────────── */
+function GoalCards({ onPick, disabled, isMobile }: {
+  onPick: (g: CampaignGoal) => void; disabled: boolean; isMobile: boolean;
+}) {
+  return (
+    <div role="radiogroup" aria-label="Affärsmål" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, paddingTop: 4 }}>
+      {GOALS.map((g) => (
+        <button key={g.id} type="button" role="radio" aria-checked={false} disabled={disabled}
+          onClick={() => onPick(g.id)}
+          style={{
+            display: "flex", alignItems: "center", gap: 14, textAlign: "left",
+            padding: "14px 16px", borderRadius: 2, cursor: disabled ? "default" : "pointer",
+            background: T.surface, border: `1px solid ${T.line}`, transition: "border-color .18s, background .18s",
+          }}
+          onMouseOver={(e) => { if (!disabled) { e.currentTarget.style.borderColor = T.goldBorder; e.currentTarget.style.background = T.goldDim; } }}
+          onMouseOut={(e) => { e.currentTarget.style.borderColor = T.line; e.currentTarget.style.background = T.surface; }}
+        >
+          <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", color: T.gold, background: "rgba(201,169,110,0.08)" }}>
+            {g.icon}
+          </span>
+          <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+            <span style={{ fontSize: "0.92rem", fontWeight: 400, color: T.text }}>{g.title}</span>
+            <span style={{ fontSize: "0.76rem", fontWeight: 300, color: T.text3, lineHeight: 1.4 }}>{g.description}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ── Kompositionsraden (byter form efter frågetyp) ──────────── */
-function Composer({ node, draft, setDraft, onSubmit, onBack, disabled, suggestions, inputRef, isMobile }: {
-  node: ConvNode;
+function Composer({ kind, placeholder, optional, draft, setDraft, onSubmit, disabled, suggestions, inputRef, isMobile }: {
+  kind: NodeKind;
+  placeholder?: string;
+  optional?: boolean;
   draft: string;
   setDraft: (v: string) => void;
   onSubmit: (v: string) => void;
-  onBack?: () => void;
   disabled: boolean;
   suggestions: string[];
   inputRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
   isMobile: boolean;
 }) {
-  const canSend = node.optional || node.kind === "goal" || draft.trim() !== "";
+  const canSend = optional || draft.trim() !== "";
 
-  /* Målval — kort */
-  if (node.kind === "goal") {
+  /* Ja / Nej */
+  if (kind === "yesno") {
     return (
-      <div role="radiogroup" aria-label="Affärsmål" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, paddingTop: 4 }}>
-        {GOALS.map((g) => (
-          <button key={g.id} type="button" role="radio" aria-checked={false} disabled={disabled}
-            onClick={() => onSubmit(g.id)}
+      <div style={{ display: "flex", gap: 10 }}>
+        {(["ja", "nej"] as const).map((v) => (
+          <button key={v} type="button" disabled={disabled} onClick={() => onSubmit(v)}
             style={{
-              display: "flex", alignItems: "center", gap: 14, textAlign: "left",
-              padding: "14px 16px", borderRadius: 2, cursor: disabled ? "default" : "pointer",
-              background: T.surface, border: `1px solid ${T.line}`, transition: "border-color .18s, background .18s",
+              flex: 1, padding: "15px 22px", borderRadius: 2,
+              fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.82rem", fontWeight: 400,
+              letterSpacing: "0.06em", cursor: disabled ? "default" : "pointer", transition: "all .18s",
+              background: "transparent", border: `1px solid ${T.line2}`, color: T.text2,
             }}
-            onMouseOver={(e) => { if (!disabled) { e.currentTarget.style.borderColor = T.goldBorder; e.currentTarget.style.background = T.goldDim; } }}
-            onMouseOut={(e) => { e.currentTarget.style.borderColor = T.line; e.currentTarget.style.background = T.surface; }}
+            onMouseOver={(e) => { if (!disabled) { e.currentTarget.style.borderColor = T.gold; e.currentTarget.style.color = T.text; } }}
+            onMouseOut={(e) => { e.currentTarget.style.borderColor = T.line2; e.currentTarget.style.color = T.text2; }}
           >
-            <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", color: T.gold, background: "rgba(201,169,110,0.08)" }}>
-              {g.icon}
-            </span>
-            <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-              <span style={{ fontSize: "0.92rem", fontWeight: 400, color: T.text }}>{g.title}</span>
-              <span style={{ fontSize: "0.76rem", fontWeight: 300, color: T.text3, lineHeight: 1.4 }}>{g.description}</span>
-            </span>
+            {v === "ja" ? "Ja" : "Nej"}
           </button>
         ))}
       </div>
     );
   }
 
-  /* Ja / Nej */
-  if (node.kind === "yesno") {
-    return (
-      <div>
-        <div style={{ display: "flex", gap: 10 }}>
-          {(["ja", "nej"] as const).map((v) => (
-            <button key={v} type="button" disabled={disabled} onClick={() => onSubmit(v)}
-              style={{
-                flex: 1, padding: "15px 22px", borderRadius: 2,
-                fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.82rem", fontWeight: 400,
-                letterSpacing: "0.06em", cursor: disabled ? "default" : "pointer", transition: "all .18s",
-                background: "transparent", border: `1px solid ${T.line2}`, color: T.text2,
-              }}
-              onMouseOver={(e) => { if (!disabled) { e.currentTarget.style.borderColor = T.gold; e.currentTarget.style.color = T.text; } }}
-              onMouseOut={(e) => { e.currentTarget.style.borderColor = T.line2; e.currentTarget.style.color = T.text2; }}
-            >
-              {v === "ja" ? "Ja" : "Nej"}
-            </button>
-          ))}
-        </div>
-        {onBack && <BackLink onBack={onBack} disabled={disabled} />}
-      </div>
-    );
-  }
-
   /* Text / textarea / datum */
-  const isArea = node.kind === "textarea";
+  const isArea = kind === "textarea";
   const baseStyle: React.CSSProperties = {
     width: "100%", background: T.surface2, border: `1px solid ${T.line2}`, borderRadius: 2,
     padding: "13px 15px", outline: "none", fontSize: "0.95rem", fontWeight: 300, color: T.text,
@@ -610,9 +846,9 @@ function Composer({ node, draft, setDraft, onSubmit, onBack, disabled, suggestio
           <textarea
             ref={inputRef as React.RefObject<HTMLTextAreaElement>}
             value={draft} rows={2} disabled={disabled}
-            placeholder={node.placeholder ?? "Skriv ditt svar…"}
+            placeholder={placeholder ?? "Skriv ditt svar…"}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (canSend) onSubmit(draft); } }}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (canSend && !disabled) onSubmit(draft); } }}
             style={{ ...baseStyle, resize: "none", lineHeight: 1.55, minHeight: 52 }}
             onFocus={(e) => (e.target.style.borderColor = T.gold)}
             onBlur={(e) => (e.target.style.borderColor = T.line2)}
@@ -620,11 +856,11 @@ function Composer({ node, draft, setDraft, onSubmit, onBack, disabled, suggestio
         ) : (
           <input
             ref={inputRef as React.RefObject<HTMLInputElement>}
-            type={node.kind === "date" ? "date" : "text"}
+            type={kind === "date" ? "date" : "text"}
             value={draft} disabled={disabled}
-            placeholder={node.placeholder ?? "Skriv ditt svar…"}
+            placeholder={placeholder ?? "Skriv ditt svar…"}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (canSend) onSubmit(draft); } }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (canSend && !disabled) onSubmit(draft); } }}
             style={baseStyle}
             onFocus={(e) => (e.target.style.borderColor = T.gold)}
             onBlur={(e) => (e.target.style.borderColor = T.line2)}
@@ -645,8 +881,7 @@ function Composer({ node, draft, setDraft, onSubmit, onBack, disabled, suggestio
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, minHeight: 20 }}>
-        {onBack && <BackLink onBack={onBack} disabled={disabled} inline />}
-        {node.optional && (
+        {optional && (
           <button type="button" disabled={disabled} onClick={() => onSubmit("")}
             style={{ background: "none", border: "none", color: T.text3, fontSize: "0.78rem", fontWeight: 300, cursor: disabled ? "default" : "pointer", padding: 0, fontFamily: "var(--font-outfit), sans-serif" }}>
             Hoppa över — vi kan fortsätta ändå
@@ -657,19 +892,6 @@ function Composer({ node, draft, setDraft, onSubmit, onBack, disabled, suggestio
         )}
       </div>
     </div>
-  );
-}
-
-function BackLink({ onBack, disabled, inline }: { onBack: () => void; disabled: boolean; inline?: boolean }) {
-  return (
-    <button type="button" disabled={disabled} onClick={onBack}
-      style={{
-        background: "none", border: "none", color: T.text3, fontSize: "0.78rem", fontWeight: 300,
-        cursor: disabled ? "default" : "pointer", padding: 0, marginTop: inline ? 0 : 12,
-        fontFamily: "var(--font-outfit), sans-serif",
-      }}>
-      ← Ändra föregående svar
-    </button>
   );
 }
 

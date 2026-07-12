@@ -270,7 +270,7 @@ export function getGoal(id: CampaignGoal | null): GoalConfig | undefined {
 }
 
 /* ── Grundfrågorna (steg 2) som konversationsnoder ───────────── */
-const BASICS: ConvNode[] = [
+export const BASICS: ConvNode[] = [
   {
     id: "product",
     kind: "text",
@@ -414,3 +414,71 @@ export function buildNodes(goal: CampaignGoal | null, record: Record<string, str
 }
 
 export { fmtDate, daysBetween };
+
+/* ── Fältregister för Dynamic Interview Engine ───────────────── */
+// Ett platt register över alla kampanjfält engine:n kan fråga om.
+// Används för: fältnycklar till AI:n, återfall (scriptat läge) och
+// för att avgöra vilka fält som är besvarade/obesvarade.
+
+export interface FieldEntry {
+  key: string;
+  kind: NodeKind;
+  /** Kort etikett (för API + sammanställning). */
+  label: string;
+  question: (ctx: Ctx) => string;
+  placeholder?: string;
+  optional?: boolean;
+  suggestions?: (ctx: Ctx) => string[];
+  react: (v: string, ctx: Ctx) => string;
+  /** Om fältet överhuvudtaget är relevant givet nuvarande svar. */
+  relevant?: (record: Record<string, string>) => boolean;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  product: "Produkt/tjänst",
+  description: "Kort beskrivning",
+  targetAudience: "Målgrupp",
+  geographicArea: "Geografiskt område",
+  availability: "Tillgänglighet",
+  price: "Pris",
+  margin: "Marginal",
+  startDate: "Startdatum",
+  endDate: "Slutdatum",
+  hasExistingOffer: "Befintligt erbjudande",
+  offerContent: "Erbjudandets innehåll",
+};
+
+/**
+ * Ordnat register över alla fält för ett givet mål.
+ * Grundfält först, sedan målspecifika följdfrågor (nyckel `q_<id>`).
+ */
+export function buildFieldRegistry(goal: CampaignGoal | null): FieldEntry[] {
+  const basics: FieldEntry[] = BASICS.map((n) => ({
+    key: n.id,
+    kind: n.kind,
+    label: FIELD_LABELS[n.id] ?? n.id,
+    question: n.prompt,
+    placeholder: n.placeholder,
+    optional: n.optional,
+    suggestions: n.suggestions,
+    react: n.react,
+    relevant: n.id === "offerContent"
+      ? (r) => r.hasExistingOffer === "ja"
+      : undefined,
+  }));
+
+  if (!goal) return basics;
+
+  const cfg = getGoal(goal);
+  const dynamic: FieldEntry[] = (cfg?.questions ?? []).map((qn) => ({
+    key: `q_${qn.id}`,
+    kind: qn.kind,
+    label: firstWords(qn.prompt({ record: {}, goal, company: null }), 44),
+    question: qn.prompt,
+    placeholder: qn.placeholder,
+    optional: qn.optional,
+    react: qn.react,
+  }));
+
+  return [...basics, ...dynamic];
+}
