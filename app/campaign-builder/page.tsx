@@ -22,6 +22,10 @@ import {
   LIMITS, validateDecision,
   type InterviewDecision, type InterviewField, type InterviewRequest,
 } from "./interview";
+import {
+  ANALYSIS_LIMITS, validateRecommendation,
+  type CampaignRecommendation,
+} from "./analysis";
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 
@@ -357,8 +361,12 @@ export default function CampaignBuilderPage() {
   const [fallbackMode, setFallbackMode] = useState(false);
   const [aiCalls, setAiCalls] = useState(0);
   const [lastDecision, setLastDecision] = useState<InterviewDecision | null>(null);
+  const [analysis, setAnalysis] = useState<CampaignRecommendation | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const busy = useRef(false);
+  const analysisBusy = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
@@ -396,7 +404,7 @@ export default function CampaignBuilderPage() {
   // Autoscroll när transkriptet växer.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, thinking, phase]);
+  }, [messages, thinking, phase, analyzing, analysis]);
 
   // Fokusera inmatningen när en ny fråga väntar.
   useEffect(() => {
@@ -618,8 +626,11 @@ export default function CampaignBuilderPage() {
       setError("Jag tappade uppkopplingen ett ögonblick — men vi behöver inte börja om. Vi fortsätter här.");
       push({ role: "ai", kind: "note", text: "Vi kör vidare med mina planerade frågor så länge — allt du redan berättat finns kvar." });
       await localAdvance(nextRecord, nextHandled);
+    } finally {
+      // Loading-state får aldrig bli hängande, oavsett kodväg.
+      setThinking(false);
+      busy.current = false;
     }
-    busy.current = false;
   }, [phase, current, record, handled, history, fallbackMode, aiCalls, registryMap, displayValue, push, localAdvance, askEngine, goal, company]);
 
   /* ── Tillbaka och ändra (från sammanfattningen) ───────────── */
@@ -637,6 +648,8 @@ export default function CampaignBuilderPage() {
     setHistory((h) => h.slice(0, -1));
     setCreated(null);
     setError(null);
+    setAnalysis(null);
+    setAnalysisError(null);
     setPhase("interview");
     setDraft(entry && (entry.kind === "date" || entry.kind === "yesno") ? "" : (record[key] ?? ""));
     setCurrent({
@@ -649,10 +662,42 @@ export default function CampaignBuilderPage() {
     });
   }, [handled, messages, registryMap, record, ctx]);
 
-  const handleCreate = useCallback(() => {
+  /* ── Kör analysen (skapar kampanjrekommendationen) ────────── */
+  const runAnalysis = useCallback(async () => {
+    if (analysisBusy.current) return; // spärr mot dubbla submissions
+    analysisBusy.current = true;
+    setAnalyzing(true);
+    setAnalysisError(null);
+
     const brief = briefFrom(record);
     if (IS_DEV) console.log("CampaignBrief", brief);
     setCreated(brief);
+
+    // Klientens absoluta tak — UI:t får aldrig vänta längre än så.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ANALYSIS_LIMITS.CLIENT_TIMEOUT_MS);
+    try {
+      const res = await fetch("/api/campaign-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(brief),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const data = await res.json();
+      const rec = validateRecommendation(data);
+      if (!rec) throw new Error("invalid recommendation");
+      setAnalysis(rec);
+    } catch (err) {
+      const timedOut = err instanceof DOMException && err.name === "AbortError";
+      setAnalysisError(timedOut
+        ? "Analysen tog för lång tid den här gången. Allt du berättat finns kvar — försök igen."
+        : "Analysen kunde inte slutföras just nu. Allt du berättat finns kvar — försök igen.");
+    } finally {
+      clearTimeout(timer);
+      setAnalyzing(false);
+      analysisBusy.current = false;
+    }
   }, [briefFrom, record]);
 
   // Progress (0–1). Adaptivt → uppskattat mot ~8 relevanta frågor.
@@ -676,8 +721,10 @@ export default function CampaignBuilderPage() {
           Marketing<span style={{ color: T.gold }}>Copilot</span>
         </Link>
         <span style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.66rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.gold }}>
-          <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.gold, animation: "blink 1.6s ease infinite", display: "block" }} />
-          {phase === "summary" ? "Analys påbörjad" : fallbackMode ? "Intervju (offline)" : "Intervju"}
+          <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.gold, animation: phase === "summary" && !analyzing ? "none" : "blink 1.6s ease infinite", display: "block" }} />
+          {phase === "summary"
+            ? (analyzing ? "Analyserar…" : analysis ? "Analys klar" : "Sammanfattning")
+            : fallbackMode ? "Intervju (offline)" : "Intervju"}
         </span>
       </nav>
       <div style={{ height: 2, background: T.line }}>
@@ -690,6 +737,15 @@ export default function CampaignBuilderPage() {
           {phase === "summary" ? (
             <>
               <SummaryView brief={briefFrom(record)} />
+              {analyzing && (
+                <div style={{ display: "flex", gap: 12, alignItems: "center", paddingLeft: 42 }}>
+                  <Thinking />
+                  <span style={{ fontSize: "0.85rem", fontWeight: 300, color: T.text3 }}>
+                    Analyserar underlaget och formar en rekommendation…
+                  </span>
+                </div>
+              )}
+              {analysis && <RecommendationView rec={analysis} />}
               {IS_DEV && created && <BriefDevPanel brief={created} />}
             </>
           ) : (
@@ -713,11 +769,19 @@ export default function CampaignBuilderPage() {
         <div style={{ maxWidth: 640, margin: "0 auto", padding: `18px ${pad}px 28px` }}>
           {IS_DEV && phase === "interview" && lastDecision && <DecisionDebug decision={lastDecision} calls={aiCalls} />}
           {error && phase !== "summary" && <ErrorNote text={error} />}
+          {analysisError && phase === "summary" && !analyzing && <ErrorNote text={analysisError} />}
 
           {phase === "goal" ? (
             <GoalCards disabled={busy.current || thinking} onPick={pickGoal} isMobile={isMobile} />
           ) : phase === "summary" ? (
-            <SummaryActions onBack={editLast} onCreate={handleCreate} created={!!created} isMobile={isMobile} />
+            <SummaryActions
+              onBack={editLast}
+              onAnalyze={runAnalysis}
+              analyzing={analyzing}
+              done={!!analysis}
+              hasError={!!analysisError}
+              isMobile={isMobile}
+            />
           ) : current ? (
             <Composer
               kind={current.kind}
@@ -895,29 +959,112 @@ function Composer({ kind, placeholder, optional, draft, setDraft, onSubmit, disa
   );
 }
 
+/* ── Marknadschefens rekommendation ─────────────────────────── */
+function RecommendationView({ rec }: { rec: CampaignRecommendation }) {
+  const sectionLabel: React.CSSProperties = {
+    fontSize: "0.61rem", fontWeight: 400, letterSpacing: "0.16em",
+    textTransform: "uppercase", color: T.gold, marginBottom: 10,
+  };
+  return (
+    <div style={{ animation: "fadeUp .5s ease both", borderTop: `1px solid ${T.line2}`, paddingTop: 32, display: "flex", flexDirection: "column", gap: 28 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <Avatar />
+        <h2 style={{
+          fontFamily: "var(--font-cormorant), serif", fontWeight: 300,
+          fontSize: "clamp(1.6rem,4vw,2.1rem)", lineHeight: 1.15, letterSpacing: "-0.02em",
+          color: T.text, paddingTop: 2,
+        }}>
+          {rec.headline}
+        </h2>
+      </div>
+
+      <div style={{ paddingLeft: 42 }}>
+        <div style={sectionLabel}>Strategi</div>
+        <p style={{ fontSize: "0.96rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, maxWidth: 520 }}>{rec.strategy}</p>
+      </div>
+
+      <div style={{ paddingLeft: 42 }}>
+        <div style={sectionLabel}>Huvudbudskap</div>
+        <p style={{
+          fontFamily: "var(--font-cormorant), serif", fontStyle: "italic",
+          fontSize: "1.25rem", fontWeight: 400, color: T.text, lineHeight: 1.45, maxWidth: 520,
+          borderLeft: `2px solid ${T.gold}`, paddingLeft: 16,
+        }}>
+          {rec.coreMessage}
+        </p>
+      </div>
+
+      <div style={{ paddingLeft: 42 }}>
+        <div style={sectionLabel}>Kanaler</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {rec.channels.map((c, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <span style={{ flexShrink: 0, marginTop: 8, width: 5, height: 5, borderRadius: "50%", background: T.gold, display: "block" }} />
+              <p style={{ fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.65 }}>
+                <strong style={{ fontWeight: 400, color: T.text }}>{c.name}</strong> — {c.motivation}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ paddingLeft: 42 }}>
+        <div style={sectionLabel}>Första aktiviteter</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {rec.activities.map((a, i) => (
+            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <span style={{ flexShrink: 0, fontSize: "0.78rem", color: T.gold, fontWeight: 400, marginTop: 2, minWidth: 16 }}>{i + 1}.</span>
+              <p style={{ fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.65 }}>{a}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {rec.watchouts.length > 0 && (
+        <div style={{ paddingLeft: 42 }}>
+          <div style={{ ...sectionLabel, color: T.text3 }}>Att bevaka</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {rec.watchouts.map((w, i) => (
+              <p key={i} style={{ fontSize: "0.84rem", fontWeight: 300, color: T.text3, lineHeight: 1.6 }}>· {w}</p>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Åtgärder på sammanfattningen ───────────────────────────── */
-function SummaryActions({ onBack, onCreate, created, isMobile }: {
-  onBack: () => void; onCreate: () => void; created: boolean; isMobile: boolean;
+function SummaryActions({ onBack, onAnalyze, analyzing, done, hasError, isMobile }: {
+  onBack: () => void; onAnalyze: () => void;
+  analyzing: boolean; done: boolean; hasError: boolean; isMobile: boolean;
 }) {
+  const primaryDisabled = analyzing || done;
+  const primaryLabel = analyzing ? "Analyserar…"
+    : done ? "✓ Rekommendationen är klar"
+    : hasError ? "Försök igen →"
+    : "Skapa kampanjrekommendation →";
   return (
     <div style={{ display: "flex", gap: 12, flexDirection: isMobile ? "column-reverse" : "row", alignItems: "center", borderTop: `1px solid ${T.line}`, paddingTop: 20 }}>
-      <button type="button" onClick={onBack} style={{
+      <button type="button" onClick={onBack} disabled={analyzing} style={{
         fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.75rem", fontWeight: 400, letterSpacing: "0.1em",
         textTransform: "uppercase", padding: "13px 26px", borderRadius: 2, border: `1px solid ${T.line2}`,
-        background: "transparent", color: T.text3, cursor: "pointer", transition: "all .2s", width: isMobile ? "100%" : "auto",
+        background: "transparent", color: T.text3, cursor: analyzing ? "default" : "pointer", transition: "all .2s",
+        width: isMobile ? "100%" : "auto", opacity: analyzing ? 0.5 : 1,
       }}
-        onMouseOver={(e) => { e.currentTarget.style.borderColor = T.gold; e.currentTarget.style.color = T.text; }}
+        onMouseOver={(e) => { if (!analyzing) { e.currentTarget.style.borderColor = T.gold; e.currentTarget.style.color = T.text; } }}
         onMouseOut={(e) => { e.currentTarget.style.borderColor = T.line2; e.currentTarget.style.color = T.text3; }}
       >
         Tillbaka och ändra
       </button>
-      <button type="button" onClick={onCreate} style={{
+      <button type="button" onClick={onAnalyze} disabled={primaryDisabled} style={{
         fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.78rem", fontWeight: 400, letterSpacing: "0.12em",
         textTransform: "uppercase", padding: "14px 32px", borderRadius: 2, border: "none",
-        background: T.gold, color: T.bg, cursor: "pointer", transition: "all .2s",
+        background: primaryDisabled ? T.surface2 : T.gold, color: primaryDisabled ? T.text3 : T.bg,
+        cursor: primaryDisabled ? "default" : "pointer", transition: "all .2s",
         marginLeft: isMobile ? 0 : "auto", width: isMobile ? "100%" : "auto",
       }}>
-        {created ? "✓ Underlaget är klart" : "Skapa kampanjrekommendation →"}
+        {primaryLabel}
       </button>
     </div>
   );

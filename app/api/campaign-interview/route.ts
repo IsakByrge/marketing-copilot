@@ -14,7 +14,9 @@ import {
   type InterviewRequest,
 } from "@/app/campaign-builder/interview";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// maxRetries: 0 — SDK:ns tysta omförsök skulle annars kunna
+// tredubbla svarstiden bortom klientens timeout.
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0 });
 
 const clip = (s: unknown, n: number): string =>
   (typeof s === "string" ? s : "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -115,6 +117,8 @@ function forcedFinish(): InterviewDecision {
 }
 
 export async function POST(request: Request) {
+  // Kort id för korrelation i loggen — ingen företagsdata loggas.
+  const requestId = crypto.randomUUID().slice(0, 8);
   try {
     const raw = (await request.json()) as Partial<InterviewRequest>;
 
@@ -173,11 +177,13 @@ export async function POST(request: Request) {
     try {
       parsed = JSON.parse(content);
     } catch {
+      console.error(`CAMPAIGN_INTERVIEW_ERROR ${requestId}: InvalidJson`);
       return NextResponse.json({ error: "Ogiltigt svar från intervjumotorn." }, { status: 502 });
     }
 
     const decision = validateDecision(parsed);
     if (!decision) {
+      console.error(`CAMPAIGN_INTERVIEW_ERROR ${requestId}: SchemaValidationFailed`);
       return NextResponse.json({ error: "Intervjumotorn gav ett ofullständigt svar." }, { status: 502 });
     }
 
@@ -185,7 +191,7 @@ export async function POST(request: Request) {
   } catch (error) {
     // Logga aldrig känslig företagsinformation — bara felets art.
     const name = error instanceof Error ? error.name : "UnknownError";
-    console.error("CAMPAIGN_INTERVIEW_ERROR:", name);
+    console.error(`CAMPAIGN_INTERVIEW_ERROR ${requestId}: ${name}`);
     return NextResponse.json({ error: "Intervjumotorn är inte tillgänglig just nu." }, { status: 500 });
   }
 }
