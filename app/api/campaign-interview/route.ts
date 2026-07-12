@@ -13,6 +13,8 @@ import {
   type InterviewField,
   type InterviewRequest,
 } from "@/app/campaign-builder/interview";
+import { GOAL_PROFILES, isKnownGoal } from "@/app/campaign-builder/goal-profiles";
+import type { CampaignGoal } from "@/app/campaign-builder/types";
 
 // maxRetries: 0 — SDK:ns tysta omförsök skulle annars kunna
 // tredubbla svarstiden bortom klientens timeout.
@@ -30,7 +32,7 @@ ABSOLUTA REGLER:
 1. Fältet "response" måste ha ett konkret syfte som för intervjun framåt.
 2. Svara ALDRIG med enbart "Bra", "Intressant", "Tack", "Okej" eller andra innehållslösa fraser.
 3. Utmana (action "challenge") ENDAST när svaret är ett svagt antagande, motsäger ett tidigare svar, eller innebär en tydlig strategisk risk. Utmana aldrig annars.
-4. Ställ exakt EN fråga åt gången i "nextQuestion".
+4. Ställ exakt EN fråga åt gången i "nextQuestion". Den ska vara en komplett, naturlig fråga formulerad som du säger den till företagaren — ALDRIG en fältnyckel eller etikett.
 5. Prioritera den information som mest påverkar strategin — fråga om det viktigaste härnäst.
 6. Ställ INTE frågor vars svar redan går att härleda ur känd information eller företagsprofilen.
 7. Avsluta (action "finish") när den kritiska informationen räcker. Normalt efter 6–9 relevanta frågor, men inget exakt antal.
@@ -50,6 +52,9 @@ reasonCategory: missing_information | weak_assumption | contradiction | strategi
 
 targetField: nyckeln för det fält nästa fråga gäller. Välj i första hand bland de angivna fältnycklarna.
 
+MÅLSTYRNING:
+Listan "FÄLT SOM ÄNNU INTE ÄR BESVARADE" är sorterad i strategisk prioritetsordning för det valda affärsmålet. Välj normalt det översta relevanta fältet härnäst. Avvik ENDAST när användarens senaste svar öppnar något strategiskt viktigare INOM målets profil. Ställ aldrig frågor om sådant som inte påverkar det valda målet.
+
 JSON-schema (exakt dessa nycklar):
 {
   "action": "confirm|deepen|challenge|skip|finish",
@@ -60,6 +65,20 @@ JSON-schema (exakt dessa nycklar):
   "canRecommend": true,
   "missingCriticalInformation": ["kort formulerad lucka", "..."]
 }`;
+
+/** Målets strategiska profil — gör att olika mål ger tydligt olika intervjuer. */
+function goalDirectives(goal: CampaignGoal, goalTitle: string): string {
+  const p = GOAL_PROFILES[goal];
+  return `VALT AFFÄRSMÅL: ${goalTitle}
+
+Prioritera informationsområdena i denna ordning:
+${p.priorities.map((x, i) => `${i + 1}. ${x}`).join("\n")}
+
+Kritisk information som måste vara täckt innan du väljer "finish":
+${p.criticalInfo.map((x) => `- ${x}`).join("\n")}
+
+Är den kritiska informationen täckt: avsluta. Dra inte ut på intervjun med lågprioriterade områden.`;
+}
 
 function buildUserPrompt(req: InterviewRequest): string {
   const answered = req.answeredFields
@@ -149,8 +168,9 @@ export async function POST(request: Request) {
       callCount: typeof raw.callCount === "number" && raw.callCount >= 0 ? Math.floor(raw.callCount) : 0,
     };
 
-    if (!req.goal) {
-      return NextResponse.json({ error: "Intervjun saknar mål." }, { status: 400 });
+    if (!req.goal || !isKnownGoal(req.goal)) {
+      console.error(`CAMPAIGN_INTERVIEW_ERROR ${requestId}: UnknownGoal`);
+      return NextResponse.json({ error: "Intervjun saknar ett giltigt mål." }, { status: 400 });
     }
 
     // Kostnadsspärr: avsluta utan modellanrop om taket nåtts.
@@ -165,7 +185,7 @@ export async function POST(request: Request) {
         max_tokens: 400,
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: `${SYSTEM_PROMPT}\n\n${goalDirectives(req.goal, req.goalTitle)}` },
           { role: "user", content: buildUserPrompt(req) },
         ],
       },

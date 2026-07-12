@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 import type { ReactNode } from "react";
 import type { CampaignGoal } from "./types";
+import { GOAL_PROFILES } from "./goal-profiles";
 
 /* ── Kontext som reaktioner och frågor får läsa ──────────────── */
 export interface CompanyLite {
@@ -122,6 +123,10 @@ export const GOALS: GoalConfig[] = [
         (v) => has(v, /ja|begränsa|slut|erbjud|tid|snart|säsong/i)
           ? "Tidspress är en av de starkaste hävstängerna vi har — den använder vi."
           : "Inget tidskritiskt? Då skapar vi hellre brådskan genom själva erbjudandet."),
+      q("volumeVsProfit", "text", "Vill du främst driva volym, eller värna lönsamheten per affär?",
+        (v) => has(v, /volym|många|antal|mycket/i)
+          ? "Volym alltså — då vågar vi vara generösare i erbjudandet."
+          : "Lönsamhet framför volym — då bygger vi på värde i stället för rabatt."),
     ],
   },
   {
@@ -146,6 +151,8 @@ export const GOALS: GoalConfig[] = [
         (v) => has(v, /snabb|direkt|dygn|timm|dag|24/i)
           ? "Snabb återkoppling är ett säljargument i sig — det skyltar vi med."
           : "Vi sätter en tydlig förväntan på svarstiden så kunden vågar höra av sig."),
+      q("leadQuality", "textarea", "Hur ser en riktigt bra förfrågan ut för dig — vad skiljer den från en mindre bra?",
+        () => "Då riktar vi kampanjen mot rätt sorts förfrågningar, inte bara fler."),
     ],
   },
   {
@@ -192,6 +199,8 @@ export const GOALS: GoalConfig[] = [
         (v) => has(v, /ja|möjlig|kan|absolut|visst/i)
           ? "Ett tidsbegränsat erbjudande är perfekt för att fylla luckor — det kör vi."
           : "Även utan rabatt kan vi skapa brådska med hur få tider som finns kvar."),
+      q("bookingChannel", "text", "Hur bokar kunden enklast — ringer, bokar online eller kommer förbi?",
+        () => "Bra — då pekar varje utrop rakt mot det enklaste sättet att boka."),
     ],
   },
   {
@@ -274,10 +283,21 @@ export const BASICS: ConvNode[] = [
   {
     id: "product",
     kind: "text",
-    prompt: (ctx) =>
-      ctx.company?.products?.length
+    prompt: (ctx) => {
+      // Målanpassad formulering — samma fält, men frågan ska kännas
+      // som en del av målets strategi, inte som en generisk blankett.
+      const byGoal: Partial<Record<CampaignGoal, string>> = {
+        "more-quotes": "Vilken tjänst vill du få fler offertförfrågningar om?",
+        "fill-slots": "Vilken tjänst är det vi ska fylla tider för?",
+        "store-visits": "Vad ska besöket kretsa kring — en produkt, en nyhet eller butiken själv?",
+        "launch": "Vad är det som lanseras?",
+        "seasonal": "Vilken produkt eller tjänst är mest relevant under just den perioden?",
+      };
+      if (ctx.goal && byGoal[ctx.goal]) return byGoal[ctx.goal]!;
+      return ctx.company?.products?.length
         ? "Vad ska vi marknadsföra den här gången? Jag känner ju till er sedan tidigare — välj gärna ett av förslagen."
-        : "Låt oss börja med kärnan. Vad är det vi ska marknadsföra — en produkt, tjänst eller ett erbjudande?",
+        : "Låt oss börja med kärnan. Vad är det vi ska marknadsföra — en produkt, tjänst eller ett erbjudande?";
+    },
     placeholder: "t.ex. Gasolpaket för husbil",
     suggestions: (ctx) => ctx.company?.products?.slice(0, 4) ?? [],
     react: (v) => `${firstWords(v)} — bra, då har vi något konkret att kretsa kring.`,
@@ -450,7 +470,10 @@ const FIELD_LABELS: Record<string, string> = {
 
 /**
  * Ordnat register över alla fält för ett givet mål.
- * Grundfält först, sedan målspecifika följdfrågor (nyckel `q_<id>`).
+ * Ordningen (och urvalet) styrs av målets strategiska profil i
+ * GOAL_PROFILES — inte av en generell grundfältslista. Samma ordning
+ * används av AI:ns fältlista och av fallback-läget, så de två lägena
+ * kan aldrig glida isär. Fält utanför profilen ställs aldrig.
  */
 export function buildFieldRegistry(goal: CampaignGoal | null): FieldEntry[] {
   const basics: FieldEntry[] = BASICS.map((n) => ({
@@ -480,5 +503,8 @@ export function buildFieldRegistry(goal: CampaignGoal | null): FieldEntry[] {
     react: qn.react,
   }));
 
-  return [...basics, ...dynamic];
+  const byKey = new Map([...basics, ...dynamic].map((e) => [e.key, e]));
+  return GOAL_PROFILES[goal].fieldOrder
+    .map((k) => byKey.get(k))
+    .filter((e): e is FieldEntry => e !== undefined);
 }

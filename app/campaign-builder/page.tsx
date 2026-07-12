@@ -466,6 +466,14 @@ export default function CampaignBuilderPage() {
     if (busy.current || phase !== "goal") return;
     busy.current = true;
     const cfg = getGoal(goalId);
+    // Nollställ allt intervjutillstånd — ett nytt mål får aldrig ärva
+    // svar, historik eller följdfrågor från ett tidigare mål.
+    setRecord({});
+    setHandled([]);
+    setHistory([]);
+    setAiCalls(0);
+    setLastDecision(null);
+    setError(null);
     setGoal(goalId);
     setPhase("interview");
     push({ role: "user", text: cfg?.title ?? goalId, nodeId: "goal" });
@@ -608,9 +616,12 @@ export default function CampaignBuilderPage() {
         await sleep(460);
         setThinking(false);
         const c: Ctx = { record: nextRecord, goal, company };
+        // Skyddsnät: svarar modellen med en fältnyckel i stället för en
+        // fråga används registrets egen frågetext.
+        const rawQ = (decision.nextQuestion ?? "").trim();
         const q: CurrentQuestion = {
           targetField: tField,
-          text: decision.nextQuestion as string,
+          text: known && !rawQ.includes(" ") ? known.question(c) : rawQ,
           kind: known?.kind ?? "text",
           optional: known?.optional,
           placeholder: known?.placeholder,
