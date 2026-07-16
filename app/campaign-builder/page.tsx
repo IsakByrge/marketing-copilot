@@ -2,14 +2,17 @@
 
 // ─────────────────────────────────────────────────────────────
 // Marketing Copilot 2.0 — Campaign Builder
-// Dynamic Interview Engine: efter varje relevant svar frågar frontend
+// Reasoning Engine: efter varje relevant svar frågar frontend
 // /api/campaign-interview vad marknadschefen ska göra härnäst
-// (confirm/deepen/challenge/skip/finish). Intervjun är inte längre
-// ett förutbestämt manus. Faller tillbaka till ett skriptat läge om
-// AI-anropet misslyckas. Ingen kampanjtext genereras här.
+// (ask/clarify/challenge/surface_insight/redirect/finish). Motorn
+// resonerar i strategiska områden, inte en fast fältkö — den kan visa
+// tidiga insikter, flagga motsägelser och styra om målet inte matchar
+// det verkliga problemet. Faller tillbaka till ett skriptat, ärligt
+// förenklat läge om AI-anropet misslyckas. Ingen kampanjtext genereras
+// här.
 // ─────────────────────────────────────────────────────────────
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Shell from "@/app/_shared/Shell";
 import {
   buildFieldRegistry, fmtDate, daysBetween, getGoal, GOALS,
   type Ctx, type CompanyLite, type FieldEntry, type NodeKind,
@@ -19,28 +22,48 @@ import {
   type CampaignBasics, type CampaignBrief, type CampaignGoal, type GoalSpecificAnswers, type YesNo,
 } from "./types";
 import {
-  LIMITS, validateDecision,
-  type InterviewDecision, type InterviewField, type InterviewRequest,
-} from "./interview";
+  LIMITS, validateDecision, areaStatus,
+  type AreaAttempt, type AreaOutcome,
+  type KnownFact, type ReasoningAction, type ReasoningConcern,
+  type ReasoningDecision, type ReasoningInsight, type ReasoningRequest, type TargetArea,
+} from "./reasoning";
+import { GOAL_PROFILES, areaForField, isCriticalArea } from "./goal-profiles";
 import {
   ANALYSIS_LIMITS, validateRecommendation,
   type CampaignRecommendation,
 } from "./analysis";
 
+/** Svar som uttryckligen betyder "vet inte" — får aldrig tolkas som fakta. */
+const isUnknownAnswer = (v: string) => /^(vet inte|osäker|ingen aning)\.?$/i.test(v.trim());
+const UNKNOWN_ANSWER_TEXT = "Vet inte";
+
+const ACTION_LABEL: Partial<Record<ReasoningAction, string>> = {
+  clarify: "Fördjupning",
+  challenge: "Utmaning",
+  redirect: "Målcheck",
+  surface_insight: "Iakttagelse",
+};
+
 const IS_DEV = process.env.NODE_ENV !== "production";
 
+// Samma tokenvärden som app/_shared/theme.ts (mörk grafit + lila accent).
+// Nycklarna (gold/goldDim/goldBorder osv.) behålls oförändrade eftersom de
+// används på hundratals ställen i den här filen — bara VÄRDENA byts, så att
+// hela sidan får det nya designspråket utan att röra intervjulogiken.
 const T = {
-  bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
-  line: "rgba(255,255,255,0.10)", line2: "rgba(255,255,255,0.18)",
-  text: "#ffffff", text2: "#cbd5e0", text3: "#a0aec0",
-  gold: "#c9a96e", goldDim: "rgba(201,169,110,0.15)", goldBorder: "rgba(201,169,110,0.30)",
+  bg: "#0a0a10", surface: "#131319", surface2: "#191921",
+  line: "rgba(255,255,255,0.07)", line2: "rgba(255,255,255,0.13)",
+  text: "#f5f5f8", text2: "#aeb2c2", text3: "#6f7386",
+  gold: "#8b6bf2", goldDim: "rgba(139,107,242,0.14)", goldBorder: "rgba(139,107,242,0.35)",
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /* ── Meddelanden i transkriptet ─────────────────────────────── */
 type Msg =
-  | { role: "ai"; kind: "prompt" | "reaction" | "note"; text: string; nodeId?: string }
+  | { role: "ai"; kind: "prompt" | "reaction" | "note"; text: string; nodeId?: string; action?: ReasoningAction; questionReason?: string }
+  | { role: "ai"; kind: "insight"; insight: ReasoningInsight }
+  | { role: "ai"; kind: "concern"; concern: ReasoningConcern }
   | { role: "user"; text: string; nodeId: string };
 
 /** Den fråga som just nu ställs (kan komma från registret eller AI:n). */
@@ -51,6 +74,9 @@ interface CurrentQuestion {
   optional?: boolean;
   placeholder?: string;
   suggestions?: string[];
+  action?: ReasoningAction;
+  questionReason?: string;
+  targetArea?: TargetArea;
 }
 
 /* ── Hooks ──────────────────────────────────────────────────── */
@@ -83,23 +109,92 @@ function Avatar({ dim }: { dim?: boolean }) {
 }
 
 /* ── En AI-bubbla ───────────────────────────────────────────── */
-function AiBubble({ text, kind }: { text: string; kind: "prompt" | "reaction" | "note" }) {
+// Subtil, premium visuell åtskillnad per handling — inga starka färger.
+// challenge/redirect får en diskret varm vänsterkant; övrigt är oförändrat.
+function AiBubble({ text, kind, action, questionReason }: {
+  text: string; kind: "prompt" | "reaction" | "note"; action?: ReasoningAction; questionReason?: string;
+}) {
   const isPrompt = kind === "prompt";
+  const accented = action === "challenge" || action === "redirect";
+  const label = ACTION_LABEL[action as ReasoningAction];
   return (
     <div style={{ display: "flex", gap: 12, alignItems: "flex-start", animation: "fadeUp .4s ease both" }}>
       <Avatar dim={kind === "reaction"} />
-      <p style={{
+      <div style={{
         maxWidth: 480,
-        fontFamily: isPrompt ? "var(--font-cormorant), serif" : "var(--font-outfit), sans-serif",
-        fontWeight: 300,
-        fontSize: isPrompt ? "1.32rem" : "0.92rem",
-        lineHeight: isPrompt ? 1.35 : 1.65,
-        letterSpacing: isPrompt ? "-0.01em" : "0",
-        color: kind === "reaction" ? T.text3 : T.text,
-        paddingTop: isPrompt ? 2 : 4,
+        borderLeft: accented ? `2px solid ${T.goldBorder}` : "none",
+        paddingLeft: accented ? 14 : 0,
       }}>
-        {text}
-      </p>
+        {label && (
+          <div style={{ fontSize: "0.6rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.gold, opacity: 0.75, marginBottom: 4 }}>
+            {label}
+          </div>
+        )}
+        <p style={{
+          fontFamily: isPrompt ? "var(--font-cormorant), serif" : "var(--font-outfit), sans-serif",
+          fontWeight: 300,
+          fontSize: isPrompt ? "1.32rem" : "0.92rem",
+          lineHeight: isPrompt ? 1.35 : 1.65,
+          letterSpacing: isPrompt ? "-0.01em" : "0",
+          color: kind === "reaction" ? T.text3 : T.text,
+          paddingTop: isPrompt && !label ? 2 : 0,
+        }}>
+          {text}
+        </p>
+        {isPrompt && questionReason && (
+          <p style={{ marginTop: 8, fontSize: "0.76rem", fontWeight: 300, color: T.text3, lineHeight: 1.5, fontFamily: "var(--font-outfit), sans-serif" }}>
+            {questionReason}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Tidig insikt: separat, kompakt analysblock ─────────────── */
+function InsightCard({ insight }: { insight: ReasoningInsight }) {
+  const confidenceLabel = { low: "Lågt underlag", medium: "Rimligt underlag", high: "Starkt underlag" }[insight.confidence];
+  return (
+    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", animation: "fadeUp .4s ease both" }}>
+      <Avatar />
+      <div style={{
+        maxWidth: 480, width: "100%", background: T.goldDim, border: `1px solid ${T.goldBorder}`,
+        borderRadius: 2, padding: "14px 16px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 10 }}>
+          <span style={{ fontSize: "0.6rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.gold }}>
+            {insight.title}
+          </span>
+          <span style={{ fontSize: "0.62rem", fontWeight: 300, color: T.text3, whiteSpace: "nowrap" }}>{confidenceLabel}</span>
+        </div>
+        <p style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2, lineHeight: 1.6, marginBottom: insight.basedOn.length ? 8 : 0 }}>
+          {insight.text}
+        </p>
+        {insight.basedOn.length > 0 && (
+          <p style={{ fontSize: "0.72rem", fontWeight: 300, color: T.text3, lineHeight: 1.5 }}>
+            Baserat på: {insight.basedOn.join(" · ")}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Strategisk oro: tydlig men lugn varning ────────────────── */
+function ConcernCard({ concern }: { concern: ReasoningConcern }) {
+  return (
+    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", animation: "fadeUp .4s ease both" }}>
+      <Avatar />
+      <div style={{
+        maxWidth: 480, width: "100%", background: "rgba(201,169,110,0.04)",
+        border: `1px solid ${T.line2}`, borderLeft: `2px solid ${T.gold}`,
+        borderRadius: 2, padding: "14px 16px",
+      }}>
+        <div style={{ fontSize: "0.6rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.text3, marginBottom: 6 }}>
+          Värt att bevaka · {concern.title}
+        </div>
+        <p style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2, lineHeight: 1.6 }}>{concern.text}</p>
+      </div>
     </div>
   );
 }
@@ -270,15 +365,20 @@ function SummaryView({ brief }: { brief: CampaignBrief }) {
         )}
       </div>
 
-      {cfg && (
+      {Object.keys(answers).length > 0 && (
         <div style={{ marginTop: 28 }}>
           <div style={{ fontSize: "0.61rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase", color: T.text3, marginBottom: 4 }}>
             Vad du berättade
           </div>
           <div style={{ borderTop: `1px solid ${T.line}`, marginTop: 12 }}>
-            {cfg.questions.filter((q) => (answers[q.id] ?? "").trim()).map((q) => (
-              <SummaryRow key={q.id} label={q.prompt({ record: {}, goal: brief.goal })} value={answers[q.id] ?? ""} />
-            ))}
+            {Object.entries(answers).filter(([, v]) => v.trim()).map(([k, v]) => {
+              // Kända målspecifika fält har en egen, snyggare frågeformulering.
+              // Fritt formulerade resonemangsfrågor använder redan den
+              // faktiska frågetexten som nyckel (se briefFrom).
+              const known = cfg?.questions.find((q) => q.id === k);
+              const label = known ? known.prompt({ record: {}, goal: brief.goal }) : k;
+              return <SummaryRow key={k} label={label} value={v} />;
+            })}
           </div>
         </div>
       )}
@@ -301,20 +401,27 @@ function BriefDevPanel({ brief }: { brief: CampaignBrief }) {
   );
 }
 
-/* ── Debugläge: senaste intervjubeslutet (endast dev) ───────── */
-function DecisionDebug({ decision, calls }: { decision: InterviewDecision; calls: number }) {
+/* ── Debugläge: senaste resonemangsbeslutet (endast dev) ────── */
+function DecisionDebug({ decision, calls, areaAttempts, criticalAreas }: {
+  decision: ReasoningDecision; calls: number; areaAttempts: AreaAttempt[]; criticalAreas: TargetArea[];
+}) {
+  const statusFor = criticalAreas
+    .map((a) => `${a}:${areaStatus(areaAttempts, a, LIMITS.MAX_ASKS_PER_AREA)}`)
+    .join(" · ");
   const rows: [string, string][] = [
     ["action", decision.action],
-    ["reasonCategory", decision.reasonCategory],
-    ["targetField", decision.targetField ?? "—"],
+    ["targetArea", decision.targetArea ?? "—"],
     ["canRecommend", String(decision.canRecommend)],
+    ["insight", decision.insight ? decision.insight.title : "—"],
+    ["concern", decision.concern ? decision.concern.title : "—"],
     ["missingCriticalInformation", decision.missingCriticalInformation.join(" · ") || "—"],
+    ["kritiska områdens status", statusFor || "—"],
     ["ai-anrop", `${calls} / ${LIMITS.MAX_AI_CALLS}`],
   ];
   return (
     <div style={{ marginBottom: 12, background: "#1f232c", border: `1px dashed ${T.line2}`, borderRadius: 2, padding: "10px 14px" }}>
       <div style={{ fontSize: "0.58rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase", color: T.gold, marginBottom: 8 }}>
-        Debug · Interview Engine (dev)
+        Debug · Reasoning Engine (dev)
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "3px 14px", fontSize: "0.72rem", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
         {rows.map(([k, v]) => (
@@ -360,7 +467,12 @@ export default function CampaignBuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [fallbackMode, setFallbackMode] = useState(false);
   const [aiCalls, setAiCalls] = useState(0);
-  const [lastDecision, setLastDecision] = useState<InterviewDecision | null>(null);
+  const [lastDecision, setLastDecision] = useState<ReasoningDecision | null>(null);
+  // Varje försök att fråga om ett strategiskt område, med utfall
+  // (answered/unknown/skipped) — skickas till motorn så den kan skilja
+  // "redan besvarat" från "gav upp utan svar" från "hoppades uttryckligen
+  // över", i stället för att bara räkna hur många gånger något frågats.
+  const [areaAttempts, setAreaAttempts] = useState<AreaAttempt[]>([]);
   const [analysis, setAnalysis] = useState<CampaignRecommendation | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -415,6 +527,7 @@ export default function CampaignBuilderPage() {
 
   const displayValue = useCallback((kind: NodeKind, value: string): string => {
     if (!value.trim()) return "Hoppar över det här";
+    if (isUnknownAnswer(value)) return UNKNOWN_ANSWER_TEXT;
     if (kind === "yesno") return value === "ja" ? "Ja" : "Nej";
     if (kind === "date") return fmtDate(value);
     return value;
@@ -431,6 +544,7 @@ export default function CampaignBuilderPage() {
       optional: entry.optional,
       placeholder: entry.placeholder,
       suggestions: entry.suggestions?.(c).filter(Boolean),
+      targetArea: goal ? areaForField(goal, entry.key) : undefined,
     };
   }, [goal, company]);
 
@@ -473,6 +587,7 @@ export default function CampaignBuilderPage() {
     setHistory([]);
     setAiCalls(0);
     setLastDecision(null);
+    setAreaAttempts([]);
     setError(null);
     setGoal(goalId);
     setPhase("interview");
@@ -494,6 +609,7 @@ export default function CampaignBuilderPage() {
       targetField: first.key, text: first.question(c), kind: first.kind,
       optional: first.optional, placeholder: first.placeholder,
       suggestions: first.suggestions?.(c).filter(Boolean),
+      targetArea: areaForField(goalId, first.key),
     };
     push({ role: "ai", kind: "prompt", text: q.text, nodeId: q.targetField });
     setCurrent(q);
@@ -509,25 +625,40 @@ export default function CampaignBuilderPage() {
     });
     const cfg = getGoal(goal);
     const answers: GoalSpecificAnswers = {};
-    cfg?.questions.forEach((qn) => { answers[qn.id] = rec[`q_${qn.id}`] ?? ""; });
+    const knownQIds = new Set((cfg?.questions ?? []).map((qn) => `q_${qn.id}`));
+    cfg?.questions.forEach((qn) => {
+      const v = rec[`q_${qn.id}`];
+      if (v) answers[qn.id] = v;
+    });
+    // Resonemangsmotorn ställer ofta fritt formulerade strategiska frågor
+    // som inte matchar en fast fältnyckel (t.ex. clarify/challenge-svar
+    // eller synthetiska "extra_"-fält). De ska inte tappas bort ur
+    // underlaget — spara dem under den fråga som faktiskt ställdes.
+    Object.entries(rec).forEach(([key, value]) => {
+      if (!value.trim() || key in EMPTY_BASICS || knownQIds.has(key)) return;
+      const asked = [...messages].reverse().find((m) => m.role === "ai" && m.kind === "prompt" && m.nodeId === key);
+      const label = asked?.role === "ai" && asked.kind === "prompt" ? asked.text : key;
+      answers[label] = value;
+    });
     return { goal: goal as CampaignGoal, goalTitle: cfg?.title ?? "", basics: b, answers, createdAt: new Date().toISOString() };
-  }, [goal]);
+  }, [goal, messages]);
 
-  /* ── Anropa intervjumotorn ────────────────────────────────── */
+  /* ── Anropa resonemangsmotorn ──────────────────────────────── */
   const askEngine = useCallback(async (
     rec: Record<string, string>, done: string[],
     hist: { question: string; answer: string }[],
     lastQuestion: string, lastAnswer: string, callCount: number,
-  ): Promise<InterviewDecision> => {
+    attemptsSoFar: AreaAttempt[], unknownAnswer: boolean,
+  ): Promise<ReasoningDecision> => {
     const relevant = registry.filter((e) => !e.relevant || e.relevant(rec));
-    const answeredFields: InterviewField[] = relevant
+    const knownFacts: KnownFact[] = relevant
       .filter((e) => done.includes(e.key))
       .map((e) => ({ key: e.key, label: e.label, value: (rec[e.key] ?? "").slice(0, 200) }));
-    const unansweredFields: InterviewField[] = relevant
+    const candidateFields: KnownFact[] = relevant
       .filter((e) => !done.includes(e.key))
       .map((e) => ({ key: e.key, label: e.label }));
 
-    const body: InterviewRequest = {
+    const body: ReasoningRequest = {
       goal: goal ?? "",
       goalTitle: getGoal(goal)?.title ?? "",
       company: company ? {
@@ -538,9 +669,11 @@ export default function CampaignBuilderPage() {
       } : undefined,
       lastQuestion: lastQuestion.slice(0, 300),
       lastAnswer: lastAnswer.slice(0, LIMITS.MAX_ANSWER_LEN),
+      unknownAnswer,
       history: hist.slice(-LIMITS.MAX_HISTORY),
-      answeredFields,
-      unansweredFields,
+      areaAttempts: attemptsSoFar,
+      knownFacts,
+      candidateFields,
       callCount,
     };
 
@@ -563,55 +696,92 @@ export default function CampaignBuilderPage() {
     }
   }, [registry, goal, company]);
 
+  /** Bästa obesvarade fält för ett strategiskt område (prioritetsordning från registret). */
+  const bestFieldForArea = useCallback((area: TargetArea | undefined, rec: Record<string, string>, done: string[]): FieldEntry | null => {
+    if (!area || !goal) return null;
+    const relevant = registry.filter((e) => !e.relevant || e.relevant(rec));
+    return relevant.find((e) => !done.includes(e.key) && areaForField(goal, e.key) === area) ?? null;
+  }, [registry, goal]);
+
   /* ── Svara på aktuell fråga ───────────────────────────────── */
-  const answer = useCallback(async (rawValue: string) => {
+  const answer = useCallback(async (rawValue: string, explicitSkip = false) => {
     if (busy.current || phase !== "interview" || !current) return;
-    const value = rawValue.trim();
-    if (!value && !current.optional) return; // validering: obligatoriskt fält
+    const value = explicitSkip ? "" : rawValue.trim();
+    // Ett uttryckligt "Hoppa över"-klick går alltid igenom, även för ett
+    // kritiskt (icke-frivilligt) fält — kravet är att det ska SYNAS och
+    // sänka säkerheten, inte att det ska vara omöjligt.
+    if (!value && !current.optional && !explicitSkip) return; // validering: obligatoriskt fält
     busy.current = true;
     setError(null);
     setDraft("");
 
     const key = current.targetField;
     const question = current.text;
+    const unknownAnswer = !explicitSkip && isUnknownAnswer(value);
+    const wasCriticalSkip = explicitSkip && goal && current.targetArea ? isCriticalArea(goal, current.targetArea) : false;
+    const outcome: AreaOutcome = explicitSkip ? "skipped" : unknownAnswer ? "unknown" : "answered";
     const nextRecord = { ...record, [key]: value };
     const nextHandled = handled.includes(key) ? handled : [...handled, key];
     const nextHistory = [...history, { question, answer: value }].slice(-LIMITS.MAX_HISTORY - 4);
+    // Varje försök att fråga om ett område sparas med sitt utfall (svarat/
+    // vet-inte/överhoppat) — inte bara att området "frågats om" — så att
+    // motorn kan skilja "löst" från "gav upp utan svar".
+    const nextAttempts: AreaAttempt[] = current.targetArea
+      ? [...areaAttempts, { area: current.targetArea, outcome }]
+      : areaAttempts;
 
     setRecord(nextRecord);
     setHandled(nextHandled);
     setHistory(nextHistory);
+    setAreaAttempts(nextAttempts);
     push({ role: "user", text: displayValue(current.kind, value), nodeId: key });
+    if (wasCriticalSkip) {
+      push({ role: "ai", kind: "note", text: "Notera: det här lämnas öppet för nu, vilket kan sänka säkerheten i rekommendationen." });
+    }
     setCurrent(null); // lås inmatning medan beslutet hämtas
 
     const entry = registryMap.get(key);
 
-    // Fallback-läge: helt lokal framdrift, inga anrop.
+    // Fallback-läge: helt lokal, ärligt förenklad framdrift, inga anrop.
     if (fallbackMode) {
       await localAdvance(nextRecord, nextHandled, entry ? { entry, value } : undefined);
       busy.current = false;
       return;
     }
 
-    // Adaptivt läge: fråga motorn.
+    // Adaptivt läge: resonera med motorn.
     setThinking(true);
     try {
-      const decision = await askEngine(nextRecord, nextHandled, nextHistory, question, value, aiCalls);
+      const decision = await askEngine(nextRecord, nextHandled, nextHistory, question, value, aiCalls, nextAttempts, unknownAnswer);
       setThinking(false);
       const nextCalls = aiCalls + 1;
       setAiCalls(nextCalls);
       setLastDecision(decision);
-      push({ role: "ai", kind: "reaction", text: decision.response, nodeId: key });
+
+      // Ordning i transkriptet: eventuell oro → reaktion/utmaning → eventuell
+      // insikt → nästa fråga (om ingen finish). Så visas surface_insight
+      // "innan nästa fråga", precis som avsett.
+      if (decision.concern) push({ role: "ai", kind: "concern", concern: decision.concern });
+      push({ role: "ai", kind: "reaction", text: decision.message, nodeId: key, action: decision.action });
+      if (decision.insight) push({ role: "ai", kind: "insight", insight: decision.insight });
 
       if (decision.action === "finish" || nextCalls >= LIMITS.MAX_AI_CALLS) {
         await sleep(420);
         setPhase("summary");
         setCurrent(null);
       } else {
-        const tField = decision.targetField && decision.targetField.trim()
-          ? decision.targetField.trim()
-          : `extra_${nextHistory.length}`;
+        // clarify/challenge riktar sig mot SAMMA fält som precis besvarades
+        // (en precisering eller ett ifrågasättande av det svaret). ask/
+        // surface_insight/redirect väljer nästa fält utifrån det strategiska
+        // området modellen pekat ut, eller — om inget matchar — nästa
+        // obesvarade fält i målets prioritetsordning.
+        const reAsking = decision.action === "clarify" || decision.action === "challenge";
+        const areaMatch = reAsking ? null : bestFieldForArea(decision.targetArea, nextRecord, nextHandled);
+        const fallbackNext = reAsking ? null : nextField(nextRecord, nextHandled);
+        const tField = reAsking ? key : (areaMatch ?? fallbackNext)?.key ?? `extra_${nextHistory.length}`;
         const known = registryMap.get(tField);
+        const resolvedArea = decision.targetArea ?? (goal ? areaForField(goal, tField) : undefined);
+
         setThinking(true);
         await sleep(460);
         setThinking(false);
@@ -623,26 +793,38 @@ export default function CampaignBuilderPage() {
           targetField: tField,
           text: known && !rawQ.includes(" ") ? known.question(c) : rawQ,
           kind: known?.kind ?? "text",
-          optional: known?.optional,
+          // Frivillig endast om fältet självt är frivilligt, eller — för
+          // fritt formulerade AI-frågor — om det strategiska området inte
+          // är kritiskt för målet. Okänt område räknas som kritiskt.
+          optional: known?.optional ?? (goal && resolvedArea ? !isCriticalArea(goal, resolvedArea) : false),
           placeholder: known?.placeholder,
           suggestions: known?.suggestions?.(c).filter(Boolean),
+          action: decision.action,
+          questionReason: decision.questionReason,
+          targetArea: resolvedArea,
         };
-        push({ role: "ai", kind: "prompt", text: q.text, nodeId: q.targetField });
+        push({ role: "ai", kind: "prompt", text: q.text, nodeId: q.targetField, action: decision.action, questionReason: decision.questionReason });
         setCurrent(q);
       }
     } catch {
       // Anropet misslyckades → gå över till skriptat läge och fortsätt.
+      // Ärligt: låtsas aldrig att en riktig AI-analys redan genomförts.
       setThinking(false);
       setFallbackMode(true);
       setError("Jag tappade uppkopplingen ett ögonblick — men vi behöver inte börja om. Vi fortsätter här.");
-      push({ role: "ai", kind: "note", text: "Vi kör vidare med mina planerade frågor så länge — allt du redan berättat finns kvar." });
+      push({ role: "ai", kind: "note", text: "Jag kan fortsätta med en förenklad intervju just nu. Allt du redan berättat finns kvar." });
       await localAdvance(nextRecord, nextHandled);
     } finally {
       // Loading-state får aldrig bli hängande, oavsett kodväg.
       setThinking(false);
       busy.current = false;
     }
-  }, [phase, current, record, handled, history, fallbackMode, aiCalls, registryMap, displayValue, push, localAdvance, askEngine, goal, company]);
+  }, [phase, current, record, handled, history, areaAttempts, fallbackMode, aiCalls, registryMap, displayValue, push, localAdvance, askEngine, bestFieldForArea, nextField, goal, company]);
+
+  /** Uttryckligt "Hoppa över" — skiljs från ett tomt svar på ett frivilligt
+   * fält: går alltid igenom, oavsett kritikalitet, och registreras som
+   * "skipped" (inte "answered") så motorn aldrig låtsas att området är känt. */
+  const skipCurrent = useCallback(() => { void answer("", true); }, [answer]);
 
   /* ── Tillbaka och ändra (från sammanfattningen) ───────────── */
   const editLast = useCallback(() => {
@@ -663,15 +845,17 @@ export default function CampaignBuilderPage() {
     setAnalysisError(null);
     setPhase("interview");
     setDraft(entry && (entry.kind === "date" || entry.kind === "yesno") ? "" : (record[key] ?? ""));
+    const promptText = promptMsg?.role === "ai" && promptMsg.kind === "prompt" ? promptMsg.text : undefined;
     setCurrent({
       targetField: key,
-      text: promptMsg?.text ?? entry?.question(ctx) ?? "Vill du ändra ditt svar?",
+      text: promptText ?? entry?.question(ctx) ?? "Vill du ändra ditt svar?",
       kind: entry?.kind ?? "text",
       optional: entry?.optional,
       placeholder: entry?.placeholder,
       suggestions: entry?.suggestions?.(ctx).filter(Boolean),
+      targetArea: goal ? areaForField(goal, key) : undefined,
     });
-  }, [handled, messages, registryMap, record, ctx]);
+  }, [handled, messages, registryMap, record, ctx, goal]);
 
   /* ── Kör analysen (skapar kampanjrekommendationen) ────────── */
   const runAnalysis = useCallback(async () => {
@@ -717,20 +901,22 @@ export default function CampaignBuilderPage() {
     : Math.min(handled.length / 8, 0.95);
 
   const inputLocked = thinking || busy.current || !current;
+  const currentIsCritical = !!(goal && current?.targetArea && isCriticalArea(goal, current.targetArea));
 
   return (
+    <Shell>
     <main style={{ minHeight: "100svh", background: T.bg, display: "flex", flexDirection: "column" }}>
-      {/* Nav + progress */}
+      {/* Statusrad + progress — logo/huvudnavigation kommer nu från Shell */}
       <nav style={{
         position: "sticky", top: 0, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: `0 ${pad}px`, height: 56,
-        background: "rgba(42,47,58,0.95)", backdropFilter: "blur(20px)",
+        background: "rgba(10,10,16,0.9)", backdropFilter: "blur(20px)",
         borderBottom: `1px solid ${T.line}`,
       }}>
-        <Link href="/" style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 500, fontSize: "1.1rem", letterSpacing: "0.08em", textTransform: "uppercase", color: T.text }}>
-          Marketing<span style={{ color: T.gold }}>Copilot</span>
-        </Link>
+        <span style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 500, fontSize: "1.05rem", letterSpacing: "0.04em", color: T.text }}>
+          Campaign Builder
+        </span>
         <span style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.66rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", color: T.gold }}>
           <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.gold, animation: phase === "summary" && !analyzing ? "none" : "blink 1.6s ease infinite", display: "block" }} />
           {phase === "summary"
@@ -761,11 +947,12 @@ export default function CampaignBuilderPage() {
             </>
           ) : (
             <>
-              {messages.map((m, i) =>
-                m.role === "user"
-                  ? <UserBubble key={i} text={m.text} />
-                  : <AiBubble key={i} text={m.text} kind={m.kind} />
-              )}
+              {messages.map((m, i) => {
+                if (m.role === "user") return <UserBubble key={i} text={m.text} />;
+                if (m.kind === "insight") return <InsightCard key={i} insight={m.insight} />;
+                if (m.kind === "concern") return <ConcernCard key={i} concern={m.concern} />;
+                return <AiBubble key={i} text={m.text} kind={m.kind} action={m.action} questionReason={m.questionReason} />;
+              })}
               {thinking && <Thinking />}
             </>
           )}
@@ -778,7 +965,9 @@ export default function CampaignBuilderPage() {
         borderTop: phase === "summary" ? "none" : `1px solid ${T.line}`,
       }}>
         <div style={{ maxWidth: 640, margin: "0 auto", padding: `18px ${pad}px 28px` }}>
-          {IS_DEV && phase === "interview" && lastDecision && <DecisionDebug decision={lastDecision} calls={aiCalls} />}
+          {IS_DEV && phase === "interview" && lastDecision && goal && (
+            <DecisionDebug decision={lastDecision} calls={aiCalls} areaAttempts={areaAttempts} criticalAreas={GOAL_PROFILES[goal].criticalAreas} />
+          )}
           {error && phase !== "summary" && <ErrorNote text={error} />}
           {analysisError && phase === "summary" && !analyzing && <ErrorNote text={analysisError} />}
 
@@ -802,6 +991,9 @@ export default function CampaignBuilderPage() {
               draft={draft}
               setDraft={setDraft}
               onSubmit={answer}
+              onUnknown={() => answer(UNKNOWN_ANSWER_TEXT)}
+              onSkip={skipCurrent}
+              critical={currentIsCritical}
               disabled={inputLocked}
               inputRef={inputRef}
               isMobile={isMobile}
@@ -820,6 +1012,7 @@ export default function CampaignBuilderPage() {
         input[type="date"] { color-scheme: dark; }
       `}</style>
     </main>
+    </Shell>
   );
 }
 
@@ -854,38 +1047,60 @@ function GoalCards({ onPick, disabled, isMobile }: {
 }
 
 /* ── Kompositionsraden (byter form efter frågetyp) ──────────── */
-function Composer({ kind, placeholder, optional, draft, setDraft, onSubmit, disabled, suggestions, inputRef, isMobile }: {
+function Composer({ kind, placeholder, optional, critical, draft, setDraft, onSubmit, onUnknown, onSkip, disabled, suggestions, inputRef, isMobile }: {
   kind: NodeKind;
   placeholder?: string;
   optional?: boolean;
+  critical: boolean;
   draft: string;
   setDraft: (v: string) => void;
   onSubmit: (v: string) => void;
+  onUnknown: () => void;
+  onSkip: () => void;
   disabled: boolean;
   suggestions: string[];
   inputRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
   isMobile: boolean;
 }) {
   const canSend = optional || draft.trim() !== "";
+  const unknownButtonStyle: React.CSSProperties = {
+    background: "none", border: "none", color: T.text3, fontSize: "0.78rem", fontWeight: 300,
+    cursor: disabled ? "default" : "pointer", padding: 0, fontFamily: "var(--font-outfit), sans-serif",
+  };
+  // Ett kritiskt område går fortfarande att hoppa över — men texten säger
+  // det rakt ut i stället för att låtsas att det är kostnadsfritt.
+  const skipLabel = critical
+    ? "Hoppa över — sänker säkerheten i rekommendationen"
+    : "Hoppa över — vi kan fortsätta ändå";
 
   /* Ja / Nej */
   if (kind === "yesno") {
     return (
-      <div style={{ display: "flex", gap: 10 }}>
-        {(["ja", "nej"] as const).map((v) => (
-          <button key={v} type="button" disabled={disabled} onClick={() => onSubmit(v)}
-            style={{
-              flex: 1, padding: "15px 22px", borderRadius: 2,
-              fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.82rem", fontWeight: 400,
-              letterSpacing: "0.06em", cursor: disabled ? "default" : "pointer", transition: "all .18s",
-              background: "transparent", border: `1px solid ${T.line2}`, color: T.text2,
-            }}
-            onMouseOver={(e) => { if (!disabled) { e.currentTarget.style.borderColor = T.gold; e.currentTarget.style.color = T.text; } }}
-            onMouseOut={(e) => { e.currentTarget.style.borderColor = T.line2; e.currentTarget.style.color = T.text2; }}
-          >
-            {v === "ja" ? "Ja" : "Nej"}
+      <div>
+        <div style={{ display: "flex", gap: 10 }}>
+          {(["ja", "nej"] as const).map((v) => (
+            <button key={v} type="button" disabled={disabled} onClick={() => onSubmit(v)}
+              style={{
+                flex: 1, padding: "15px 22px", borderRadius: 2,
+                fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.82rem", fontWeight: 400,
+                letterSpacing: "0.06em", cursor: disabled ? "default" : "pointer", transition: "all .18s",
+                background: "transparent", border: `1px solid ${T.line2}`, color: T.text2,
+              }}
+              onMouseOver={(e) => { if (!disabled) { e.currentTarget.style.borderColor = T.gold; e.currentTarget.style.color = T.text; } }}
+              onMouseOut={(e) => { e.currentTarget.style.borderColor = T.line2; e.currentTarget.style.color = T.text2; }}
+            >
+              {v === "ja" ? "Ja" : "Nej"}
+            </button>
+          ))}
+        </div>
+        <div style={{ marginTop: 10, display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <button type="button" disabled={disabled} onClick={onUnknown} style={unknownButtonStyle}>
+            Jag vet inte
           </button>
-        ))}
+          <button type="button" disabled={disabled} onClick={onSkip} style={unknownButtonStyle}>
+            {skipLabel}
+          </button>
+        </div>
       </div>
     );
   }
@@ -955,13 +1170,13 @@ function Composer({ kind, placeholder, optional, draft, setDraft, onSubmit, disa
         </button>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, minHeight: 20 }}>
-        {optional && (
-          <button type="button" disabled={disabled} onClick={() => onSubmit("")}
-            style={{ background: "none", border: "none", color: T.text3, fontSize: "0.78rem", fontWeight: 300, cursor: disabled ? "default" : "pointer", padding: 0, fontFamily: "var(--font-outfit), sans-serif" }}>
-            Hoppa över — vi kan fortsätta ändå
-          </button>
-        )}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, minHeight: 20, flexWrap: "wrap" }}>
+        <button type="button" disabled={disabled} onClick={onUnknown} style={unknownButtonStyle}>
+          Jag vet inte
+        </button>
+        <button type="button" disabled={disabled} onClick={onSkip} style={unknownButtonStyle}>
+          {skipLabel}
+        </button>
         {isArea && !isMobile && (
           <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: T.text3, opacity: 0.7 }}>⌘/Ctrl + Enter för att svara</span>
         )}

@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+  const supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,7 +22,11 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const protectedRoutes = ["/dashboard", "/onboarding", "/profile", "/create", "/post", "/newsletter", "/campaign", "/plan", "/generating"];
+  const protectedRoutes = [
+    "/dashboard", "/onboarding", "/profile", "/create", "/post", "/newsletter",
+    "/campaign", "/plan", "/generating", "/campaign-builder",
+    "/content", "/company", "/campaigns", "/history",
+  ];
   const isProtected = protectedRoutes.some(r => request.nextUrl.pathname.startsWith(r));
 
   if (!user && isProtected) {
