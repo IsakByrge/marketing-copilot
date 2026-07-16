@@ -74,3 +74,27 @@ export const IconRecommendation = ({ size, ...p }: IconProps) => (
 export const IconChevronDown = ({ size, ...p }: IconProps) => (
   <svg {...base(size)} {...p}><path d="M6 9l6 6 6-6" /></svg>
 );
+
+export const IconPlus = ({ size, ...p }: IconProps) => (
+  <svg {...base(size)} {...p}><path d="M12 5v14M5 12h14" /></svg>
+);
+
+export const IconTrash = ({ size, ...p }: IconProps) => (
+  <svg {...base(size)} {...p}><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" /><path d="M10 11v6M14 11v6" /></svg>
+);
+
+export const IconPencil = ({ size, ...p }: IconProps) => (
+  <svg {...base(size)} {...p}><path d="M4 20l1-4.2L16.5 4.3a1.5 1.5 0 0 1 2.1 0l1.1 1.1a1.5 1.5 0 0 1 0 2.1L8.2 19 4 20Z" /><path d="M14.5 6.3l3.2 3.2" /></svg>
+);
+
+export const IconCheck = ({ size, ...p }: IconProps) => (
+  <svg {...base(size)} {...p}><path d="M5 12.5l4.5 4.5L19 7" /></svg>
+);
+
+export const IconX = ({ size, ...p }: IconProps) => (
+  <svg {...base(size)} {...p}><path d="M6 6l12 12M18 6L6 18" /></svg>
+);
+
+export const IconSparkle = ({ size, ...p }: IconProps) => (
+  <svg {...base(size)} {...p}><path d="M12 3l1.4 4.6L18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4L12 3Z" /><path d="M19 15.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6.6-1.9Z" /></svg>
+);

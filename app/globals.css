@@ -72,6 +72,14 @@ a {
 .d4 { animation-delay: 0.32s; }
 .d5 { animation-delay: 0.40s; }
 
+/* Konsekvent, lila tangentbordsfokus för det nya designsystemets
+   interaktiva ytor (ChoiceCard m.fl.) — kompletterar per-komponent
+   fokuslägen som redan sätts inline (t.ex. TextInput/TextArea). */
+.mcx-focusable:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
