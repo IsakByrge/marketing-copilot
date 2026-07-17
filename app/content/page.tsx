@@ -44,7 +44,8 @@ export default function ContentPage() {
             body="Låt din marknadschef bygga en strategi först, eller skapa ett enskilt inlägg direkt."
             action={
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <PrimaryButton href="/campaign-builder">Starta Campaign Builder</PrimaryButton>
+                <PrimaryButton href="/content/facebook">Facebook Specialist</PrimaryButton>
+                <GhostButton href="/campaign-builder">Starta Campaign Builder</GhostButton>
                 <GhostButton href="/create">Skapa ett inlägg</GhostButton>
               </div>
             }

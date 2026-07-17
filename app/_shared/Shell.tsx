@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase-browser";
 import { T, fontSans, fontSerif, transition } from "./theme";
 import {
   IconToday, IconBuilder, IconCampaigns, IconContent, IconCompany, IconHistory,
-  IconSettings, IconLogout, IconMenu, IconClose,
+  IconSettings, IconLogout, IconMenu, IconClose, IconSparkle,
 } from "./icons";
 
 export interface NavItem {
@@ -29,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/campaign-builder", label: "Campaign Builder", icon: IconBuilder },
   { href: "/campaigns", label: "Kampanjer", icon: IconCampaigns },
   { href: "/content", label: "Innehåll", icon: IconContent },
+  { href: "/content/facebook", label: "Facebook Specialist", icon: IconSparkle },
   { href: "/company", label: "Företagskunskap", icon: IconCompany },
   { href: "/history", label: "Historik", icon: IconHistory },
 ];
@@ -182,7 +183,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }
 
-  const isActive = (href: string) => pathname === href || pathname?.startsWith(href + "/");
+  const isActive = (href: string) => {
+    if (pathname === href) return true;
+    if (!pathname?.startsWith(href + "/")) return false;
+    // Mest specifika nav-post vinner — så "Innehåll" (/content) inte lyser
+    // aktiv samtidigt som "Facebook Specialist" (/content/facebook).
+    return !NAV_ITEMS.some(
+      (o) => o.href !== href && o.href.startsWith(href + "/") &&
+        (pathname === o.href || pathname.startsWith(o.href + "/")),
+    );
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: compact ? "column" : "row", minHeight: "100svh", background: T.bg }}>
