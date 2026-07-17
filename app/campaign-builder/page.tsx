@@ -28,6 +28,7 @@ import {
   type ReasoningDecision, type ReasoningInsight, type ReasoningRequest, type TargetArea,
 } from "./reasoning";
 import { GOAL_PROFILES, areaForField, isCriticalArea } from "./goal-profiles";
+import { saveCampaignStrategy } from "@/lib/campaignStrategyStore";
 import {
   ANALYSIS_LIMITS, validateRecommendation,
   type CampaignRecommendation,
@@ -883,6 +884,9 @@ export default function CampaignBuilderPage() {
       const rec = validateRecommendation(data);
       if (!rec) throw new Error("invalid recommendation");
       setAnalysis(rec);
+      // Additivt: persistera strategin så den kan väljas i Facebook Specialist.
+      // Best-effort — påverkar aldrig analysflödet ovan.
+      void saveCampaignStrategy(brief, rec);
     } catch (err) {
       const timedOut = err instanceof DOMException && err.name === "AbortError";
       setAnalysisError(timedOut
