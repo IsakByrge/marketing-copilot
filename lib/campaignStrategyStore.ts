@@ -25,11 +25,19 @@ export async function saveCampaignStrategy(brief: CampaignBrief, rec: CampaignRe
       .order("created_at", { ascending: false }).limit(1);
     const companyId = companies?.[0]?.id ?? null;
 
+    // FB-säker sammanfattning. Margin utelämnas ALLTID (känslig ekonomi).
+    // Fälten nedan speglar exakt vad Facebook Specialist kan förifylla —
+    // pris är annonserbar, publik info (inte marginal) och tas därför med.
     const strategyContext = {
       goal: brief.goalTitle,
+      goalKey: brief.goal, // CampaignGoal-enum → pålitlig mappning till FB-syfte
+      product: brief.basics.product || undefined,
       audience: brief.basics.targetAudience || undefined,
       mainMessage: rec.coreMessage,
       offer: brief.basics.hasExistingOffer === "ja" ? (brief.basics.offerContent || undefined) : undefined,
+      price: brief.basics.price || undefined,
+      geographicArea: brief.basics.geographicArea || undefined,
+      deadline: brief.basics.endDate || undefined,
       channels: rec.channels.map((c) => c.name),
       risks: rec.watchouts,
     };
