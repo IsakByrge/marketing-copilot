@@ -28,6 +28,15 @@ import type {
   FacebookBlockedResponse,
   FacebookLength,
 } from "@/app/content/facebook/types";
+import {
+  detectCliches,
+  detectFabricatedSocialProof,
+  dedupeAlternatives,
+  deriveUserStatus,
+  wordCount as wc,
+  LENGTH_RANGE,
+  type StatusFlags,
+} from "./quality";
 
 /* ── Modell- & kostnadskonfiguration (server-side, via env) ──
    Utkast: kvalitetsmodell. Granskning: billig modell. Båda kan
@@ -48,6 +57,12 @@ export interface RunMeta {
   models: { draft: string; review: string };
   usage: { promptTokens: number; completionTokens: number };
   ms: number;
+  /** Antal alternativ som togs bort (för lika eller fabricerat social proof). */
+  alternativesDropped: number;
+  /** Antal tydliga AI-klichéer i den slutliga primärtexten. */
+  clichesFound: number;
+  /** Antal verifierade social proof-punkter som fanns tillgängliga. */
+  verifiedSocialProofCount: number;
 }
 
 export interface RunOutput {
@@ -114,29 +129,36 @@ const LENGTH_GUIDANCE: Record<FacebookLength, string> = {
 };
 
 /* ── Systemprompt: utkast ────────────────────────────────── */
-const DRAFT_SYSTEM = `Du är en svensk Facebook-specialist. Du skriver organiska Facebook-inlägg åt riktiga svenska företag — inlägg som företaget kan publicera direkt eller efter en liten justering.
+const DRAFT_SYSTEM = `Du är en erfaren svensk marknadsförare som skriver organiska Facebook-inlägg åt riktiga svenska företag — inlägg företaget kan publicera direkt eller efter en liten justering. Du skriver som en skicklig människa som känner företaget, inte som en generell AI och inte som en amerikansk reklambyrå översatt till svenska.
 
-DU SKRIVER SÅ HÄR:
-- Naturlig, professionell och idiomatisk svenska. Låter som en människa som känner företaget, inte en AI och inte en amerikansk reklambyrå.
-- En hook som fångar utan clickbait, sedan snabb relevans för just den här läsaren.
-- Fokus på kundnytta (vad kunden får), inte bara produktegenskaper.
-- Konkret innehåll: produkten/tjänsten/erbjudandet/situationen ska beskrivas tillräckligt tydligt.
-- När en relevant invändning finns i underlaget: bemöt den naturligt i texten, aldrig som en FAQ-lista.
-- En tydlig, rimlig CTA som matchar målet.
-- Radbrytningar så texten är lätt att läsa i ett flöde (korta stycken, blankrad mellan).
-- 0–4 relevanta emojis beroende på tonalitet. Inga dekorativa emoji-rader.
-- Normalt 0–3 hashtags, endast om de tillför värde. Det är helt okej att rekommendera inga hashtags alls (tom lista).
+COPYPRINCIPER (följ dem, lista dem aldrig):
+1. Börja konkret — i en situation, en observation eller en rak fördel, inte i en lång ingress.
+2. Skriv för ett socialt flöde, inte som en produktbroschyr.
+3. Korta stycken. Blankrad mellan. Lätt att läsa på mobil.
+4. Variera meningslängden naturligt — inte bara korta, inte bara långa.
+5. En tydlig huvudidé per inlägg. Försök inte säga allt.
+6. Idiomatisk svenska. Läs meningen högt i huvudet — låter den uppstyltad, skriv om den.
+7. Förklara inte sånt målgruppen redan förstår.
+8. Håll igen på säljretoriken. Ett lugnt, konkret påstående övertygar mer än tre superlativ.
+9. CTA:n ska vara naturlig och kopplad till kampanjens verkliga mål — inte en påklistrad slutkläm.
+10. Hitta ALDRIG på brådska, knapphet, rabatt, garanti, resultat, priser eller popularitet.
+
+HOOK: En stark hook är inte alltid en fråga. Välj den hooktyp som passar: konkret situation, observation, ett relevant problem, en tydlig nyhet, en rak produktfördel, en säsongsanknytning, en kontrast — eller en fråga när frågan faktiskt passar. Undvik clickbait och konstlad dramatik. De två alternativen bör helst inte alla ha samma hooktyp.
+
+UNDVIK dessa och liknande AI/reklamklichéer helt: "inte bara X – utan Y", "mer än bara", "ta nästa steg", "till nästa nivå", "upptäck/upplev skillnaden", "en investering i kvalitet", "oavsett om", "i dagens snabba/digitala värld", "skräddarsydda lösningar", "vi brinner för", "möter dina behov", "perfekt för dig som", "låt oss hjälpa dig", "vi strävar efter", "sömlös", "när det kommer till". Undvik också överdrivet många adjektiv, generiska superlativ, onödig upprepning av produkt- eller företagsnamnet och långa ingressliknande öppningar.
+
+SOCIALT BEVIS — STRIKT REGEL: Du får ENDAST åberopa kunder, kundcitat, recensioner, omdömen, betyg, försäljningssiffror, antal kunder, popularitet, tester eller utmärkelser om det finns uttryckligt underlag i fältet VERIFIERAT SOCIALT BEVIS. Saknas det fältet eller är det tomt: skriv INGENTING om att kunder tycker/säger/återkommer, inga "många kunder", inga "nöjda kunder", inga siffror om kunder, inga omdömen. Hitta då aldrig på en kundberättelse och döp aldrig ett alternativ till "Kundberättelse". Välj i stället en annan vinkel: användningssituation, problem/lösning, produktfokus, expertråd, bakom produkten, säsong eller praktisk nytta.
 
 DU GÖR ALDRIG:
 - Hittar på kundresultat, omdömen, garantier, priser, siffror eller produktfakta som inte står i underlaget.
 - Lovar försäljnings- eller behandlingsresultat.
 - Skriver något som strider mot företagets förbjudna påståenden (forbiddenClaims).
-- Använder tomma superlativ eller AI-klichéer ("i dagens samhälle", "vi strävar efter", "ta din verksamhet till nästa nivå").
 - Skriver generiska öppningar ("Sommaren är här!") om de inte görs konkret företagsspecifika.
-- Upprepar företagsnamnet onaturligt eller överanvänder emojis.
 - Levererar korta rubrikfragment som om de vore ett färdigt inlägg.
 
-VINKLAR: Du får en önskad vinkel. Är den "Specialistens rekommendation" väljer du själv bäst vinkel utifrån mål, produkt och målgrupp och motiverar kort. Primärversionen använder den rekommenderade vinkeln. De TVÅ alternativen ska ha TYDLIGT olika vinklar från primären och från varandra — annan öppning, annan struktur, annat grepp. Alternativ får inte vara omskrivningar av samma text.
+FORMAT: 0–4 relevanta emojis beroende på tonalitet (inga dekorativa emoji-rader). Normalt 0–3 hashtags, endast om de tillför värde — tom lista är helt okej.
+
+VINKLAR: Du får en önskad vinkel. Är den "Specialistens rekommendation" väljer du själv bäst vinkel utifrån mål, produkt och målgrupp och motiverar kort. Primärversionen använder den rekommenderade vinkeln. De TVÅ alternativen ska vara GENUINT olika primären och varandra — de ska skilja sig i minst TVÅ av: strategisk vinkel, hooktyp, disposition, argumentationsordning, CTA-formulering, grad av produktfokus eller tonläge inom den valda tonaliteten. De får inte vara samma text med ny första mening, synonymbyten eller omkastade stycken. Alternativets "label" ska beskriva den verkliga vinkeln (t.ex. "Praktisk nytta", "Expertråd", "Produktfokus", "Säsongsvinkel", "Problem och lösning", "Bakom produkten").
 
 Om något viktigt saknas: gissa inte. Lägg en kort, ärlig notering i "assumptions" (antaganden du var tvungen att göra) eller "missingInformation" (uppgifter som skulle höjt kvaliteten). Presentera aldrig osäkra uppgifter som fakta.
 
@@ -178,17 +200,19 @@ Bedöm primärversionen mot:
 - appropriateLength: rimlig längd för vald nivå (aldrig tre korta meningar när normal/utförlig valts).
 - readableFormatting: radbrytningar, rimlig emoji-/hashtagnivå.
 - noForbiddenClaims: bryter inte mot företagets forbiddenClaims.
+- naturalSwedish: låter som en skicklig svensk marknadsförare, INTE som generell AI. Sätt false om texten innehåller AI/reklamklichéer ("inte bara X utan Y", "ta nästa steg", "i dagens snabba värld", "skräddarsydda lösningar", "vi brinner för" osv.), uppstyltade meningar, för många superlativ eller en lång ingressliknande öppning.
+- honestSocialProof: sätt false om texten påstår något om kunder, kundcitat, recensioner, omdömen, betyg, siffror, popularitet eller utmärkelser UTAN att det finns täckning i VERIFIERAT SOCIALT BEVIS. Fabricerat eller obestyrkt social proof är ett ALLVARLIGT fel.
 
 status:
 - "ready" om inlägget kan publiceras direkt eller efter en trivial puts.
-- "needs_revision" om det går att rädda med EN riktad förbättring — ge då en konkret "revisionSummary" (vad som ska ändras, inte hur du tänker).
-- "blocked" ENDAST om texten bygger på uppgifter som inte får bekräftas (påhittade fakta) och inte kan räddas utan mer information.
+- "needs_revision" om det går att rädda med EN riktad förbättring — ge då en konkret "revisionSummary" (vad som ska ändras, inte hur du tänker). Fabricerat social proof och tydliga AI-klichéer ska alltid ge minst "needs_revision".
+- "blocked" ENDAST om texten bygger på uppgifter som inte får bekräftas (påhittade fakta/social proof) och inte kan räddas utan mer information.
 
 Svara med ENDAST giltig JSON. Skriv aldrig ut ditt resonemang.
 {
   "status": "ready" | "needs_revision" | "blocked",
   "overallScore": 0-100,
-  "checks": { "companySpecific": bool, "audienceSpecific": bool, "clearHook": bool, "clearCustomerValue": bool, "credibleClaims": bool, "correctTone": bool, "clearCTA": bool, "appropriateLength": bool, "readableFormatting": bool, "noForbiddenClaims": bool },
+  "checks": { "companySpecific": bool, "audienceSpecific": bool, "clearHook": bool, "clearCustomerValue": bool, "credibleClaims": bool, "correctTone": bool, "clearCTA": bool, "appropriateLength": bool, "readableFormatting": bool, "noForbiddenClaims": bool, "naturalSwedish": bool, "honestSocialProof": bool },
   "issues": ["kort konkret problem", "..."],
   "revisionSummary": "konkret instruktion om status = needs_revision, annars utelämnad"
 }`;
@@ -205,6 +229,11 @@ function contextBlock(ctx: FacebookSpecialistContext): string {
   if (c.contentGuidelines.length) lines.push(`Innehållsregler: ${c.contentGuidelines.join("; ")}`);
   if (c.preferredCallsToAction.length) lines.push(`Föredragna CTA: ${c.preferredCallsToAction.join("; ")}`);
   lines.push(`FÖRBJUDNA PÅSTÅENDEN (använd ALDRIG): ${c.forbiddenClaims.length ? c.forbiddenClaims.join("; ") : "(inga angivna)"}`);
+  if (c.verifiedSocialProof.length) {
+    lines.push(`VERIFIERAT SOCIALT BEVIS (ENDA tillåtna källan för omdömen/siffror/popularitet — citera/parafrasera bara detta, hitta aldrig på mer): ${c.verifiedSocialProof.join(" | ")}`);
+  } else {
+    lines.push("VERIFIERAT SOCIALT BEVIS: (saknas) — påstå INGENTING om kunder, kundcitat, recensioner, omdömen, betyg, antal kunder, försäljning eller popularitet. Välj en annan vinkel än kundberättelse.");
+  }
 
   if (ctx.selectedProduct) {
     const p = ctx.selectedProduct;
@@ -341,7 +370,15 @@ function allChecksTrue(): FacebookQualityChecks {
   return {
     companySpecific: true, audienceSpecific: true, clearHook: true, clearCustomerValue: true,
     credibleClaims: true, correctTone: true, clearCTA: true, appropriateLength: true,
-    readableFormatting: true, noForbiddenClaims: true,
+    readableFormatting: true, noForbiddenClaims: true, naturalSwedish: true, honestSocialProof: true,
+  };
+}
+
+function allChecksFalse(): FacebookQualityChecks {
+  return {
+    companySpecific: false, audienceSpecific: false, clearHook: false, clearCustomerValue: false,
+    credibleClaims: false, correctTone: false, clearCTA: false, appropriateLength: false,
+    readableFormatting: false, noForbiddenClaims: false, naturalSwedish: false, honestSocialProof: false,
   };
 }
 
@@ -361,12 +398,19 @@ function coerceReview(raw: unknown): FacebookQualityReview | null {
     appropriateLength: bool(cRaw.appropriateLength),
     readableFormatting: bool(cRaw.readableFormatting),
     noForbiddenClaims: bool(cRaw.noForbiddenClaims),
+    // Nya kriterier: äldre/otydliga svar defaultar till true (positivt) så
+    // att de deterministiska lagren, inte en utebliven flagga, avgör.
+    naturalSwedish: cRaw.naturalSwedish === false ? false : true,
+    honestSocialProof: cRaw.honestSocialProof === false ? false : true,
   };
   let score = typeof o.overallScore === "number" ? Math.round(o.overallScore) : 0;
   score = Math.max(0, Math.min(100, score));
   return {
     status,
     overallScore: score,
+    // userStatus/statusReason sätts deterministiskt i finalizeReview.
+    userStatus: "review",
+    statusReason: "",
     checks,
     issues: sList(o.issues, CAP.ISSUE, CAP.MAX_ISSUES),
     revisionSummary: s(o.revisionSummary, 500) || undefined,
@@ -374,15 +418,6 @@ function coerceReview(raw: unknown): FacebookQualityReview | null {
 }
 
 /* ── Deterministiska efterkontroller (ingen AI) ──────────── */
-const LENGTH_RANGE: Record<FacebookLength, { min: number; max: number }> = {
-  short: { min: 45, max: 110 },
-  normal: { min: 95, max: 230 },
-  detailed: { min: 170, max: 360 },
-};
-
-function wc(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
 
 /** Grov men äkta forbiddenClaims-scan: matchar hela förbjudna fraser
  *  (ordgräns, ≥4 tecken) som substräng, skiftlägesokänsligt. */
@@ -396,14 +431,19 @@ function forbiddenHit(text: string, forbidden: string[]): string | null {
   return null;
 }
 
-/** Justerar granskningen med deterministiska fakta som en språkmodell
- *  inte får ha fel om: faktisk längd och forbiddenClaims-träffar. */
+/**
+ * Justerar granskningen med deterministiska fakta som en språkmodell inte
+ * får ha fel om: faktisk längd, forbiddenClaims-träffar, tydliga AI-klichéer
+ * och fabricerat social proof (när verifierat underlag saknas). Returnerar
+ * den justerade granskningen + de flaggor som styr användarstatusen.
+ */
 function applyDeterministicChecks(
   review: FacebookQualityReview,
   primary: FacebookPostVariant,
   brief: FacebookBrief,
   forbidden: string[],
-): FacebookQualityReview {
+  verifiedProofCount: number,
+): { review: FacebookQualityReview; flags: StatusFlags } {
   const issues = [...review.issues];
   const checks = { ...review.checks };
   let status = review.status;
@@ -411,7 +451,9 @@ function applyDeterministicChecks(
   // Längd är helt deterministisk — den äger vi, inte modellen (sätts både true och false).
   const n = wc(primary.postText);
   const range = LENGTH_RANGE[brief.length];
-  const tooShort = n < range.min;
+  // Symmetrisk tolerans: 15 % marginal åt båda håll så att ett i övrigt bra
+  // inlägg några få ord under målet inte i onödan flaggas som "behöver granskas".
+  const tooShort = n < range.min * 0.85;
   const tooLong = n > range.max * 1.35;
   checks.appropriateLength = !tooShort && !tooLong;
   if (tooShort) {
@@ -422,6 +464,7 @@ function applyDeterministicChecks(
     if (status === "ready") status = "needs_revision";
   }
 
+  // Förbjudna påståenden.
   const hit = forbiddenHit(primary.postText, forbidden);
   if (hit) {
     checks.noForbiddenClaims = false;
@@ -430,7 +473,37 @@ function applyDeterministicChecks(
     if (status !== "blocked") status = "needs_revision";
   }
 
-  return { ...review, status, checks, issues: issues.slice(0, CAP.MAX_ISSUES) };
+  // Fabricerat social proof — allvarligt. Körs bara när verifierat underlag saknas.
+  const proofHits = detectFabricatedSocialProof(primary.postText, verifiedProofCount);
+  if (proofHits.length) {
+    checks.honestSocialProof = false;
+    checks.credibleClaims = false;
+    issues.push(`Fabricerat/obestyrkt social proof (${proofHits.map((h) => h.phrase).join(", ")}) — verifierat underlag saknas.`);
+    if (status !== "blocked") status = "needs_revision";
+  }
+
+  // Tydliga AI-klichéer.
+  const cliches = detectCliches(primary.postText);
+  if (cliches.length) {
+    checks.naturalSwedish = false;
+    // Ta med upp till tre konkreta putsinstruktioner.
+    for (const c of cliches.slice(0, 3)) issues.push(c.hint);
+    if (status === "ready") status = "needs_revision";
+  }
+
+  const flags: StatusFlags = {
+    fabricatedSocialProof: proofHits.length > 0,
+    forbiddenClaim: hit != null,
+    clicheCount: cliches.length,
+  };
+
+  return { review: { ...review, status, checks, issues: issues.slice(0, CAP.MAX_ISSUES) }, flags };
+}
+
+/** Sätter den slutliga användarstatusen ovanpå den deterministiska granskningen. */
+function finalizeReview(review: FacebookQualityReview, flags: StatusFlags): FacebookQualityReview {
+  const { userStatus, statusReason } = deriveUserStatus(review, flags);
+  return { ...review, userStatus, statusReason };
 }
 
 /* ── OpenAI-anrop ────────────────────────────────────────── */
@@ -480,6 +553,7 @@ export async function runFacebookSpecialist(
   const client = makeClient();
   const emit = options.emit ?? (() => {});
   const forbidden = ctx.company.forbiddenClaims ?? [];
+  const verifiedProofCount = ctx.company.verifiedSocialProof?.length ?? 0;
   let calls = 0;
   let promptTokens = 0;
   let completionTokens = 0;
@@ -501,16 +575,14 @@ export async function runFacebookSpecialist(
   calls++; promptTokens += reviewRes.promptTokens; completionTokens += reviewRes.completionTokens;
   let review = coerceReview(reviewRes.parsed) ?? {
     status: "needs_revision" as const, overallScore: 0,
-    checks: {
-      companySpecific: false, audienceSpecific: false, clearHook: false, clearCustomerValue: false,
-      credibleClaims: false, correctTone: false, clearCTA: false, appropriateLength: false,
-      readableFormatting: false, noForbiddenClaims: false,
-    },
+    userStatus: "review" as const, statusReason: "",
+    checks: allChecksFalse(),
     issues: ["Granskningen kunde inte tolkas."], revisionSummary: "Säkerställ företagsspecifik, trovärdig och publicerbar text.",
   };
 
   // Deterministiska fakta väger tyngre än modellens gissning.
-  review = applyDeterministicChecks(review, draft.primary, brief, forbidden);
+  let det = applyDeterministicChecks(review, draft.primary, brief, forbidden, verifiedProofCount);
+  review = det.review;
 
   let primary = draft.primary;
   let revised = false;
@@ -531,17 +603,15 @@ export async function runFacebookSpecialist(
         // Vi gör vår enda tillåtna förbättring och re-reviewar INTE (ingen loop,
         // inget fjärde AI-steg). Vi litar därför på revisionen för de icke-
         // deterministiska kriterierna, men behåller full auktoritet över de
-        // deterministiska (längd + forbiddenClaims) på den nya texten. Att en
-        // revision skedde redovisas transparent i revisionSummary.
-        const fresh = applyDeterministicChecks(
-          { status: "ready", overallScore: review.overallScore, checks: allChecksTrue(), issues: [] },
-          primary, brief, forbidden,
+        // deterministiska (längd, forbiddenClaims, social proof, klichéer) på den
+        // nya texten. Kvarstår ett allvarligt fel markeras det ALDRIG som klart.
+        det = applyDeterministicChecks(
+          { status: "ready", overallScore: review.overallScore, userStatus: "review", statusReason: "", checks: allChecksTrue(), issues: [] },
+          primary, brief, forbidden, verifiedProofCount,
         );
         review = {
-          status: fresh.status,
+          ...det.review,
           overallScore: review.overallScore,
-          checks: fresh.checks,
-          issues: fresh.issues,
           revisionSummary: `Texten förbättrades automatiskt efter granskning: ${priorIssues.join(" | ") || review.revisionSummary || "kvalitetsjustering"}.`,
         };
       }
@@ -550,13 +620,33 @@ export async function runFacebookSpecialist(
     }
   }
 
+  // Slutlig användarstatus ovanpå den deterministiska granskningen.
+  review = finalizeReview(review, det.flags);
+
+  // Alternativ: släpp fabricerat social proof (utan verifierat underlag) och
+  // uppenbart nästan identiska alternativ. Namnge aldrig "Kundberättelse" utan täckning.
+  let droppedAlts = 0;
+  let alternatives = draft.alternatives;
+  if (verifiedProofCount === 0) {
+    const before = alternatives.length;
+    alternatives = alternatives.filter((a) => {
+      const proofLabel = /kundberättelse|kundcitat|omdöme|recension|socialt bevis|kundröst/i.test(`${a.label} ${a.angle}`);
+      const proofText = detectFabricatedSocialProof(a.postText, 0).length > 0;
+      return !proofLabel && !proofText;
+    });
+    droppedAlts += before - alternatives.length;
+  }
+  const deduped = dedupeAlternatives(primary, alternatives);
+  droppedAlts += deduped.dropped;
+  alternatives = deduped.kept;
+
   emit("done");
 
   const result: FacebookSpecialistResult = {
     recommendedAngle: draft.recommendedAngle,
     angleReason: draft.angleReason,
     primary,
-    alternatives: draft.alternatives,
+    alternatives,
     qualityReview: review,
     assumptions: draft.assumptions,
     missingInformation: draft.missingInformation,
@@ -570,6 +660,9 @@ export async function runFacebookSpecialist(
       models: { draft: FB_MODELS.draft, review: FB_MODELS.review },
       usage: { promptTokens, completionTokens },
       ms: Date.now() - started,
+      alternativesDropped: droppedAlts,
+      clichesFound: det.flags.clicheCount,
+      verifiedSocialProofCount: verifiedProofCount,
     },
   };
 }

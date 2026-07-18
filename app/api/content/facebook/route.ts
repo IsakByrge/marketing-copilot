@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         });
 
         // Endast icke-känslig telemetri i loggen.
-        console.log(`FB_SPECIALIST ${requestId}: ok calls=${meta.calls} revised=${meta.revised} ms=${meta.ms} tok=${meta.usage.promptTokens}/${meta.usage.completionTokens}`);
+        console.log(`FB_SPECIALIST ${requestId}: ok calls=${meta.calls} revised=${meta.revised} status=${result.qualityReview.userStatus} altsDropped=${meta.alternativesDropped} cliches=${meta.clichesFound} proof=${meta.verifiedSocialProofCount} ms=${meta.ms} tok=${meta.usage.promptTokens}/${meta.usage.completionTokens}`);
 
         controller.enqueue(line({ type: "result", status: "ok", result, meta }));
         controller.close();

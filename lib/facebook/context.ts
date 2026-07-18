@@ -42,7 +42,7 @@ export async function buildFacebookContext(brief: FacebookBrief): Promise<Facebo
     return {
       hasCompany: false,
       context: {
-        company: { summary: "", audiences: [], strengths: [], usps: [], tone: "", contentGuidelines: [], forbiddenClaims: [], preferredCallsToAction: [] },
+        company: { summary: "", audiences: [], strengths: [], usps: [], tone: "", contentGuidelines: [], forbiddenClaims: [], preferredCallsToAction: [], verifiedSocialProof: [] },
       },
     };
   }
@@ -63,6 +63,11 @@ export async function buildFacebookContext(brief: FacebookBrief): Promise<Facebo
       contentGuidelines: clipArr(brain.contentGuidelines, 12, 200),
       forbiddenClaims: clipArr(brain.forbiddenClaims, 20, 200),
       preferredCallsToAction: clipArr(brain.preferredCallsToAction, 8, 120),
+      // Verifierat social proof: ENDAST från strukturerat, användarägt
+      // underlag. Byggs här server-side så att en manipulerad klient aldrig
+      // kan injicera "omdömen". Kompletteras nedan med kampanjstrategins
+      // egen social proof om den finns.
+      verifiedSocialProof: clipArr(brain.proofPoints, 12, 240),
     },
   };
 
@@ -108,6 +113,18 @@ export async function buildFacebookContext(brief: FacebookBrief): Promise<Facebo
         risks: clipArr(sc.risks, 6, 300),
         avoid: clipArr(sc.avoid, 6, 300),
       };
+      // Strategin kan bära uttryckligt, strukturerat social proof (t.ex.
+      // ett verifierat kundcitat kopplat till kampanjen). Endast då — och
+      // aldrig härlett ur fritext — läggs det till som tillåten källa.
+      const stratProof = typeof sc.socialProof === "string"
+        ? [clip(sc.socialProof, 240)].filter(Boolean)
+        : clipArr(sc.socialProof, 12, 240);
+      if (stratProof.length) {
+        context.company.verifiedSocialProof = [
+          ...context.company.verifiedSocialProof,
+          ...stratProof,
+        ].slice(0, 16);
+      }
     }
   }
 

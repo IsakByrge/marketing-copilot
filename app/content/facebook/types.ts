@@ -72,6 +72,11 @@ export interface FacebookSpecialistContext {
     contentGuidelines: string[];
     forbiddenClaims: string[];
     preferredCallsToAction: string[];
+    /** Verifierat socialt bevis — den ENDA tillåtna källan för omdömen/
+     *  siffror/popularitet. Byggs server-side ur strukturerat underlag
+     *  (Company Brain proofPoints + ev. kampanjstrategins social proof).
+     *  Tom lista = specialisten får inte påstå något om kunder/omdömen. */
+    verifiedSocialProof: string[];
   };
   selectedProduct?: {
     name: string;
@@ -129,11 +134,23 @@ export interface FacebookQualityChecks {
   appropriateLength: boolean;
   readableFormatting: boolean;
   noForbiddenClaims: boolean;
+  /** Låter som idiomatisk svensk marknadsförare, inte generisk AI. */
+  naturalSwedish: boolean;
+  /** Inget fabricerat eller obestyrkt social proof. */
+  honestSocialProof: boolean;
 }
+
+/** Användarvänlig huvudstatus — ersätter poängtalet som primär signal. */
+export type FacebookUserStatus = "ready" | "review" | "incomplete";
 
 export interface FacebookQualityReview {
   status: "ready" | "needs_revision" | "blocked";
+  /** Intern poäng — behålls för logik/felsökning, aldrig primär signal. */
   overallScore: number;
+  /** Den status användaren ser: Publiceringsklar / Behöver granskas / Behöver kompletteras. */
+  userStatus: FacebookUserStatus;
+  /** Kort motivering till statusen (visas för användaren). */
+  statusReason: string;
   checks: FacebookQualityChecks;
   issues: string[];
   revisionSummary?: string;

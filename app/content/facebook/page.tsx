@@ -9,7 +9,7 @@
 // Efter: rekommenderad vinkel, FB-lik preview, två alternativ,
 // bildbrief, kvalitetsstatus, antaganden/luckor och riktiga actions.
 // ─────────────────────────────────────────────────────────────
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import Shell from "@/app/_shared/Shell";
 import { T, fontSans, fontSerif, transition } from "@/app/_shared/theme";
@@ -23,6 +23,7 @@ import {
   GOAL_OPTIONS, ANGLE_OPTIONS, LENGTH_OPTIONS, TONE_SUGGESTIONS,
   type FacebookBrief, type FacebookContentGoal, type FacebookAngle, type FacebookLength,
   type FacebookSpecialistResult, type FacebookPostVariant, type FacebookQualityChecks,
+  type FacebookUserStatus, type FacebookImageBrief,
 } from "./types";
 
 /* ── Strömmande generering (NDJSON) ──────────────────────── */
@@ -205,7 +206,13 @@ export default function FacebookSpecialistPage() {
     };
   }
 
+  // Skyddar mot dubbla genereringsanrop (t.ex. snabb dubbelklick innan
+  // React hunnit byta fas). Ref:en är synkron, till skillnad från state.
+  const runningRef = useRef(false);
+
   async function run(brief: FacebookBrief) {
+    if (runningRef.current) return;
+    runningRef.current = true;
     setPhase("generating");
     setActiveStep(0);
     setSawRevising(false);
@@ -228,6 +235,8 @@ export default function FacebookSpecialistPage() {
     } catch {
       setError("Det gick inte att skapa inlägget just nu. Dina uppgifter är kvar och du kan försöka igen.");
       setPhase("input");
+    } finally {
+      runningRef.current = false;
     }
   }
 
@@ -457,15 +466,19 @@ const CHECK_LABELS: Record<keyof FacebookQualityChecks, string> = {
   companySpecific: "Företagsspecifik", audienceSpecific: "Målgruppsanpassad", clearHook: "Tydlig hook",
   clearCustomerValue: "Kundnytta", credibleClaims: "Trovärdiga påståenden", correctTone: "Rätt ton",
   clearCTA: "Tydlig CTA", appropriateLength: "Rimlig längd", readableFormatting: "Läsbar formatering",
-  noForbiddenClaims: "Inga förbjudna påståenden",
+  noForbiddenClaims: "Inga förbjudna påståenden", naturalSwedish: "Naturlig svenska",
+  honestSocialProof: "Ärligt socialt bevis",
 };
 
-function StatusBadge({ status }: { status: "ready" | "needs_revision" | "blocked" }) {
-  const map = {
-    ready: { c: T.green, bg: T.greenDim, t: "Publiceringsfärdig" },
-    needs_revision: { c: T.orange, bg: T.orangeDim, t: "Behöver en översyn" },
-    blocked: { c: T.red, bg: T.redDim, t: "Behöver mer information" },
-  }[status];
+/** Användarvänlig huvudstatus — den primära signalen (poängtalet är sekundärt). */
+const USER_STATUS_MAP: Record<FacebookUserStatus, { c: string; bg: string; t: string }> = {
+  ready: { c: T.green, bg: T.greenDim, t: "Publiceringsklar" },
+  review: { c: T.orange, bg: T.orangeDim, t: "Behöver granskas" },
+  incomplete: { c: T.red, bg: T.redDim, t: "Behöver kompletteras" },
+};
+
+function StatusBadge({ status }: { status: FacebookUserStatus }) {
+  const map = USER_STATUS_MAP[status];
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, background: map.bg, border: `1px solid ${map.c}44`, color: map.c, fontFamily: fontSans, fontSize: "0.74rem", fontWeight: 500 }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: map.c }} /> {map.t}
@@ -473,23 +486,67 @@ function StatusBadge({ status }: { status: "ready" | "needs_revision" | "blocked
   );
 }
 
-function FacebookPreview({ companyName, text }: { companyName: string; text: string }) {
+/* Diskreta engagemangsikoner — visuell preview, aldrig med påhittade siffror. */
+function EngageIcon({ kind }: { kind: "like" | "comment" | "share" }) {
+  const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (kind === "like") return <svg {...common}><path d="M7 10v11M2 13v6a2 2 0 0 0 2 2h13.3a2 2 0 0 0 2-1.6l1.4-7A2 2 0 0 0 19.7 10H14V5a2.5 2.5 0 0 0-4.8-1L7 10H4a2 2 0 0 0-2 2Z" /></svg>;
+  if (kind === "comment") return <svg {...common}><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" /></svg>;
+  return <svg {...common}><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v13" /></svg>;
+}
+
+const PREVIEW_CLAMP = 360; // tecken innan "Visa mer" (påverkar aldrig redigering)
+
+function FacebookPreview({ companyName, text, imageBrief, edited }: {
+  companyName: string; text: string; imageBrief: FacebookImageBrief; edited?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = text.length > PREVIEW_CLAMP;
+  const shown = isLong && !expanded ? text.slice(0, PREVIEW_CLAMP).replace(/\s+\S*$/, "") : text;
+  const initial = (companyName || "F").charAt(0).toUpperCase();
+  const mediaHint = imageBrief.concept || imageBrief.subject || "Bild enligt bildbriefen nedan";
+
   return (
-    <div style={{ background: "#ffffff", borderRadius: 12, overflow: "hidden", border: `1px solid ${T.line2}`, boxShadow: "0 20px 60px -32px rgba(0,0,0,0.6)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px" }}>
-        <span style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg,#8b6bf2,#5b8def)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: fontSerif, fontWeight: 600, fontSize: "1.05rem" }}>
-          {(companyName || "F").charAt(0).toUpperCase()}
+    <div style={{ background: T.surface, borderRadius: 14, overflow: "hidden", border: `1px solid ${T.line2}`, boxShadow: "0 24px 60px -34px rgba(0,0,0,0.65)", maxWidth: 560 }}>
+      {/* Huvud: avatar, företagsnamn, neutral tidsindikator (organiskt, ingen "Sponsrad") */}
+      <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "13px 15px" }}>
+        <span style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#8b6bf2,#5b8def)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: fontSerif, fontWeight: 600, fontSize: "1.05rem" }}>
+          {initial}
         </span>
-        <div>
-          <div style={{ fontFamily: fontSans, fontSize: "0.86rem", fontWeight: 600, color: "#050505" }}>{companyName || "Ditt företag"}</div>
-          <div style={{ fontFamily: fontSans, fontSize: "0.72rem", color: "#65676b" }}>Sponsrat · 🌐</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: fontSans, fontSize: "0.9rem", fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {companyName || "Ditt företag"}
+            {edited && <span style={{ marginLeft: 8, fontSize: "0.68rem", fontWeight: 400, color: T.orange }}>✎ redigerad</span>}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: fontSans, fontSize: "0.72rem", color: T.text3 }}>
+            Just nu · <span aria-hidden>🌐</span>
+          </div>
         </div>
       </div>
-      <div style={{ padding: "0 14px 14px", fontFamily: fontSans, fontSize: "0.92rem", color: "#050505", lineHeight: 1.55, whiteSpace: "pre-line" }}>
-        {text}
+
+      {/* Inläggstext med "Visa mer" för långa texter */}
+      <div style={{ padding: "0 15px 13px", fontFamily: fontSans, fontSize: "0.94rem", fontWeight: 300, color: T.text, lineHeight: 1.62, whiteSpace: "pre-line", wordBreak: "break-word" }}>
+        {shown}{isLong && !expanded && <span style={{ color: T.text3 }}>… </span>}
+        {isLong && (
+          <button type="button" onClick={() => setExpanded((e) => !e)} className="mcx-focusable"
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: T.text3, fontFamily: fontSans, fontSize: "0.9rem", fontWeight: 500 }}>
+            {expanded ? "Visa mindre" : "Visa mer"}
+          </button>
+        )}
       </div>
-      <div style={{ height: 200, background: "linear-gradient(135deg,#eceefb,#e4ecfa)", display: "flex", alignItems: "center", justifyContent: "center", color: "#8a8fb0", fontFamily: fontSans, fontSize: "0.78rem" }}>
-        Bild enligt bildbriefen nedan
+
+      {/* Medieyta kopplad till bildbriefen (placeholder, aldrig påhittad bild) */}
+      <div style={{ height: 190, background: `linear-gradient(135deg, ${T.purpleDim}, ${T.blueDim})`, borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "0 24px", textAlign: "center" }}>
+        <span aria-hidden style={{ color: T.purpleBright, opacity: 0.8 }}><IconContent size={20} /></span>
+        <span style={{ fontFamily: fontSans, fontSize: "0.76rem", fontWeight: 300, color: T.text3, lineHeight: 1.5, maxWidth: 340 }}>{mediaHint}</span>
+      </div>
+
+      {/* Diskret engagemangsrad — visuell preview, inga reaktioner/kommentarer/antal */}
+      <div style={{ display: "flex", padding: "6px 8px" }}>
+        {([["like", "Gilla"], ["comment", "Kommentera"], ["share", "Dela"]] as const).map(([k, label]) => (
+          <div key={k} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 6px", color: T.text3, fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 400 }}>
+            <EngageIcon kind={k} /> {label}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -568,9 +625,9 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
 
   return (
     <div className="fade-up">
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <StatusBadge status={result.qualityReview.status} />
+          <StatusBadge status={result.qualityReview.userStatus} />
           <span style={{ fontFamily: fontSans, fontSize: "0.78rem", color: T.text3 }}>
             Vinkel: <span style={{ color: T.text2 }}>{result.recommendedAngle}</span>
           </span>
@@ -578,8 +635,14 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
         <GhostButton onClick={onBack}>← Ändra underlag</GhostButton>
       </div>
 
+      {result.qualityReview.statusReason && (
+        <p style={{ fontFamily: fontSans, fontSize: "0.86rem", fontWeight: 300, color: T.text2, lineHeight: 1.6, marginBottom: 18, maxWidth: 620 }}>
+          {result.qualityReview.statusReason}
+        </p>
+      )}
+
       {result.angleReason && (
-        <p style={{ fontFamily: fontSans, fontSize: "0.86rem", fontWeight: 300, color: T.text3, lineHeight: 1.6, marginBottom: 22, maxWidth: 620 }}>
+        <p style={{ fontFamily: fontSans, fontSize: "0.84rem", fontWeight: 300, color: T.text3, lineHeight: 1.6, marginBottom: 22, maxWidth: 620 }}>
           {result.angleReason}
         </p>
       )}
@@ -595,7 +658,7 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
             </div>
           </div>
         ) : (
-          <FacebookPreview companyName={companyName} text={displayText} />
+          <FacebookPreview companyName={companyName} text={displayText} imageBrief={primary.imageBrief} edited={edited} />
         )}
       </div>
 
@@ -653,10 +716,17 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
         </div>
       </section>
 
-      {/* Kvalitetsstatus */}
+      {/* Kvalitetsstatus — status + motivering är primärt, poängtalet sekundärt */}
       <section style={{ marginTop: 30 }}>
-        <SectionLabel>Kvalitetsgranskning · {result.qualityReview.overallScore}/100</SectionLabel>
-        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <SectionLabel>Kvalitetskontroll</SectionLabel>
+          <StatusBadge status={result.qualityReview.userStatus} />
+          <span style={{ fontFamily: fontSans, fontSize: "0.7rem", color: T.text4 }}>internt {result.qualityReview.overallScore}/100</span>
+        </div>
+        {result.qualityReview.statusReason && (
+          <p style={{ fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 300, color: T.text2, lineHeight: 1.6, margin: "10px 0 0", maxWidth: 620 }}>{result.qualityReview.statusReason}</p>
+        )}
+        <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 6 }}>
           {(Object.keys(CHECK_LABELS) as (keyof FacebookQualityChecks)[]).map((k) => {
             const ok = result.qualityReview.checks[k];
             return (
