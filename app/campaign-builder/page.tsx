@@ -12,6 +12,7 @@
 // här.
 // ─────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import Shell from "@/app/_shared/Shell";
 import {
   buildFieldRegistry, fmtDate, daysBetween, getGoal, GOALS,
@@ -477,6 +478,9 @@ export default function CampaignBuilderPage() {
   const [analysis, setAnalysis] = useState<CampaignRecommendation | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  // Id från den sparade campaign_strategies-raden — driver direktlänken till
+  // Facebook Specialist. Null tills (och om) sparningen lyckas.
+  const [savedStrategyId, setSavedStrategyId] = useState<string | null>(null);
 
   const busy = useRef(false);
   const analysisBusy = useRef(false);
@@ -844,6 +848,7 @@ export default function CampaignBuilderPage() {
     setError(null);
     setAnalysis(null);
     setAnalysisError(null);
+    setSavedStrategyId(null);
     setPhase("interview");
     setDraft(entry && (entry.kind === "date" || entry.kind === "yesno") ? "" : (record[key] ?? ""));
     const promptText = promptMsg?.role === "ai" && promptMsg.kind === "prompt" ? promptMsg.text : undefined;
@@ -864,6 +869,7 @@ export default function CampaignBuilderPage() {
     analysisBusy.current = true;
     setAnalyzing(true);
     setAnalysisError(null);
+    setSavedStrategyId(null); // ny analys → nollställ direktlänken tills nya id:t finns
 
     const brief = briefFrom(record);
     if (IS_DEV) console.log("CampaignBrief", brief);
@@ -885,8 +891,9 @@ export default function CampaignBuilderPage() {
       if (!rec) throw new Error("invalid recommendation");
       setAnalysis(rec);
       // Additivt: persistera strategin så den kan väljas i Facebook Specialist.
-      // Best-effort — påverkar aldrig analysflödet ovan.
-      void saveCampaignStrategy(brief, rec);
+      // Best-effort och icke-blockerande — påverkar aldrig analysflödet ovan.
+      // Det faktiska rad-id:t driver direktlänken (visas bara om sparning lyckas).
+      saveCampaignStrategy(brief, rec).then((id) => setSavedStrategyId(id));
     } catch (err) {
       const timedOut = err instanceof DOMException && err.name === "AbortError";
       setAnalysisError(timedOut
@@ -946,7 +953,7 @@ export default function CampaignBuilderPage() {
                   </span>
                 </div>
               )}
-              {analysis && <RecommendationView rec={analysis} />}
+              {analysis && <RecommendationView rec={analysis} strategyId={savedStrategyId} />}
               {IS_DEV && created && <BriefDevPanel brief={created} />}
             </>
           ) : (
@@ -1190,7 +1197,7 @@ function Composer({ kind, placeholder, optional, critical, draft, setDraft, onSu
 }
 
 /* ── Marknadschefens rekommendation ─────────────────────────── */
-function RecommendationView({ rec }: { rec: CampaignRecommendation }) {
+function RecommendationView({ rec, strategyId }: { rec: CampaignRecommendation; strategyId?: string | null }) {
   const sectionLabel: React.CSSProperties = {
     fontSize: "0.61rem", fontWeight: 400, letterSpacing: "0.16em",
     textTransform: "uppercase", color: T.gold, marginBottom: 10,
@@ -1258,6 +1265,31 @@ function RecommendationView({ rec }: { rec: CampaignRecommendation }) {
               <p key={i} style={{ fontSize: "0.84rem", fontWeight: 300, color: T.text3, lineHeight: 1.6 }}>· {w}</p>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Nästa steg: direkt vidare till Facebook Specialist med rätt strategi
+          förvald och formuläret förifyllt. Visas ENDAST när strategin faktiskt
+          sparats (id finns) — annars låtsas vi inte att direktflödet fungerar. */}
+      {strategyId && (
+        <div style={{ paddingLeft: 42, paddingTop: 4, borderTop: `1px solid ${T.line}` }}>
+          <div style={{ ...sectionLabel, marginTop: 24 }}>Nästa steg</div>
+          <Link href={`/content/facebook?strategy=${encodeURIComponent(strategyId)}`}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8, maxWidth: "100%",
+              fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.78rem", fontWeight: 400,
+              letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none",
+              padding: "14px 28px", borderRadius: 2, border: "none",
+              background: T.gold, color: T.bg, cursor: "pointer", transition: "all .2s",
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.opacity = "0.9"; }}
+            onMouseOut={(e) => { e.currentTarget.style.opacity = "1"; }}
+          >
+            Skapa Facebook-inlägg →
+          </Link>
+          <p style={{ fontSize: "0.78rem", fontWeight: 300, color: T.text3, lineHeight: 1.6, marginTop: 12, maxWidth: 460 }}>
+            Strategin följer med och förifyller Facebook-specialistens formulär. Du justerar fritt — ändringarna rör inte strategin.
+          </p>
         </div>
       )}
     </div>

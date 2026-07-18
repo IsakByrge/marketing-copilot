@@ -137,6 +137,8 @@ export default function FacebookSpecialistPage() {
   const [strategies, setStrategies] = useState<{ id: string; title: string; goal: string; context: StrategyContextForForm | null }[]>([]);
   // Diskret märkning: vilka fält som förifylldes från den valda strategin.
   const [prefilledFields, setPrefilledFields] = useState<string[]>([]);
+  // Fel när en ?strategy=-länk inte kunde öppnas (borttagen/annat konto/ogiltig).
+  const [strategyLinkError, setStrategyLinkError] = useState("");
   // Sant om användaren rört formuläret sedan senaste (om)fyllning — styr varning vid strategibyte.
   const formTouchedRef = useRef(false);
   const touch = () => { formTouchedRef.current = true; };
@@ -188,6 +190,7 @@ export default function FacebookSpecialistPage() {
   // hanteras här: när strategin finns i användarens lista förväljs och förifylls
   // den direkt (setState sker i en async-callback, inte synkront i effektkroppen).
   useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("strategy");
     (async () => {
       try {
         const sb = createClient();
@@ -199,17 +202,30 @@ export default function FacebookSpecialistPage() {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(20);
-        if (!data) return;
+        if (!data) {
+          if (wanted) setStrategyLinkError("Kunde inte öppna kampanjstrategin från länken. Välj en strategi manuellt nedan.");
+          return;
+        }
         const list = data.map((r) => ({
           id: r.id as string, title: r.title as string, goal: r.goal as string,
           context: (r.strategy_context && typeof r.strategy_context === "object"
             ? r.strategy_context as StrategyContextForForm : null),
         }));
         setStrategies(list);
-        const wanted = new URLSearchParams(window.location.search).get("strategy");
-        const match = wanted ? list.find((s) => s.id === wanted) : undefined;
-        if (match) { setUnderlag("strategy"); setStrategyId(match.id); applyStrategyPrefill(match.context); }
-      } catch { /* tabellen kanske inte migrerad ännu */ }
+        if (!wanted) return;
+        const match = list.find((s) => s.id === wanted);
+        if (match) {
+          setUnderlag("strategy"); setStrategyId(match.id); applyStrategyPrefill(match.context);
+        } else {
+          // Id saknas i användarens lista: borttagen, annat konto eller ogiltigt id.
+          // Krascha inte — visa ett begripligt meddelande och fall tillbaka till manuellt val.
+          setStrategyLinkError("Vi hittade inte kampanjstrategin från länken — den kan ha tagits bort eller tillhöra ett annat konto. Välj en strategi manuellt nedan.");
+          if (list.length) setUnderlag("strategy");
+        }
+      } catch {
+        // Tabellen kanske inte migrerad ännu, eller nätverksfel.
+        if (wanted) setStrategyLinkError("Kunde inte öppna kampanjstrategin från länken just nu. Välj en strategi manuellt nedan.");
+      }
     })();
   }, []);
 
@@ -224,6 +240,7 @@ export default function FacebookSpecialistPage() {
     const strat = strategies.find((s) => s.id === id);
     setStrategyId(id);
     applyStrategyPrefill(strat ? strat.context : null);
+    setStrategyLinkError(""); // manuellt val löser ett ev. länkfel
   }
 
   // Förifyll brief-fält när användaren VÄLJER en produkt (redigerbart, per
@@ -329,6 +346,7 @@ export default function FacebookSpecialistPage() {
               </div>
             )}
             {error && <ErrorNote>{error}</ErrorNote>}
+            {strategyLinkError && <ErrorNote>{strategyLinkError}</ErrorNote>}
 
             {/* 1. Syfte */}
             <section>

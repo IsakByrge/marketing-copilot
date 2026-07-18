@@ -13,12 +13,16 @@ import { createClient } from "@/lib/supabase-browser";
 import type { CampaignBrief } from "@/app/campaign-builder/types";
 import type { CampaignRecommendation } from "@/app/campaign-builder/analysis";
 
-/** Sparar strategin. Kastar aldrig — misslyckas tyst (loggar bara feltyp). */
-export async function saveCampaignStrategy(brief: CampaignBrief, rec: CampaignRecommendation): Promise<void> {
+/**
+ * Sparar strategin och returnerar det faktiska id:t för den nya raden
+ * (för direktlänken till Facebook Specialist). Kastar aldrig — vid fel
+ * returneras null och anroparen visar då inget direktflöde.
+ */
+export async function saveCampaignStrategy(brief: CampaignBrief, rec: CampaignRecommendation): Promise<string | null> {
   try {
     const sb = createClient();
     const { data: { user } } = await sb.auth.getUser();
-    if (!user) return;
+    if (!user) return null;
 
     const { data: companies } = await sb
       .from("companies").select("id").eq("user_id", user.id)
@@ -42,15 +46,19 @@ export async function saveCampaignStrategy(brief: CampaignBrief, rec: CampaignRe
       risks: rec.watchouts,
     };
 
-    await sb.from("campaign_strategies").insert({
+    const { data, error } = await sb.from("campaign_strategies").insert({
       user_id: user.id,
       company_id: companyId,
       title: (rec.headline || brief.basics.product || "Kampanjstrategi").slice(0, 120),
       goal: brief.goalTitle,
       strategy_context: strategyContext,
       recommendation: rec,
-    });
+    }).select("id").single();
+
+    if (error || !data?.id) return null;
+    return data.id as string;
   } catch (e) {
     console.warn("Kunde inte spara kampanjstrategin:", e instanceof Error ? e.name : "UnknownError");
+    return null;
   }
 }
