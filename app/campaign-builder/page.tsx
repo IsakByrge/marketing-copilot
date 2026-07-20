@@ -22,7 +22,7 @@ import {
   type CampaignBasics, type CampaignBrief, type CampaignGoal, type GoalSpecificAnswers, type YesNo,
 } from "./types";
 import {
-  LIMITS, validateDecision, areaStatus,
+  LIMITS, validateDecision, areaStatus, isFillerResponse,
   type AreaAttempt, type AreaOutcome,
   type KnownFact, type ReasoningAction, type ReasoningConcern,
   type ReasoningDecision, type ReasoningInsight, type ReasoningRequest, type TargetArea,
@@ -718,6 +718,7 @@ export default function CampaignBuilderPage() {
 
     const key = current.targetField;
     const question = current.text;
+    const askedKind = current.kind; // vilken widget frågan faktiskt ställdes med
     const unknownAnswer = !explicitSkip && isUnknownAnswer(value);
     const wasCriticalSkip = explicitSkip && goal && current.targetArea ? isCriticalArea(goal, current.targetArea) : false;
     const outcome: AreaOutcome = explicitSkip ? "skipped" : unknownAnswer ? "unknown" : "answered";
@@ -759,11 +760,30 @@ export default function CampaignBuilderPage() {
       setAiCalls(nextCalls);
       setLastDecision(decision);
 
-      // Ordning i transkriptet: eventuell oro → reaktion/utmaning → eventuell
-      // insikt → nästa fråga (om ingen finish). Så visas surface_insight
-      // "innan nästa fråga", precis som avsett.
+      // Bekräftelse efter svaret: när ett känt fält besvarats med sin EGEN
+      // widget (kanonisk fråga) använder vi fältets skräddarsydda reaktion —
+      // den är formad efter just det svaret. AI:ns message blir då en separat
+      // observation, men bara när den tillför något utöver bekräftelsen (aldrig
+      // en innehållslös artighetsfras eller en ren dubblett). Först när ingen
+      // fält-reaktion passar (AI-formulerad fråga, extra-fält eller skip) blir
+      // AI:ns message själva reaktionen — som tidigare.
+      // Ordning i transkriptet: oro → reaktion → (ev. AI-observation) → insikt.
+      const canonicalAnswer = !!entry && entry.kind === askedKind && !explicitSkip && !unknownAnswer;
+      let fieldReaction: string | null = null;
+      if (canonicalAnswer && entry) {
+        try { fieldReaction = entry.react(value, { record: nextRecord, goal, company }); }
+        catch { fieldReaction = null; }
+      }
       if (decision.concern) push({ role: "ai", kind: "concern", concern: decision.concern });
-      push({ role: "ai", kind: "reaction", text: decision.message, nodeId: key, action: decision.action });
+      if (fieldReaction) {
+        push({ role: "ai", kind: "reaction", text: fieldReaction, nodeId: key });
+        const observation = decision.message?.trim() ?? "";
+        if (observation && !isFillerResponse(observation) && observation.toLowerCase() !== fieldReaction.trim().toLowerCase()) {
+          push({ role: "ai", kind: "note", text: observation, action: decision.action });
+        }
+      } else {
+        push({ role: "ai", kind: "reaction", text: decision.message, nodeId: key, action: decision.action });
+      }
       if (decision.insight) push({ role: "ai", kind: "insight", insight: decision.insight });
 
       if (decision.action === "finish" || nextCalls >= LIMITS.MAX_AI_CALLS) {
@@ -790,16 +810,23 @@ export default function CampaignBuilderPage() {
         // Skyddsnät: svarar modellen med en fältnyckel i stället för en
         // fråga används registrets egen frågetext.
         const rawQ = (decision.nextQuestion ?? "").trim();
+        // Vi ställer fältets EGEN fråga bara när modellen svarat med en fältnyckel
+        // (eller inget) i stället för en riktig fråga. Då — och bara då — ärver vi
+        // fältets widget (kind), placeholder och förslag. För en AI-formulerad
+        // fritextfråga är fältets datum-/ja-nej-widget och dess placeholder/förslag
+        // fel, så vi renderar ett fritextsvar i stället (annars "frågan vill ha ett
+        // svar som inte stämmer" — t.ex. en datumväljare på en urgency-fråga).
+        const useFieldQuestion = !!known && !rawQ.includes(" ");
         const q: CurrentQuestion = {
           targetField: tField,
-          text: known && !rawQ.includes(" ") ? known.question(c) : rawQ,
-          kind: known?.kind ?? "text",
+          text: useFieldQuestion ? known!.question(c) : rawQ,
+          kind: useFieldQuestion ? known!.kind : "textarea",
           // Frivillig endast om fältet självt är frivilligt, eller — för
           // fritt formulerade AI-frågor — om det strategiska området inte
           // är kritiskt för målet. Okänt område räknas som kritiskt.
           optional: known?.optional ?? (goal && resolvedArea ? !isCriticalArea(goal, resolvedArea) : false),
-          placeholder: known?.placeholder,
-          suggestions: known?.suggestions?.(c).filter(Boolean),
+          placeholder: useFieldQuestion ? known!.placeholder : undefined,
+          suggestions: useFieldQuestion ? known!.suggestions?.(c).filter(Boolean) : undefined,
           action: decision.action,
           questionReason: decision.questionReason,
           targetArea: resolvedArea,
