@@ -24,6 +24,7 @@ export interface StrategyContextForForm {
   price?: string;
   geographicArea?: string;
   deadline?: string;
+  cta?: string;       // förekommer i äldre strategy_context-rader
   channels?: string[];
   risks?: string[];
 }
@@ -39,6 +40,9 @@ export interface StrategyPrefill {
   price?: string;
   deadline?: string;
   geographicArea?: string;
+  /** Önskad CTA — finns bara i äldre strategy_context-rader (fältet `cta`).
+   *  Nyare strategier saknar källa och lämnar detta tomt. */
+  desiredAction?: string;
   /** Svenska etiketter för de fält som faktiskt förifylldes (diskret märkning). */
   filledFields: string[];
 }
@@ -84,6 +88,9 @@ export function mapStrategyToPrefill(ctx: StrategyContextForForm | null | undefi
 
   const geo = clean(ctx.geographicArea);
   if (geo) { p.geographicArea = geo; p.filledFields.push("Geografiskt område"); }
+
+  const cta = clean(ctx.cta);
+  if (cta) { p.desiredAction = cta; p.filledFields.push("Önskad CTA"); }
 
   return p;
 }

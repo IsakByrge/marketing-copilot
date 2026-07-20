@@ -180,6 +180,7 @@ export default function FacebookSpecialistPage() {
     setPrice(p.price ?? "");
     setDeadline(p.deadline ?? "");
     setGeo(p.geographicArea ?? "");
+    setDesiredAction(p.desiredAction ?? "");
     setPrefilledFields(p.filledFields);
     formTouchedRef.current = false;
   }
