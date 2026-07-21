@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 const T = {
   bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
@@ -212,7 +211,9 @@ export default function CreatePage() {
 
   useEffect(() => {
     const saved = localStorage.getItem("marketing-copilot-company-profile");
-    if (saved) try { setProfile(JSON.parse(saved)); } catch {}
+    if (!saved) return;
+    // Defer state-uppdateringen ur den synkrona effektkroppen (undviker kaskad-render).
+    queueMicrotask(() => { try { setProfile(JSON.parse(saved)); } catch {} });
   }, []);
 
   async function handleGenerate() {
@@ -223,7 +224,7 @@ export default function CreatePage() {
       const content = await generateContent(selectedType, request || selectedType.placeholder, profile);
       setResult(content);
       setPhase("result");
-    } catch (e) {
+    } catch {
       setError("Något gick fel. Försök igen.");
       setPhase("select");
     }

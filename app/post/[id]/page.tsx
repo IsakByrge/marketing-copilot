@@ -32,7 +32,9 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   useEffect(() => {
     const saved = localStorage.getItem("marketing-copilot-plan");
     let parsedPlan: MarketingPlan | null = null;
-    if (saved) try { parsedPlan = JSON.parse(saved); setPlan(parsedPlan); } catch {}
+    if (saved) try { parsedPlan = JSON.parse(saved); } catch {}
+    // parsedPlan används synkront nedan; state-uppdateringen defereras ur effektkroppen.
+    if (parsedPlan) { const p = parsedPlan; queueMicrotask(() => setPlan(p)); }
     const check = () => setIsMobile(window.innerWidth < 640);
     check();
     window.addEventListener("resize", check);

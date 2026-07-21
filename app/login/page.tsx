@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 
 const T = {
@@ -19,7 +18,6 @@ const inputStyle = {
 };
 
 export default function LoginPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,8 +57,10 @@ export default function LoginPage() {
           .limit(1);
         if (companies && companies.length > 0) target = "/dashboard";
       }
-      // Full omladdning så att sessionscookien hinner följa med
-      window.location.href = target;
+      // Full omladdning så att sessionscookien hinner följa med.
+      // location.assign() i stället för href-tilldelning: samma helladdning,
+      // men ett metodanrop i stället för en global-mutation (react-hooks/immutability).
+      window.location.assign(target);
       
     } catch {
       setError("Något gick fel. Försök igen.");

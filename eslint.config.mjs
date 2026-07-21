@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Icke-produktfiler utanför Next-appen: en fristående CJS-engångsskript
+    // för färgbyten (körs manuellt med `node`, använder require med flit) och
+    // en fristående prototyp som inte importeras någonstans. De ingår inte i
+    // bygget och lintas därför inte som appkod. (Kandidater för radering.)
+    "node update-colors.js",
+    "veckoplan-app.jsx",
   ]),
 ]);
 
