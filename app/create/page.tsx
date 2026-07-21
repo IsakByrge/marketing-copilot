@@ -1,14 +1,21 @@
 "use client";
 
+// ─────────────────────────────────────────────────────────────
+// Create — snabbt innehållsskapande (Nyhetsbrev, Facebook-inlägg,
+// Instagram-inlägg m.fl. nås alla hit från dashboardens snabb-
+// åtgärder). Design migrerad till det delade designsystemet
+// (Shell + app/_shared/theme+ui). generateContent(), CONTENT_TYPES,
+// systemprompten och anropet till /api/create-content är HELT
+// oförändrade — bara presentationen är ny.
+// ─────────────────────────────────────────────────────────────
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-
-const T = {
-  bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
-  line: "rgba(255,255,255,0.10)", line2: "rgba(255,255,255,0.18)",
-  text: "#ffffff", text2: "#cbd5e0", text3: "#a0aec0",
-  gold: "#c9a96e", goldDim: "rgba(201,169,110,0.15)", goldBorder: "rgba(201,169,110,0.30)",
-};
+import Shell from "@/app/_shared/Shell";
+import { T, fontSans } from "@/app/_shared/theme";
+import {
+  PageHeader, PrimaryButton, GhostButton, Field, TextArea, ChoiceCard,
+  CopyButton, ResultBlock, ResultCard, LoadingPanel, ErrorNote, EmptyState,
+} from "@/app/_shared/ui";
+import { IconContent } from "@/app/_shared/icons";
 
 type ContentType = {
   id: string;
@@ -101,105 +108,35 @@ JSON: { "type": "Innehåll", "title": "rubrik", "body": "innehållet", "cta": "e
   return data;
 }
 
-// ── Components ────────────────────────────────────────────
-
-function TypeCard({ type, selected, onClick }: { type: ContentType; selected: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} style={{
-      display: "flex", flexDirection: "column", alignItems: "flex-start",
-      padding: "18px 20px", borderRadius: 2, cursor: "pointer",
-      background: selected ? T.goldDim : T.surface,
-      border: `1px solid ${selected ? T.goldBorder : T.line}`,
-      transition: "all .15s", textAlign: "left", width: "100%",
-    }}
-    onMouseOver={e => { if (!selected) (e.currentTarget as HTMLElement).style.borderColor = T.line2; }}
-    onMouseOut={e => { if (!selected) (e.currentTarget as HTMLElement).style.borderColor = T.line; }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-        <span style={{ fontSize: "1rem" }}>{type.icon}</span>
-        <span style={{ fontSize: "0.88rem", fontWeight: 400, color: selected ? T.text : T.text2 }}>{type.label}</span>
-      </div>
-      <span style={{ fontSize: "0.72rem", fontWeight: 300, color: T.text3 }}>{type.description}</span>
-    </button>
-  );
-}
-
 function ResultView({ content, onNew }: { content: GeneratedContent; onNew: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-
-  function copy() {
-    navigator.clipboard.writeText(`${content.title}\n\n${content.body}${content.cta ? "\n\n" + content.cta : ""}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   const sections = [
-    { label: content.type, content: content.title, serif: true },
+    { label: content.type, content: content.title, headline: true },
     { label: "Innehåll", content: content.body },
     content.cta ? { label: "Call to action", content: content.cta } : null,
     content.notes ? { label: "Tips", content: content.notes } : null,
-  ].filter(Boolean) as { label: string; content: string; serif?: boolean }[];
+  ].filter(Boolean) as { label: string; content: string; headline?: boolean }[];
+
+  const fullText = `${content.title}\n\n${content.body}${content.cta ? "\n\n" + content.cta : ""}`;
 
   return (
-    <div style={{ animation: "fadeUp .45s ease both" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32, flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold }}>
-          <span>✓</span> {content.type} klar
+    <div className="fade-up">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: fontSans, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: T.green }}>
+          ✓ {content.type} klar
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={copy} style={{
-            fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.7rem", fontWeight: 400,
-            letterSpacing: "0.1em", textTransform: "uppercase" as const,
-            padding: "8px 18px", borderRadius: 2, border: "none",
-            background: T.gold, color: T.bg, cursor: "pointer",
-          }}>
-            {copied ? "✓ Kopierat" : "Kopiera"}
-          </button>
-          <button onClick={onNew} style={{
-            fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.7rem", fontWeight: 400,
-            letterSpacing: "0.1em", textTransform: "uppercase" as const,
-            padding: "8px 16px", borderRadius: 2,
-            border: `1px solid ${T.line2}`, background: "transparent",
-            color: T.text3, cursor: "pointer",
-          }}>
-            Skapa nytt
-          </button>
+          <CopyButton getText={() => fullText} />
+          <GhostButton onClick={onNew}>Skapa nytt</GhostButton>
         </div>
       </div>
 
-      <div style={{ borderTop: `1px solid ${T.line}` }}>
-        {sections.map((s, i) => (
-          <div key={i} style={{ padding: "24px 0", borderBottom: `1px solid ${T.line}` }}>
-            <div style={{ fontSize: "0.62rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 12 }}>
-              {s.label}
-            </div>
-            {s.serif ? (
-              <p style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 400, fontSize: isMobile ? "1.6rem" : "2rem", lineHeight: 1.1, letterSpacing: "-0.01em", color: T.text }}>
-                {s.content}
-              </p>
-            ) : (
-              <p style={{ fontSize: "0.95rem", fontWeight: 300, color: T.text2, lineHeight: 1.85, whiteSpace: "pre-line", maxWidth: 640 }}>
-                {s.content}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div style={{ marginTop: 32, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button onClick={copy} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase" as const, padding: "11px 24px", borderRadius: 2, border: "none", background: T.gold, color: T.bg, cursor: "pointer" }}>
-          {copied ? "✓ Kopierat" : "Kopiera allt"}
-        </button>
-        <button onClick={onNew} style={{ fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase" as const, padding: "11px 18px", borderRadius: 2, border: `1px solid ${T.line2}`, background: "transparent", color: T.text3, cursor: "pointer" }}>
-          Skapa nytt →
-        </button>
-      </div>
+      <ResultCard>
+        {sections.map((s, i) => <ResultBlock key={i} label={s.label} content={s.content} headline={s.headline} />)}
+      </ResultCard>
     </div>
   );
 }
 
-// ── Main ──────────────────────────────────────────────────
 export default function CreatePage() {
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [selectedType, setSelectedType] = useState<ContentType>(CONTENT_TYPES[0]);
@@ -207,12 +144,13 @@ export default function CreatePage() {
   const [phase, setPhase] = useState<"select" | "generating" | "result">("select");
   const [result, setResult] = useState<GeneratedContent | null>(null);
   const [error, setError] = useState("");
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  const pad = isMobile ? 20 : 48;
 
   useEffect(() => {
-    const saved = localStorage.getItem("marketing-copilot-company-profile");
-    if (saved) try { setProfile(JSON.parse(saved)); } catch {}
+    function load() {
+      const saved = localStorage.getItem("marketing-copilot-company-profile");
+      if (saved) try { setProfile(JSON.parse(saved)); } catch { /* ignorera trasig data */ }
+    }
+    load();
   }, []);
 
   async function handleGenerate() {
@@ -223,7 +161,7 @@ export default function CreatePage() {
       const content = await generateContent(selectedType, request || selectedType.placeholder, profile);
       setResult(content);
       setPhase("result");
-    } catch (e) {
+    } catch {
       setError("Något gick fel. Försök igen.");
       setPhase("select");
     }
@@ -236,142 +174,77 @@ export default function CreatePage() {
   }
 
   return (
-    <main style={{ minHeight: "100svh", background: T.bg }}>
-
-      {/* Nav */}
-      <nav style={{
-        position: "sticky", top: 0, zIndex: 100,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: `0 ${pad}px`, height: 56,
-        background: "rgba(42,47,58,0.95)", backdropFilter: "blur(20px)",
-        borderBottom: `1px solid ${T.line}`,
-      }}>
-        <a href="/dashboard" style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 500, fontSize: "1.1rem", letterSpacing: "0.08em", textTransform: "uppercase", color: T.text, textDecoration: "none" }}>
-          Marketing<span style={{ color: T.gold }}>Copilot</span>
-        </a>
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <a href="/dashboard" style={{ fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.08em", textTransform: "uppercase", color: T.text3, textDecoration: "none" }}>Veckoplan</a>
-          <span style={{ fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.08em", textTransform: "uppercase", color: T.gold, borderBottom: `1px solid ${T.gold}`, paddingBottom: 2 }}>Skapa nytt</span>
-        </div>
-      </nav>
-
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: `56px ${pad}px 100px` }}>
-
+    <Shell>
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: "56px 40px 100px" }}>
         {phase === "select" && (
-          <div style={{ animation: "fadeUp .45s ease both" }}>
-            {/* Header */}
-            <div style={{ marginBottom: 48 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 16 }}>
-                <span style={{ width: 16, height: 1, background: T.gold, opacity: .5, display: "block" }} />
-                {profile ? `${profile.companyName} · Company Brain` : "Create New"}
-              </div>
-              <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: isMobile ? "clamp(2rem,8vw,2.8rem)" : "clamp(2.4rem,5vw,3.5rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 14 }}>
-                Vad vill du <em style={{ color: T.gold, fontStyle: "italic" }}>skapa?</em>
-              </h1>
-              <p style={{ fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, maxWidth: 480 }}>
-                Välj typ av innehåll och beskriv vad du behöver. AI:n använder din Company Brain och skapar träffsäkert innehåll direkt.
-              </p>
-            </div>
+          <div className="fade-up">
+            <PageHeader
+              eyebrow={profile ? `${profile.companyName} · Företagskunskap` : "Skapa nytt"}
+              title="Vad vill du skapa?"
+              subtitle="Välj typ av innehåll och beskriv vad du behöver. AI:n använder din företagskunskap och skapar träffsäkert innehåll direkt."
+            />
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 2, marginBottom: 40 }}>
-              {CONTENT_TYPES.map(type => (
-                <TypeCard key={type.id} type={type} selected={selectedType.id === type.id} onClick={() => setSelectedType(type)} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginBottom: 36 }}>
+              {CONTENT_TYPES.map((type) => (
+                <ChoiceCard
+                  key={type.id} icon={type.icon} label={type.label} description={type.description}
+                  selected={selectedType.id === type.id} onClick={() => setSelectedType(type)}
+                />
               ))}
             </div>
 
-            {/* Request field */}
-            <div style={{ marginBottom: 32 }}>
-              <label style={{ display: "block", fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.16em", textTransform: "uppercase" as const, color: T.text3, marginBottom: 10 }}>
-                Beskriv vad du vill ha <span style={{ color: T.text3, fontStyle: "italic", textTransform: "none", letterSpacing: 0 }}>— valfritt</span>
-              </label>
-              <textarea
-                value={request}
-                onChange={e => setRequest(e.target.value)}
-                placeholder={selectedType.placeholder}
-                rows={3}
-                style={{
-                  width: "100%", background: "transparent", border: "none",
-                  borderBottom: `1px solid ${T.line2}`, padding: "10px 0",
-                  outline: "none", fontSize: "0.95rem", fontWeight: 300,
-                  color: T.text, fontFamily: "var(--font-outfit), sans-serif",
-                  resize: "none", lineHeight: 1.75, transition: "border-color .2s",
-                }}
-                onFocus={e => e.target.style.borderBottomColor = T.gold}
-                onBlur={e => e.target.style.borderBottomColor = T.line2}
-              />
+            <div style={{ marginBottom: 28 }}>
+              <Field label="Beskriv vad du vill ha" optional>
+                <TextArea
+                  value={request}
+                  onChange={(e) => setRequest(e.target.value)}
+                  placeholder={selectedType.placeholder}
+                  rows={3}
+                />
+              </Field>
             </div>
 
-            {/* Company Brain indicator */}
             {profile && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: T.surface, border: `1px solid ${T.line}`, borderRadius: 2, marginBottom: 28 }}>
-                <span style={{ fontSize: "0.9rem" }}>🧠</span>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "14px 18px",
+                background: T.surface, border: `1px solid ${T.line}`, borderRadius: 12, marginBottom: 28,
+              }}>
+                <span aria-hidden style={{ color: T.purpleBright, display: "flex" }}><IconContent size={17} /></span>
                 <div>
-                  <div style={{ fontSize: "0.72rem", fontWeight: 400, color: T.text2 }}>Company Brain aktiv</div>
-                  <div style={{ fontSize: "0.68rem", fontWeight: 300, color: T.text3 }}>Innehållet anpassas efter {profile.companyName}s tonläge, kunder och tjänster</div>
+                  <div style={{ fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 500, color: T.text2 }}>Företagskunskap aktiv</div>
+                  <div style={{ fontFamily: fontSans, fontSize: "0.76rem", fontWeight: 300, color: T.text3 }}>Innehållet anpassas efter {profile.companyName}s tonläge, kunder och tjänster</div>
                 </div>
-                <div style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: T.gold, animation: "pulseDot 2s ease infinite" }} />
+                <span aria-hidden style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: T.purpleBright, animation: "pulseDot 2s ease infinite", flexShrink: 0 }} />
               </div>
             )}
 
-            {error && <p style={{ fontSize: "0.82rem", color: "#e06060", marginBottom: 16 }}>{error}</p>}
+            {error && <div style={{ marginBottom: 20 }}><ErrorNote>{error}</ErrorNote></div>}
 
-            <button onClick={handleGenerate} disabled={!profile} style={{
-              fontFamily: "var(--font-outfit), sans-serif", fontSize: "0.78rem", fontWeight: 400,
-              letterSpacing: "0.12em", textTransform: "uppercase" as const,
-              padding: "14px 32px", borderRadius: 2, border: "none",
-              background: profile ? T.gold : T.surface2,
-              color: profile ? T.bg : T.text3,
-              cursor: profile ? "pointer" : "not-allowed",
-              transition: "all .2s", width: isMobile ? "100%" : "auto",
-              display: "inline-flex", alignItems: "center", gap: 10,
-            }}>
-              Skapa {selectedType.label} →
-            </button>
-
-            {!profile && (
-              <p style={{ marginTop: 12, fontSize: "0.75rem", fontWeight: 300, color: T.text3 }}>
-                <a href="/onboarding" style={{ color: T.gold, textDecoration: "none" }}>Skapa en Company Brain</a> för att använda den här funktionen.
-              </p>
+            {profile ? (
+              <PrimaryButton onClick={handleGenerate}>Skapa {selectedType.label}</PrimaryButton>
+            ) : (
+              <EmptyState
+                icon={<IconContent size={19} />}
+                title="Ingen företagskunskap ännu."
+                body="Skapa en företagsprofil för att använda den här funktionen."
+                action={<PrimaryButton href="/onboarding">Starta onboarding</PrimaryButton>}
+              />
             )}
           </div>
         )}
 
         {phase === "generating" && (
-          <div style={{ animation: "fadeUp .45s ease both" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.63rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: T.gold, marginBottom: 24 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.gold, animation: "pulseDot 1.4s ease infinite" }} />
-              Skapar {selectedType.label}
-            </div>
-            <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2rem,5vw,3rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 16 }}>
-              AI:n skriver<br /><em style={{ color: T.gold, fontStyle: "italic" }}>ditt innehåll.</em>
-            </h1>
-            <p style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2, lineHeight: 1.75, maxWidth: 400 }}>
-              Baserat på din Company Brain och dina instruktioner.
-            </p>
-            <div style={{ marginTop: 40, display: "flex", gap: 3, flexDirection: "column", maxWidth: 400 }}>
-              {["Läser Company Brain…", `Skapar ${selectedType.label.toLowerCase()}…`, "Anpassar till ditt tonläge…"].map((s, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 2, background: i === 1 ? T.goldDim : "transparent", border: `1px solid ${i === 1 ? T.goldBorder : "transparent"}` }}>
-                  <div style={{ width: 20, height: 20, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", background: i === 0 ? T.goldDim : "transparent", border: `1px solid ${i <= 1 ? T.goldBorder : T.line2}`, fontSize: "0.65rem", color: T.gold, flexShrink: 0 }}>
-                    {i === 0 ? "✓" : i === 1 ? <div style={{ width: 8, height: 8, borderRadius: "50%", border: "1.5px solid rgba(201,169,110,.25)", borderTopColor: T.gold, animation: "spin .7s linear infinite" }} /> : ""}
-                  </div>
-                  <span style={{ fontSize: "0.85rem", fontWeight: 300, color: i <= 1 ? T.text : T.text3 }}>{s}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <LoadingPanel
+            title={`Skapar ${selectedType.label.toLowerCase()}`}
+            steps={["Läser företagskunskap…", `Skriver ${selectedType.label.toLowerCase()}…`, "Anpassar till ditt tonläge…"]}
+            activeStep={1}
+          />
         )}
 
         {phase === "result" && result && (
           <ResultView content={result} onNew={handleNew} />
         )}
       </div>
-
-      <style>{`
-        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes spin { to{transform:rotate(360deg)} }
-        @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:.3} }
-        textarea::placeholder { color: #718096; }
-      `}</style>
-    </main>
+    </Shell>
   );
 }
