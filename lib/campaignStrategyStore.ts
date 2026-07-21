@@ -12,6 +12,7 @@
 import { createClient } from "@/lib/supabase-browser";
 import type { CampaignBrief } from "@/app/campaign-builder/types";
 import type { CampaignRecommendation } from "@/app/campaign-builder/analysis";
+import type { StrategyV2 } from "@/lib/strategist/types";
 
 /**
  * Bygger den FB-säkra strategy_context ur ett kampanjunderlag. Ren funktion
@@ -67,6 +68,41 @@ export async function saveCampaignStrategy(brief: CampaignBrief, rec: CampaignRe
     return data.id as string;
   } catch (e) {
     console.warn("Kunde inte spara kampanjstrategin:", e instanceof Error ? e.name : "UnknownError");
+    return null;
+  }
+}
+
+/**
+ * Sparar en Marketing Strategist v2-strategi och returnerar rad-id:t.
+ * strategy_context = hela StrategyV2-objektet (version: 2) — samma tabell/
+ * kolumn som v1, ingen migration. Läses av Facebook Specialist via adaptern.
+ */
+export async function saveStrategyV2(strategy: StrategyV2): Promise<string | null> {
+  try {
+    const sb = createClient();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return null;
+
+    const { data: companies } = await sb
+      .from("companies").select("id").eq("user_id", user.id)
+      .order("created_at", { ascending: false }).limit(1);
+    const companyId = companies?.[0]?.id ?? null;
+
+    const title = (strategy.strategy.product || strategy.brief.product || strategy.analysis.recommendedFocus || "Strategi").slice(0, 120);
+
+    const { data, error } = await sb.from("campaign_strategies").insert({
+      user_id: user.id,
+      company_id: companyId,
+      title,
+      goal: strategy.strategy.primaryGoal || strategy.brief.goalTitle,
+      strategy_context: strategy,
+      recommendation: strategy.strategy,
+    }).select("id").single();
+
+    if (error || !data?.id) return null;
+    return data.id as string;
+  } catch (e) {
+    console.warn("Kunde inte spara strategin:", e instanceof Error ? e.name : "UnknownError");
     return null;
   }
 }

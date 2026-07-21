@@ -11,6 +11,7 @@
 // — klienten kan inte injicera "fakta" som kommer från databasen.
 // ─────────────────────────────────────────────────────────────
 import type { FacebookContentGoal } from "@/app/content/facebook/types";
+import { normalizeStrategyContext } from "../strategist/adapter";
 
 /** Delmängden av campaign_strategies.strategy_context som formuläret kan läsa.
  *  Allt valfritt — äldre rader saknar de nyare fälten (då förifylls färre fält). */
@@ -61,12 +62,13 @@ const GOAL_MAP: Record<string, FacebookContentGoal> = {
 const clean = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
 /**
- * Bygger en förifyllnadsuppsättning ur strategikontexten.
- * Sätter bara fält som finns i strategin; övriga utelämnas (lämnas tomma i formuläret).
+ * Bygger en förifyllnadsuppsättning ur strategikontexten. Normaliserar först
+ * (v1 platt ELLER v2 StrategyV2) via adaptern, så både äldre och nya strategier
+ * fungerar. Sätter bara fält som finns; övriga lämnas tomma i formuläret.
  */
-export function mapStrategyToPrefill(ctx: StrategyContextForForm | null | undefined): StrategyPrefill {
+export function mapStrategyToPrefill(raw: StrategyContextForForm | null | undefined | unknown): StrategyPrefill {
   const p: StrategyPrefill = { filledFields: [] };
-  if (!ctx) return p;
+  const ctx = normalizeStrategyContext(raw);
 
   const goalKey = clean(ctx.goalKey);
   if (goalKey && GOAL_MAP[goalKey]) { p.goal = GOAL_MAP[goalKey]; p.filledFields.push("Syfte"); }
