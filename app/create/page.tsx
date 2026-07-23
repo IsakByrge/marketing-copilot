@@ -43,61 +43,24 @@ const CONTENT_TYPES: ContentType[] = [
 
 async function generateContent(
   type: ContentType,
-  request: string,
-  profile: CompanyProfile
+  request: string
 ): Promise<GeneratedContent> {
-  const month = new Date().toLocaleString("sv-SE", { month: "long" });
-
-  const systemPrompt = `Du är en erfaren copywriter specialiserad på lokala svenska tjänsteföretag.
-Skapa innehåll som känns skrivet av någon som KÄNNER företaget inifrån — inte av en AI.
-
-FÖRETAGSPROFIL:
-Företag: ${profile.companyName}
-Bransch: ${profile.industry}
-Sammanfattning: ${profile.summary}
-Kunder: ${profile.customers?.join(", ")}
-Tjänster: ${profile.products?.join(", ")}
-Tonläge: ${profile.tone?.join(", ")}
-Styrkor: ${profile.strengths?.join(", ")}
-Undvik: ${profile.avoid?.join(", ")}
-Riktlinjer: ${profile.contentGuidelines?.join(", ")}
-
-KRITISKA REGLER:
-- Använd företagets faktiska namn och specifika tjänster
-- Följ tonläget exakt — matcha hur de vill uppfattas
-- Undvik allt som finns i "Undvik"-listan
-- Anpassa till ${month}
-- Inga generiska AI-fraser som "Vi strävar efter kvalitet"
-- Returnera ENDAST giltig JSON, ingen förtext, inga backticks`;
-
-  const typeInstructions: Record<string, string> = {
-    social: `Skapa ett socialt medieinlägg (Facebook/Instagram). Max 3 meningar. Konkret scenario. Direkt publiceringsfärdigt.
-JSON: { "type": "Socialt inlägg", "title": "rubrik", "body": "inläggstext", "cta": "uppmaning", "notes": "bildidé" }`,
-    linkedin: `Skapa ett LinkedIn-inlägg. Professionell ton, expertperspektiv, 2-3 stycken. Positions ${profile.companyName} som specialist.
-JSON: { "type": "LinkedIn-inlägg", "title": "rubrik/hook", "body": "inläggstext", "cta": "avslutande uppmaning", "notes": "tips för publicering" }`,
-    newsletter: `Skapa ett komplett nyhetsbrev med ämnesrad, förhandsvisning, rubrik, brödtext (2-3 stycken) och CTA.
-JSON: { "type": "Nyhetsbrev", "title": "ämnesrad", "body": "FÖRHANDSVISNING: [text]\n\nRUBRIK: [rubrik]\n\n[brödtext stycke 1]\n\n[brödtext stycke 2]\n\n[brödtext stycke 3]", "cta": "call to action", "notes": "förhandsvisningstext" }`,
-    campaign: `Skapa en kampanjbrief med titel, mål, budskap, kanalrekommendation och CTA.
-JSON: { "type": "Kampanj", "title": "kampanjtitel", "body": "MÅL: [mål]\n\nBUDSKAP: [budskap]\n\nKANALER: [kanaler]\n\nTIDSRAM: [förslag]", "cta": "kampanjens CTA", "notes": "ytterligare råd" }`,
-    offer: `Skapa en konkret erbjudandetext klar att publiceras. Specifik, lockande, tydlig.
-JSON: { "type": "Erbjudande", "title": "erbjudandets rubrik", "body": "erbjudandetext", "cta": "uppmaning", "notes": "var detta passar bäst" }`,
-    case: `Skapa ett kundcase i berättelseform. Problem → lösning → resultat. Bygger förtroende.
-JSON: { "type": "Kundcase", "title": "casets rubrik", "body": "berättelsen i 3 stycken: situation, genomförande, resultat", "cta": "avslutande uppmaning", "notes": "hur detta kan användas" }`,
-    custom: `Skapa exakt det användaren ber om. Följ alltid företagsprofilen.
-JSON: { "type": "Innehåll", "title": "rubrik", "body": "innehållet", "cta": "eventuell CTA", "notes": "användningstips" }`,
-  };
-
+  // Servern äger alla instruktioner och hämtar Company Brain ur sessionen.
+  // Klienten skickar bara typ + fritextönskemål — aldrig prompter.
   const res = await fetch("/api/create-content", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      systemPrompt,
-      userPrompt: `${typeInstructions[type.id] || typeInstructions.custom}\n\nAnvändarens önskemål: "${request}"`,
+      contentType: type.id,
+      request,
     }),
   });
 
-  const data = await res.json();
-  return data;
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.error || "Kunde inte skapa innehållet.");
+  }
+  return res.json();
 }
 
 // ── Components ────────────────────────────────────────────
@@ -221,7 +184,7 @@ export default function CreatePage() {
     setPhase("generating");
     setError("");
     try {
-      const content = await generateContent(selectedType, request || selectedType.placeholder, profile);
+      const content = await generateContent(selectedType, request || selectedType.placeholder);
       setResult(content);
       setPhase("result");
     } catch {
