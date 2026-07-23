@@ -37,7 +37,7 @@ All verifiering (lint, typecheck, tester, produktionsbygge) är grön.
 ## Implementerade ändringar
 
 ### Gemensamma säkerhetshjälpare (`lib/server/`)
-- **`auth.ts`** — `getAuthedUser()` härleder identitet ur Supabase-sessionen (aldrig ur klienten); `getUserCompany()` och `ownsCampaignStrategy()` ger RLS-scopade ägarskapskontroller.
+- **`auth.ts`** — `getAuthedUser()` härleder identitet ur Supabase-sessionen (aldrig ur klienten) och returnerar en session-scopad klient så att RLS (`auth.uid() = user_id`) gäller för all efterföljande DB-åtkomst. Resursägarskap upprätthålls dessutom med explicita `user_id`-filter där id:n slås upp (t.ex. Facebook-strategiläsningen).
 - **`ai.ts`** — central modell- (`AI_CHAT_MODEL`/`AI_IMAGE_MODEL`), tokenbudget- (`AI_MAX_OUTPUT_TOKENS`) och timeout-konfig (`AI_TIMEOUT_MS`), env-styrd. Lazy OpenAI-klient med `maxRetries: 0`. `callChatJson()` med hårt tokentak.
 - **`ssrf.ts`** — `safeFetchWebsite()`: endast http/https, blockerar localhost/interna hostnamn och privata/loopback/link-local/CGNAT-IP (IPv4, IPv6, IPv4-mappad), DNS-uppslag före hämtning, validerar **varje** redirect-hopp, timeout, storleksgräns, content-type-kontroll, tydlig user-agent.
 - **`rateLimit.ts`** — `acquireSlot()`: samtidighetslås + glidande fönster per (användare, funktion), env-konfigurerbart.

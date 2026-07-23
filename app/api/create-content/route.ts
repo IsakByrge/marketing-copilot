@@ -67,7 +67,8 @@ export async function POST(request: Request) {
     const system = buildContentSystemPrompt(ctx);
     const user = buildContentUserPrompt(o.contentType, requestText);
 
-    const result = await callChatJson(system, user, { temperature: 0.6 });
+    // Ett enskilt innehållsstycke — tightare budget än det globala taket.
+    const result = await callChatJson(system, user, { temperature: 0.6, maxTokens: 1_600 });
     const content = validateGeneratedContent(result.parsed);
     if (!content) {
       console.error(`CREATE_CONTENT ${requestId}: SchemaValidationFailed`);

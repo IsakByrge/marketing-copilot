@@ -19,8 +19,14 @@ export const AI = {
   IMAGE_MODEL: process.env.AI_IMAGE_MODEL || "gpt-image-1",
   /** Hård timeout på ett enskilt modellanrop. */
   TIMEOUT_MS: Number(process.env.AI_TIMEOUT_MS) || 45_000,
-  /** Maximal tokenbudget per anrop (max_tokens). Klienten kan aldrig höja detta. */
-  MAX_OUTPUT_TOKENS: Number(process.env.AI_MAX_OUTPUT_TOKENS) || 1_600,
+  /**
+   * Hårt tak för output-tokens per anrop (max_tokens). Klienten kan aldrig
+   * höja detta. Satt med marginal för det största legitima svaret (hela
+   * veckoplanens JSON: 5 inlägg + nyhetsbrev + kampanjer + möjligheter) —
+   * ett för lågt tak skulle trunkera svaret och ge ogiltig JSON. Enskilda
+   * routes kan begära LÄGRE budget för mindre svar.
+   */
+  MAX_OUTPUT_TOKENS: Number(process.env.AI_MAX_OUTPUT_TOKENS) || 4_096,
 } as const;
 
 let client: OpenAI | null = null;
