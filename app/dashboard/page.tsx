@@ -226,10 +226,11 @@ export default function DashboardPage() {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
 
+      // userId skickas INTE längre — servern härleder identiteten ur sessionen.
       const response = await fetch("/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyProfile: profile, brainFiles, userId: user?.id }),
+        body: JSON.stringify({ companyProfile: profile, brainFiles }),
       });
       if (!response.ok) throw new Error("Kunde inte generera plan.");
       const newPlan = await response.json();

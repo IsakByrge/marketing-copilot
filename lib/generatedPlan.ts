@@ -1,6 +1,6 @@
-export let generatedPlan: any = null;
+export let generatedPlan: unknown = null;
 
-export function setGeneratedPlan(plan: any) {
+export function setGeneratedPlan(plan: unknown) {
   generatedPlan = plan;
 }
 

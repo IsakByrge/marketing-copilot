@@ -12,8 +12,9 @@
 // kritiskt område i stället för att låta modellen fråga en tredje gång.
 // Se unresolvedCriticalAreas/nextAskableCriticalArea i reasoning.ts.
 // ─────────────────────────────────────────────────────────────
-import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { guardAiRequest } from "@/lib/server/guard";
+import { getOpenAI, AI } from "@/lib/server/ai";
 import {
   LIMITS,
   validateDecision,
@@ -30,9 +31,7 @@ import {
 import { GOAL_PROFILES, isKnownGoal } from "@/app/campaign-builder/goal-profiles";
 import type { CampaignGoal } from "@/app/campaign-builder/types";
 
-// maxRetries: 0 — SDK:ns tysta omförsök skulle annars kunna
-// tredubbla svarstiden bortom klientens timeout.
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0 });
+export const runtime = "nodejs";
 
 const clip = (s: unknown, n: number): string =>
   (typeof s === "string" ? s : "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -231,9 +230,9 @@ async function callModel(
   extraSystemNote?: string,
 ): Promise<ReasoningDecision | null> {
   const systemContent = `${SYSTEM_PROMPT}\n\n${goalDirectives(goal, req.goalTitle, req.areaAttempts)}${extraSystemNote ? `\n\n${extraSystemNote}` : ""}`;
-  const completion = await client.chat.completions.create(
+  const completion = await getOpenAI().chat.completions.create(
     {
-      model: "gpt-4o-mini",
+      model: AI.CHAT_MODEL,
       temperature: 0.4,
       max_tokens: 500,
       response_format: { type: "json_object" },
@@ -255,6 +254,11 @@ async function callModel(
 export async function POST(request: Request) {
   // Kort id för korrelation i loggen — ingen företagsdata loggas.
   const requestId = crypto.randomUUID().slice(0, 8);
+
+  const guarded = await guardAiRequest("campaign-interview");
+  if (!guarded.ok) return guarded.response;
+  const { guard } = guarded;
+
   try {
     const raw = (await request.json()) as Partial<ReasoningRequest>;
 
@@ -291,6 +295,7 @@ export async function POST(request: Request) {
 
     if (!req.goal || !isKnownGoal(req.goal)) {
       console.error(`CAMPAIGN_INTERVIEW_ERROR ${requestId}: UnknownGoal`);
+      await guard.finish({ status: "error", errorCategory: "unknown_goal" });
       return NextResponse.json({ error: "Intervjun saknar ett giltigt mål." }, { status: 400 });
     }
     const goal = req.goal as CampaignGoal;
@@ -306,6 +311,7 @@ export async function POST(request: Request) {
       const first = await callModel(req, goal);
       if (!first) {
         console.error(`CAMPAIGN_INTERVIEW_ERROR ${requestId}: SchemaValidationFailed`);
+        await guard.finish({ status: "error", errorCategory: "schema_validation", model: AI.CHAT_MODEL });
         return NextResponse.json({ error: "Resonemangsmotorn gav ett ofullständigt svar." }, { status: 502 });
       }
 
@@ -355,11 +361,13 @@ export async function POST(request: Request) {
       };
     }
 
+    await guard.finish({ status: "ok", model: AI.CHAT_MODEL });
     return NextResponse.json(decision);
   } catch (error) {
     // Logga aldrig känslig företagsinformation — bara felets art.
     const name = error instanceof Error ? error.name : "UnknownError";
     console.error(`CAMPAIGN_INTERVIEW_ERROR ${requestId}: ${name}`);
+    await guard.finish({ status: "error", errorCategory: name });
     return NextResponse.json({ error: "Resonemangsmotorn är inte tillgänglig just nu." }, { status: 500 });
   }
 }

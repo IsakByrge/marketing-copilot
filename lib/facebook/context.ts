@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────
 import { createClient } from "@/lib/supabase-server";
 import { migrateProfileToBrain, type CompanyBrain } from "@/app/_shared/companyBrain";
+import { normalizeStrategyContext } from "@/lib/strategist/adapter";
 import type { FacebookSpecialistContext, FacebookBrief } from "@/app/content/facebook/types";
 
 const clip = (v: unknown, n: number): string => (typeof v === "string" ? v : "").trim().slice(0, n);
@@ -42,7 +43,7 @@ export async function buildFacebookContext(brief: FacebookBrief): Promise<Facebo
     return {
       hasCompany: false,
       context: {
-        company: { summary: "", audiences: [], strengths: [], usps: [], tone: "", contentGuidelines: [], forbiddenClaims: [], preferredCallsToAction: [] },
+        company: { summary: "", audiences: [], strengths: [], usps: [], tone: "", contentGuidelines: [], forbiddenClaims: [], preferredCallsToAction: [], verifiedSocialProof: [] },
       },
     };
   }
@@ -63,6 +64,11 @@ export async function buildFacebookContext(brief: FacebookBrief): Promise<Facebo
       contentGuidelines: clipArr(brain.contentGuidelines, 12, 200),
       forbiddenClaims: clipArr(brain.forbiddenClaims, 20, 200),
       preferredCallsToAction: clipArr(brain.preferredCallsToAction, 8, 120),
+      // Verifierat social proof: ENDAST från strukturerat, användarägt
+      // underlag. Byggs här server-side så att en manipulerad klient aldrig
+      // kan injicera "omdömen". Kompletteras nedan med kampanjstrategins
+      // egen social proof om den finns.
+      verifiedSocialProof: clipArr(brain.proofPoints, 12, 240),
     },
   };
 
@@ -98,16 +104,35 @@ export async function buildFacebookContext(brief: FacebookBrief): Promise<Facebo
       .maybeSingle();
     const sc = strat?.strategy_context as Record<string, unknown> | undefined;
     if (sc && typeof sc === "object") {
+      // Normalisera v1 (platt) ELLER v2 (StrategyV2) till en gemensam form.
+      const n = normalizeStrategyContext(sc);
+      const message = [
+        n.mainMessage,
+        n.valueProposition ? `Värdeerbjudande: ${n.valueProposition}` : "",
+        n.urgency ? `Tidsskäl: ${n.urgency}` : "",
+      ].filter(Boolean).join(" · ");
       context.campaignStrategy = {
-        goal: clip(sc.goal, 200) || "Kampanjmål",
-        audience: clip(sc.audience, 300) || undefined,
-        mainMessage: clip(sc.mainMessage, 700) || undefined,
-        offer: clip(sc.offer, 300) || undefined,
-        channels: clipArr(sc.channels, 6, 80),
-        cta: clip(sc.cta, 200) || undefined,
-        risks: clipArr(sc.risks, 6, 300),
+        goal: n.goal || "Kampanjmål",
+        audience: n.audience,
+        mainMessage: clip(message, 700) || undefined,
+        offer: n.offer,
+        channels: (n.channels ?? []).slice(0, 6),
+        cta: n.cta,
+        risks: (n.risks ?? []).slice(0, 6),
         avoid: clipArr(sc.avoid, 6, 300),
       };
+      // Strategin kan bära uttryckligt, strukturerat social proof (t.ex.
+      // ett verifierat kundcitat kopplat till kampanjen). Endast då — och
+      // aldrig härlett ur fritext — läggs det till som tillåten källa.
+      const stratProof = typeof sc.socialProof === "string"
+        ? [clip(sc.socialProof, 240)].filter(Boolean)
+        : clipArr(sc.socialProof, 12, 240);
+      if (stratProof.length) {
+        context.company.verifiedSocialProof = [
+          ...context.company.verifiedSocialProof,
+          ...stratProof,
+        ].slice(0, 16);
+      }
     }
   }
 

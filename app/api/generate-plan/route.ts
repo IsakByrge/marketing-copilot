@@ -1,15 +1,18 @@
-import OpenAI from "openai";
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+// ─────────────────────────────────────────────────────────────
+// POST /api/generate-plan
+//
+// Genererar en veckoplan. Identiteten härleds ALLTID ur den inloggade
+// sessionen — klienten kan inte längre skicka userId för att styra vems
+// historik/feedback som används. All DB-läsning sker via den session-
+// scopade Supabase-klienten (RLS: auth.uid() = user_id), så en användare
+// kan bara nå sina egna företag, planer och feedback.
+// ─────────────────────────────────────────────────────────────
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { guardAiRequest, safeError } from "@/lib/server/guard";
+import { callChatJson, AI } from "@/lib/server/ai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 type CompanyProfile = {
   companyName?: string; industry?: string; summary?: string;
@@ -24,7 +27,6 @@ type BrainFile = {
 type GeneratePlanBody = {
   companyProfile?: CompanyProfile;
   brainFiles?: BrainFile[];
-  userId?: string;
 };
 
 type PastPlan = {
@@ -34,14 +36,15 @@ type PastPlan = {
   posts: { title: string }[];
 };
 
-async function getPastPlans(companyName: string, userId: string): Promise<PastPlan[]> {
+async function getPastPlans(supabase: SupabaseClient, companyName: string, userId: string): Promise<PastPlan[]> {
   try {
     const { data: company } = await supabase
       .from("companies")
       .select("id")
       .eq("name", companyName)
       .eq("user_id", userId)
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     if (!company) return [];
 
@@ -58,7 +61,7 @@ async function getPastPlans(companyName: string, userId: string): Promise<PastPl
     return [];
   }
 }
-async function getFeedback(companyName: string, userId: string) {
+async function getFeedback(supabase: SupabaseClient, companyName: string, userId: string) {
   try {
     const { data } = await supabase
       .from("content_feedback")
@@ -75,13 +78,28 @@ async function getFeedback(companyName: string, userId: string) {
 }
 
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID().slice(0, 8);
+
+  const guarded = await guardAiRequest("generate-plan");
+  if (!guarded.ok) return guarded.response;
+  const { guard } = guarded;
+
   try {
-    const body: GeneratePlanBody = await request.json();
+    let body: GeneratePlanBody;
+    try {
+      body = await request.json();
+    } catch {
+      await guard.finish({ status: "error", errorCategory: "bad_json" });
+      return safeError("Ogiltig förfrågan.", 400);
+    }
     const profile = body.companyProfile;
     const brainFiles = body.brainFiles ?? [];
+    // Identiteten kommer ALLTID från sessionen — aldrig från request-body.
+    const userId = guard.user.id;
 
     if (!profile) {
-      return NextResponse.json({ error: "Företagsprofil saknas." }, { status: 400 });
+      await guard.finish({ status: "error", errorCategory: "missing_profile" });
+      return safeError("Företagsprofil saknas.", 400);
     }
 
     const now = new Date();
@@ -95,12 +113,11 @@ export async function POST(request: Request) {
 
     const upcomingDates = getUpcomingDates(now);
 
-    // Hämta historik från Supabase
-    const userId = body.userId ?? "";
-    const pastPlans = await getPastPlans(profile.companyName ?? "", userId);
+    // Hämta historik från Supabase (RLS-scopat till den inloggade användaren)
+    const pastPlans = await getPastPlans(guard.supabase, profile.companyName ?? "", userId);
 
     // Hämta tidigare feedback (tummar)
-    const { liked, disliked } = await getFeedback(profile.companyName ?? "", userId);
+    const { liked, disliked } = await getFeedback(guard.supabase, profile.companyName ?? "", userId);
     const feedbackContext = (liked.length > 0 || disliked.length > 0)
       ? `\nANVÄNDARENS FEEDBACK PÅ TIDIGARE INLÄGG:
 ${liked.length > 0 ? `Gillade (skapa fler i denna stil och ton):\n${liked.map(t => `  + ${t}`).join("\n")}` : ""}
@@ -208,22 +225,24 @@ Returnera exakt denna JSON:
   ]
 }`;
 
-    const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-    });
+    const result = await callChatJson(systemPrompt, userPrompt, { maxTokens: AI.MAX_OUTPUT_TOKENS });
+    const plan = result.parsed;
 
-    const raw = response.choices[0]?.message?.content || "";
-    const plan = JSON.parse(raw);
-    return NextResponse.json(plan);
+    await guard.finish({
+      status: "ok",
+      model: AI.CHAT_MODEL,
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+    });
+    return Response.json(plan);
 
   } catch (error) {
-    console.error("GENERATE_PLAN_ERROR:", error);
-    return NextResponse.json({ error: "Kunde inte generera marknadsplan." }, { status: 500 });
+    const name = error instanceof Error ? error.name : "UnknownError";
+    console.error(`GENERATE_PLAN ${requestId}: ${name}`);
+    await guard.finish({ status: "error", errorCategory: name });
+    const status = name === "AbortError" ? 504 : 500;
+    const message = name === "AbortError" ? "Det tog för lång tid att generera planen. Försök igen." : "Kunde inte generera marknadsplan.";
+    return safeError(message, status);
   }
 }
 

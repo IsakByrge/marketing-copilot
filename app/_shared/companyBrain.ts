@@ -62,6 +62,11 @@ export interface CompanyBrain {
   forbiddenClaims: string[];
   preferredCallsToAction: string[];
   commonCustomerObjections: string[];
+  /** Verifierat socialt bevis: konkreta, användarbekräftade omdömen,
+   *  siffror eller utmärkelser som FÅR åberopas i innehåll. Tomt som
+   *  standard — systemet hittar aldrig på social proof. Bor i den
+   *  befintliga company_brain-JSONB:n (ingen ny tabell/migration). */
+  proofPoints: string[];
   competitors: CompanyCompetitor[];
   products: CompanyProduct[];
   keySeasons: string[];
@@ -144,7 +149,7 @@ export function emptyBrain(): CompanyBrain {
   return {
     companySummary: "", primaryCustomers: [], strengths: [], uniqueSellingPoints: [],
     tone: [], contentGuidelines: [], forbiddenClaims: [], preferredCallsToAction: [],
-    commonCustomerObjections: [], competitors: [], products: [], keySeasons: [], marketingGoals: [],
+    commonCustomerObjections: [], proofPoints: [], competitors: [], products: [], keySeasons: [], marketingGoals: [],
   };
 }
 
@@ -165,6 +170,7 @@ export function sanitizeBrain(raw: unknown): CompanyBrain {
     forbiddenClaims: clipList(o.forbiddenClaims),
     preferredCallsToAction: clipList(o.preferredCallsToAction),
     commonCustomerObjections: clipList(o.commonCustomerObjections),
+    proofPoints: clipList(o.proofPoints),
     competitors: Array.isArray(o.competitors) ? o.competitors.map(sanitizeCompetitor).slice(0, BRAIN_LIMITS.MAX_COMPETITORS) : [],
     products: Array.isArray(o.products) ? o.products.map(sanitizeProduct).slice(0, BRAIN_LIMITS.MAX_PRODUCTS) : [],
     keySeasons: clipList(o.keySeasons),
@@ -283,6 +289,7 @@ export function migrateProfileToBrain(
     forbiddenClaims: hasAny(sanitized.forbiddenClaims) ? sanitized.forbiddenClaims : base.forbiddenClaims,
     preferredCallsToAction: sanitized.preferredCallsToAction,
     commonCustomerObjections: sanitized.commonCustomerObjections,
+    proofPoints: sanitized.proofPoints,
     competitors: sanitized.competitors,
     products: hasAny(sanitized.products) ? sanitized.products : base.products,
     keySeasons: sanitized.keySeasons,

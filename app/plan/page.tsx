@@ -40,7 +40,11 @@ export default function PlanPage() {
   useEffect(() => {
     const saved = localStorage.getItem("marketing-copilot-plan");
     if (!saved) return;
-    try { setPlan(JSON.parse(saved)); } catch (e) { console.error(e); }
+    // Defer state-uppdateringen ur den synkrona effektkroppen (undviker kaskad-
+    // render). localStorage läses fortfarande bara på klienten — beteende oförändrat.
+    queueMicrotask(() => {
+      try { setPlan(JSON.parse(saved)); } catch (e) { console.error(e); }
+    });
   }, []);
 
   if (!plan) {
@@ -72,14 +76,14 @@ export default function PlanPage() {
         background: "rgba(42,47,58,0.95)", backdropFilter: "blur(20px)",
         borderBottom: `1px solid ${T.line}`,
       }}>
-        <a href="/" style={{
+        <Link href="/" style={{
           fontFamily: "var(--font-cormorant), serif",
           fontWeight: 500, fontSize: "1.1rem",
           letterSpacing: "0.08em", textTransform: "uppercase",
           color: T.text, textDecoration: "none",
         }}>
           Marketing<span style={{ color: T.gold }}>Copilot</span>
-        </a>
+        </Link>
         <NavBack />
       </nav>
 

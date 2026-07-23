@@ -19,7 +19,9 @@ export default function NewsletterPage() {
 
   useEffect(() => {
     const saved = localStorage.getItem("marketing-copilot-plan");
-    if (saved) try { setPlan(JSON.parse(saved)); } catch {}
+    if (!saved) return;
+    // Defer state-uppdateringen ur den synkrona effektkroppen (undviker kaskad-render).
+    queueMicrotask(() => { try { setPlan(JSON.parse(saved)); } catch {} });
   }, []);
 
   function copyAll() {

@@ -15,7 +15,10 @@
 import { validateBrief } from "@/app/content/facebook/types";
 import { runFacebookSpecialist, criticalFollowUp, type FacebookPhase } from "@/lib/facebook/specialist";
 import { buildFacebookContext } from "@/lib/facebook/context";
+import { guardAiRequest } from "@/lib/server/guard";
+import { AI } from "@/lib/server/ai";
 
+export const runtime = "nodejs";
 // Låt inte plattformen döda funktionen mitt i modellkedjan (draft+review+revision).
 export const maxDuration = 120;
 
@@ -25,6 +28,11 @@ const line = (obj: unknown) => encoder.encode(JSON.stringify(obj) + "\n");
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8);
 
+  // Auth + rate-limit innan strömmen öppnas (401/429 som vanligt JSON-svar).
+  const guarded = await guardAiRequest("content-facebook");
+  if (!guarded.ok) return guarded.response;
+  const { guard } = guarded;
+
   // Validera briefen innan vi öppnar strömmen — trasig struktur → 400.
   let brief;
   try {
@@ -32,11 +40,13 @@ export async function POST(request: Request) {
     const parsed = validateBrief(raw);
     if (!parsed.ok) {
       console.error(`FB_SPECIALIST ${requestId}: InvalidBrief`);
+      await guard.finish({ status: "error", errorCategory: "invalid_brief" });
       return Response.json({ status: "error", error: parsed.error }, { status: 400 });
     }
     brief = parsed.brief;
   } catch {
     console.error(`FB_SPECIALIST ${requestId}: BadJson`);
+    await guard.finish({ status: "error", errorCategory: "bad_json" });
     return Response.json({ status: "error", error: "Ogiltig förfrågan." }, { status: 400 });
   }
 
@@ -50,6 +60,7 @@ export async function POST(request: Request) {
         const ctx = await buildFacebookContext(brief);
         if (!ctx) {
           controller.enqueue(line({ type: "error", error: "Du behöver vara inloggad för att skapa innehåll." }));
+          await guard.finish({ status: "error", errorCategory: "unauthenticated" });
           controller.close();
           return;
         }
@@ -58,6 +69,7 @@ export async function POST(request: Request) {
             type: "error",
             error: "Ingen företagskunskap hittades. Skapa en företagsprofil först så kan specialisten skriva för ditt företag.",
           }));
+          await guard.finish({ status: "error", errorCategory: "no_company" });
           controller.close();
           return;
         }
@@ -66,6 +78,7 @@ export async function POST(request: Request) {
         const blocked = criticalFollowUp(brief);
         if (blocked) {
           controller.enqueue(line({ type: "blocked", ...blocked }));
+          await guard.finish({ status: "blocked", errorCategory: "critical_followup" });
           controller.close();
           return;
         }
@@ -77,9 +90,10 @@ export async function POST(request: Request) {
         });
 
         // Endast icke-känslig telemetri i loggen.
-        console.log(`FB_SPECIALIST ${requestId}: ok calls=${meta.calls} revised=${meta.revised} ms=${meta.ms} tok=${meta.usage.promptTokens}/${meta.usage.completionTokens}`);
+        console.log(`FB_SPECIALIST ${requestId}: ok calls=${meta.calls} revised=${meta.revised} status=${result.qualityReview.userStatus} altsDropped=${meta.alternativesDropped} cliches=${meta.clichesFound} proof=${meta.verifiedSocialProofCount} ms=${meta.ms} tok=${meta.usage.promptTokens}/${meta.usage.completionTokens}`);
 
         controller.enqueue(line({ type: "result", status: "ok", result, meta }));
+        await guard.finish({ status: "ok", model: process.env.FACEBOOK_DRAFT_MODEL || AI.CHAT_MODEL, promptTokens: meta.usage.promptTokens, completionTokens: meta.usage.completionTokens });
         controller.close();
       } catch (error) {
         const name = error instanceof Error ? error.name : "UnknownError";
@@ -87,6 +101,7 @@ export async function POST(request: Request) {
         try {
           controller.enqueue(line({ type: "error", error: "Det gick inte att skapa inlägget just nu. Dina uppgifter är kvar och du kan försöka igen." }));
         } catch { /* strömmen redan stängd */ }
+        await guard.finish({ status: "error", errorCategory: name });
         controller.close();
       }
     },

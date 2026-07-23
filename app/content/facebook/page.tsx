@@ -9,7 +9,7 @@
 // Efter: rekommenderad vinkel, FB-lik preview, två alternativ,
 // bildbrief, kvalitetsstatus, antaganden/luckor och riktiga actions.
 // ─────────────────────────────────────────────────────────────
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import Shell from "@/app/_shared/Shell";
 import { T, fontSans, fontSerif, transition } from "@/app/_shared/theme";
@@ -23,7 +23,9 @@ import {
   GOAL_OPTIONS, ANGLE_OPTIONS, LENGTH_OPTIONS, TONE_SUGGESTIONS,
   type FacebookBrief, type FacebookContentGoal, type FacebookAngle, type FacebookLength,
   type FacebookSpecialistResult, type FacebookPostVariant, type FacebookQualityChecks,
+  type FacebookUserStatus, type FacebookImageBrief,
 } from "./types";
+import { mapStrategyToPrefill, type StrategyContextForForm } from "@/lib/facebook/strategyPrefill";
 
 /* ── Strömmande generering (NDJSON) ──────────────────────── */
 type Phase = "reading" | "drafting" | "reviewing" | "revising" | "done";
@@ -132,7 +134,14 @@ export default function FacebookSpecialistPage() {
   const [underlag, setUnderlag] = useState<"strategy" | "product" | "other">("other");
   const [productId, setProductId] = useState<string>("");
   const [strategyId, setStrategyId] = useState<string>("");
-  const [strategies, setStrategies] = useState<{ id: string; title: string; goal: string }[]>([]);
+  const [strategies, setStrategies] = useState<{ id: string; title: string; goal: string; context: StrategyContextForForm | null }[]>([]);
+  // Diskret märkning: vilka fält som förifylldes från den valda strategin.
+  const [prefilledFields, setPrefilledFields] = useState<string[]>([]);
+  // Fel när en ?strategy=-länk inte kunde öppnas (borttagen/annat konto/ogiltig).
+  const [strategyLinkError, setStrategyLinkError] = useState("");
+  // Sant om användaren rört formuläret sedan senaste (om)fyllning — styr varning vid strategibyte.
+  const formTouchedRef = useRef(false);
+  const touch = () => { formTouchedRef.current = true; };
 
   // Brief-fält (per-inlägg, skriver aldrig över Company Brain)
   const [productOrTopic, setProductOrTopic] = useState("");
@@ -158,8 +167,31 @@ export default function FacebookSpecialistPage() {
   const selectedProduct = useMemo(() => brain.products.find((p) => p.id === productId) ?? null, [brain.products, productId]);
   const toneDefault = brain.tone.join(", ");
 
+  // Skriver in strategins värden i formulärets arbetskopia. Rör BARA de fält
+  // som kan härledas ur strategin; CTA/vinkel/ton/längd lämnas orörda (ingen källa).
+  // Anropas från event-handlern och den asynkrona laddningen — aldrig synkront
+  // i en effekt-kropp (skulle bryta mot react-hooks/set-state-in-effect).
+  function applyStrategyPrefill(ctx: StrategyContextForForm | null) {
+    const p = mapStrategyToPrefill(ctx);
+    if (p.goal !== undefined) setGoal(p.goal);
+    setProductOrTopic(p.productOrTopic ?? "");
+    setAudience(p.audience ?? "");
+    setOffer(p.offer ?? "");
+    setPrice(p.price ?? "");
+    setDeadline(p.deadline ?? "");
+    setGeo(p.geographicArea ?? "");
+    setDesiredAction(p.desiredAction ?? "");
+    setPrefilledFields(p.filledFields);
+    formTouchedRef.current = false;
+  }
+
   // Ladda sparade kampanjstrategier (RLS). Saknas tabellen ännu → tyst tomt.
+  // strategy_context läses med (RLS-skyddat) så formuläret kan förifyllas.
+  // Direktnavigering från Campaign Builder (/content/facebook?strategy=<id>)
+  // hanteras här: när strategin finns i användarens lista förväljs och förifylls
+  // den direkt (setState sker i en async-callback, inte synkront i effektkroppen).
   useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("strategy");
     (async () => {
       try {
         const sb = createClient();
@@ -167,19 +199,56 @@ export default function FacebookSpecialistPage() {
         if (!user) return;
         const { data } = await sb
           .from("campaign_strategies")
-          .select("id,title,goal")
+          .select("id,title,goal,strategy_context")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(20);
-        if (data) setStrategies(data);
-      } catch { /* tabellen kanske inte migrerad ännu */ }
+        if (!data) {
+          if (wanted) setStrategyLinkError("Kunde inte öppna kampanjstrategin från länken. Välj en strategi manuellt nedan.");
+          return;
+        }
+        const list = data.map((r) => ({
+          id: r.id as string, title: r.title as string, goal: r.goal as string,
+          context: (r.strategy_context && typeof r.strategy_context === "object"
+            ? r.strategy_context as StrategyContextForForm : null),
+        }));
+        setStrategies(list);
+        if (!wanted) return;
+        const match = list.find((s) => s.id === wanted);
+        if (match) {
+          setUnderlag("strategy"); setStrategyId(match.id); applyStrategyPrefill(match.context);
+        } else {
+          // Id saknas i användarens lista: borttagen, annat konto eller ogiltigt id.
+          // Krascha inte — visa ett begripligt meddelande och fall tillbaka till manuellt val.
+          setStrategyLinkError("Vi hittade inte kampanjstrategin från länken — den kan ha tagits bort eller tillhöra ett annat konto. Välj en strategi manuellt nedan.");
+          if (list.length) setUnderlag("strategy");
+        }
+      } catch {
+        // Tabellen kanske inte migrerad ännu, eller nätverksfel.
+        if (wanted) setStrategyLinkError("Kunde inte öppna kampanjstrategin från länken just nu. Välj en strategi manuellt nedan.");
+      }
     })();
   }, []);
+
+  // Klick på en strategi. Varnar innan osparade manuella ändringar ersätts och
+  // förifyller EN gång i event-handlern (strategierna är laddade när listan syns).
+  function handleSelectStrategy(id: string) {
+    if (id === strategyId) return;
+    if (formTouchedRef.current &&
+        !window.confirm("Du har egna ändringar i formuläret. Vill du ersätta dem med värden från den valda kampanjstrategin?")) {
+      return;
+    }
+    const strat = strategies.find((s) => s.id === id);
+    setStrategyId(id);
+    applyStrategyPrefill(strat ? strat.context : null);
+    setStrategyLinkError(""); // manuellt val löser ett ev. länkfel
+  }
 
   // Förifyll brief-fält när användaren VÄLJER en produkt (redigerbart, per
   // inlägg). Sker i klick-handlern, inte i en effekt — och skriver bara i
   // tomma fält, så manuella ändringar aldrig skrivs över.
   function pickProduct(p: (typeof brain.products)[number]) {
+    touch();
     setProductId(p.id);
     setProductOrTopic((prev) => prev || [p.name, p.description].filter(Boolean).join(" — "));
     setAudience((prev) => prev || p.primaryAudience || brain.primaryCustomers[0] || "");
@@ -205,7 +274,13 @@ export default function FacebookSpecialistPage() {
     };
   }
 
+  // Skyddar mot dubbla genereringsanrop (t.ex. snabb dubbelklick innan
+  // React hunnit byta fas). Ref:en är synkron, till skillnad från state.
+  const runningRef = useRef(false);
+
   async function run(brief: FacebookBrief) {
+    if (runningRef.current) return;
+    runningRef.current = true;
     setPhase("generating");
     setActiveStep(0);
     setSawRevising(false);
@@ -228,6 +303,8 @@ export default function FacebookSpecialistPage() {
     } catch {
       setError("Det gick inte att skapa inlägget just nu. Dina uppgifter är kvar och du kan försöka igen.");
       setPhase("input");
+    } finally {
+      runningRef.current = false;
     }
   }
 
@@ -270,6 +347,7 @@ export default function FacebookSpecialistPage() {
               </div>
             )}
             {error && <ErrorNote>{error}</ErrorNote>}
+            {strategyLinkError && <ErrorNote>{strategyLinkError}</ErrorNote>}
 
             {/* 1. Syfte */}
             <section>
@@ -278,7 +356,7 @@ export default function FacebookSpecialistPage() {
                 {GOAL_OPTIONS.map((o) => {
                   const active = goal === o.value;
                   return (
-                    <button key={o.value} type="button" onClick={() => setGoal(o.value)} aria-pressed={active} className="mcx-focusable"
+                    <button key={o.value} type="button" onClick={() => { touch(); setGoal(o.value); }} aria-pressed={active} className="mcx-focusable"
                       style={{
                         textAlign: "left", padding: "12px 14px", borderRadius: 11, cursor: "pointer", transition,
                         background: active ? T.purpleDim : T.surface,
@@ -307,7 +385,7 @@ export default function FacebookSpecialistPage() {
               {underlag === "strategy" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {strategies.map((s) => (
-                    <button key={s.id} type="button" onClick={() => setStrategyId(s.id)} className="mcx-focusable"
+                    <button key={s.id} type="button" onClick={() => handleSelectStrategy(s.id)} className="mcx-focusable"
                       style={{
                         textAlign: "left", padding: "14px 16px", borderRadius: 11, cursor: "pointer", transition,
                         background: strategyId === s.id ? T.purpleDim : T.surface,
@@ -317,6 +395,16 @@ export default function FacebookSpecialistPage() {
                       <div style={{ fontFamily: fontSans, fontSize: "0.76rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{s.goal}</div>
                     </button>
                   ))}
+                  {strategyId && (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 4, padding: "11px 14px", borderRadius: 11, background: T.purpleDim, border: `1px solid ${T.purpleBorder}` }}>
+                      <span style={{ color: T.purpleBright, flexShrink: 0, marginTop: 1 }}><IconSparkle size={14} /></span>
+                      <p style={{ fontFamily: fontSans, fontSize: "0.76rem", fontWeight: 300, color: T.text2, lineHeight: 1.55 }}>
+                        {prefilledFields.length
+                          ? <>Hämtat från kampanjstrategin: <span style={{ color: T.text }}>{prefilledFields.join(", ")}</span>. Justera fritt — ändringar gäller bara det här inlägget och rör inte strategin.</>
+                          : "Den här strategin saknar fält som kan förifyllas automatiskt — fyll i nedan."}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -352,11 +440,11 @@ export default function FacebookSpecialistPage() {
 
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
                 <Field label="Vad marknadsförs" hint={underlag === "product" ? "Förifyllt från produkten — justera fritt för det här inlägget." : undefined}>
-                  <TextArea value={productOrTopic} onChange={(e) => setProductOrTopic(e.target.value)} rows={2}
+                  <TextArea value={productOrTopic} onChange={(e) => { touch(); setProductOrTopic(e.target.value); }} rows={2}
                     placeholder="t.ex. Vinterservice med rekonditionering och lackskydd" />
                 </Field>
                 <Field label="Målgrupp för inlägget">
-                  <TextInput value={audience} onChange={(e) => setAudience(e.target.value)}
+                  <TextInput value={audience} onChange={(e) => { touch(); setAudience(e.target.value); }}
                     placeholder={brain.primaryCustomers[0] ? `t.ex. ${brain.primaryCustomers[0]}` : "t.ex. villaägare i närområdet"} />
                 </Field>
               </div>
@@ -366,14 +454,14 @@ export default function FacebookSpecialistPage() {
             <section>
               <SectionLabel>3 · Erbjudande & handling</SectionLabel>
               <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
-                <Field label="Erbjudande" optional><TextInput value={offer} onChange={(e) => setOffer(e.target.value)} placeholder="t.ex. 15% på första besöket" /></Field>
-                <Field label="Pris" optional><TextInput value={price} onChange={(e) => setPrice(e.target.value)} placeholder="t.ex. från 1 495 kr" /></Field>
-                <Field label="Sista datum" optional><TextInput value={deadline} onChange={(e) => setDeadline(e.target.value)} placeholder="t.ex. 20 juni" /></Field>
-                <Field label="Geografiskt område" optional><TextInput value={geo} onChange={(e) => setGeo(e.target.value)} placeholder="t.ex. Västerås med omnejd" /></Field>
+                <Field label="Erbjudande" optional><TextInput value={offer} onChange={(e) => { touch(); setOffer(e.target.value); }} placeholder="t.ex. 15% på första besöket" /></Field>
+                <Field label="Pris" optional><TextInput value={price} onChange={(e) => { touch(); setPrice(e.target.value); }} placeholder="t.ex. från 1 495 kr" /></Field>
+                <Field label="Sista datum" optional><TextInput value={deadline} onChange={(e) => { touch(); setDeadline(e.target.value); }} placeholder="t.ex. 20 juni" /></Field>
+                <Field label="Geografiskt område" optional><TextInput value={geo} onChange={(e) => { touch(); setGeo(e.target.value); }} placeholder="t.ex. Västerås med omnejd" /></Field>
               </div>
               <div style={{ marginTop: 14 }}>
                 <Field label="Önskad CTA — vad ska läsaren göra?">
-                  <TextInput value={desiredAction} onChange={(e) => setDesiredAction(e.target.value)} placeholder="t.ex. Boka tid online, ring oss, besök butiken" />
+                  <TextInput value={desiredAction} onChange={(e) => { touch(); setDesiredAction(e.target.value); }} placeholder="t.ex. Boka tid online, ring oss, besök butiken" />
                 </Field>
               </div>
             </section>
@@ -382,7 +470,7 @@ export default function FacebookSpecialistPage() {
             <section>
               <SectionLabel>4 · Vinkel</SectionLabel>
               <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {ANGLE_OPTIONS.map((o) => <Chip key={o.value} label={o.label} active={angle === o.value} onClick={() => setAngle(o.value)} />)}
+                {ANGLE_OPTIONS.map((o) => <Chip key={o.value} label={o.label} active={angle === o.value} onClick={() => { touch(); setAngle(o.value); }} />)}
               </div>
             </section>
 
@@ -393,7 +481,7 @@ export default function FacebookSpecialistPage() {
                 {toneDefault ? <>Förvald från Company Brain: <span style={{ color: T.text2 }}>{toneDefault}</span>. Välj en tillfällig justering nedan om du vill.</> : "Välj en ton för det här inlägget."}
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {TONE_SUGGESTIONS.map((tOpt) => <Chip key={tOpt} label={tOpt} active={tone === tOpt} onClick={() => setTone(tone === tOpt ? "" : tOpt)} />)}
+                {TONE_SUGGESTIONS.map((tOpt) => <Chip key={tOpt} label={tOpt} active={tone === tOpt} onClick={() => { touch(); setTone(tone === tOpt ? "" : tOpt); }} />)}
               </div>
             </section>
 
@@ -402,7 +490,7 @@ export default function FacebookSpecialistPage() {
               <SectionLabel>6 · Längd</SectionLabel>
               <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {LENGTH_OPTIONS.map((o) => (
-                  <button key={o.value} type="button" onClick={() => setLength(o.value)} aria-pressed={length === o.value} className="mcx-focusable"
+                  <button key={o.value} type="button" onClick={() => { touch(); setLength(o.value); }} aria-pressed={length === o.value} className="mcx-focusable"
                     style={{
                       textAlign: "left", padding: "11px 15px", borderRadius: 11, cursor: "pointer", transition, minWidth: 150,
                       background: length === o.value ? T.purpleDim : T.surface,
@@ -417,7 +505,7 @@ export default function FacebookSpecialistPage() {
 
             <div>
               <Field label="Övrigt till specialisten" optional>
-                <TextArea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="t.ex. lyft att vi är familjeägda sedan 1998" />
+                <TextArea value={notes} onChange={(e) => { touch(); setNotes(e.target.value); }} rows={2} placeholder="t.ex. lyft att vi är familjeägda sedan 1998" />
               </Field>
             </div>
 
@@ -457,15 +545,19 @@ const CHECK_LABELS: Record<keyof FacebookQualityChecks, string> = {
   companySpecific: "Företagsspecifik", audienceSpecific: "Målgruppsanpassad", clearHook: "Tydlig hook",
   clearCustomerValue: "Kundnytta", credibleClaims: "Trovärdiga påståenden", correctTone: "Rätt ton",
   clearCTA: "Tydlig CTA", appropriateLength: "Rimlig längd", readableFormatting: "Läsbar formatering",
-  noForbiddenClaims: "Inga förbjudna påståenden",
+  noForbiddenClaims: "Inga förbjudna påståenden", naturalSwedish: "Naturlig svenska",
+  honestSocialProof: "Ärligt socialt bevis",
 };
 
-function StatusBadge({ status }: { status: "ready" | "needs_revision" | "blocked" }) {
-  const map = {
-    ready: { c: T.green, bg: T.greenDim, t: "Publiceringsfärdig" },
-    needs_revision: { c: T.orange, bg: T.orangeDim, t: "Behöver en översyn" },
-    blocked: { c: T.red, bg: T.redDim, t: "Behöver mer information" },
-  }[status];
+/** Användarvänlig huvudstatus — den primära signalen (poängtalet är sekundärt). */
+const USER_STATUS_MAP: Record<FacebookUserStatus, { c: string; bg: string; t: string }> = {
+  ready: { c: T.green, bg: T.greenDim, t: "Publiceringsklar" },
+  review: { c: T.orange, bg: T.orangeDim, t: "Behöver granskas" },
+  incomplete: { c: T.red, bg: T.redDim, t: "Behöver kompletteras" },
+};
+
+function StatusBadge({ status }: { status: FacebookUserStatus }) {
+  const map = USER_STATUS_MAP[status];
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, background: map.bg, border: `1px solid ${map.c}44`, color: map.c, fontFamily: fontSans, fontSize: "0.74rem", fontWeight: 500 }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: map.c }} /> {map.t}
@@ -473,23 +565,67 @@ function StatusBadge({ status }: { status: "ready" | "needs_revision" | "blocked
   );
 }
 
-function FacebookPreview({ companyName, text }: { companyName: string; text: string }) {
+/* Diskreta engagemangsikoner — visuell preview, aldrig med påhittade siffror. */
+function EngageIcon({ kind }: { kind: "like" | "comment" | "share" }) {
+  const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (kind === "like") return <svg {...common}><path d="M7 10v11M2 13v6a2 2 0 0 0 2 2h13.3a2 2 0 0 0 2-1.6l1.4-7A2 2 0 0 0 19.7 10H14V5a2.5 2.5 0 0 0-4.8-1L7 10H4a2 2 0 0 0-2 2Z" /></svg>;
+  if (kind === "comment") return <svg {...common}><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" /></svg>;
+  return <svg {...common}><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v13" /></svg>;
+}
+
+const PREVIEW_CLAMP = 360; // tecken innan "Visa mer" (påverkar aldrig redigering)
+
+function FacebookPreview({ companyName, text, imageBrief, edited }: {
+  companyName: string; text: string; imageBrief: FacebookImageBrief; edited?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = text.length > PREVIEW_CLAMP;
+  const shown = isLong && !expanded ? text.slice(0, PREVIEW_CLAMP).replace(/\s+\S*$/, "") : text;
+  const initial = (companyName || "F").charAt(0).toUpperCase();
+  const mediaHint = imageBrief.concept || imageBrief.subject || "Bild enligt bildbriefen nedan";
+
   return (
-    <div style={{ background: "#ffffff", borderRadius: 12, overflow: "hidden", border: `1px solid ${T.line2}`, boxShadow: "0 20px 60px -32px rgba(0,0,0,0.6)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px" }}>
-        <span style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg,#8b6bf2,#5b8def)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: fontSerif, fontWeight: 600, fontSize: "1.05rem" }}>
-          {(companyName || "F").charAt(0).toUpperCase()}
+    <div style={{ background: T.surface, borderRadius: 14, overflow: "hidden", border: `1px solid ${T.line2}`, boxShadow: "0 24px 60px -34px rgba(0,0,0,0.65)", maxWidth: 560 }}>
+      {/* Huvud: avatar, företagsnamn, neutral tidsindikator (organiskt, ingen "Sponsrad") */}
+      <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "13px 15px" }}>
+        <span style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#8b6bf2,#5b8def)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: fontSerif, fontWeight: 600, fontSize: "1.05rem" }}>
+          {initial}
         </span>
-        <div>
-          <div style={{ fontFamily: fontSans, fontSize: "0.86rem", fontWeight: 600, color: "#050505" }}>{companyName || "Ditt företag"}</div>
-          <div style={{ fontFamily: fontSans, fontSize: "0.72rem", color: "#65676b" }}>Sponsrat · 🌐</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: fontSans, fontSize: "0.9rem", fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {companyName || "Ditt företag"}
+            {edited && <span style={{ marginLeft: 8, fontSize: "0.68rem", fontWeight: 400, color: T.orange }}>✎ redigerad</span>}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: fontSans, fontSize: "0.72rem", color: T.text3 }}>
+            Just nu · <span aria-hidden>🌐</span>
+          </div>
         </div>
       </div>
-      <div style={{ padding: "0 14px 14px", fontFamily: fontSans, fontSize: "0.92rem", color: "#050505", lineHeight: 1.55, whiteSpace: "pre-line" }}>
-        {text}
+
+      {/* Inläggstext med "Visa mer" för långa texter */}
+      <div style={{ padding: "0 15px 13px", fontFamily: fontSans, fontSize: "0.94rem", fontWeight: 300, color: T.text, lineHeight: 1.62, whiteSpace: "pre-line", wordBreak: "break-word" }}>
+        {shown}{isLong && !expanded && <span style={{ color: T.text3 }}>… </span>}
+        {isLong && (
+          <button type="button" onClick={() => setExpanded((e) => !e)} className="mcx-focusable"
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: T.text3, fontFamily: fontSans, fontSize: "0.9rem", fontWeight: 500 }}>
+            {expanded ? "Visa mindre" : "Visa mer"}
+          </button>
+        )}
       </div>
-      <div style={{ height: 200, background: "linear-gradient(135deg,#eceefb,#e4ecfa)", display: "flex", alignItems: "center", justifyContent: "center", color: "#8a8fb0", fontFamily: fontSans, fontSize: "0.78rem" }}>
-        Bild enligt bildbriefen nedan
+
+      {/* Medieyta kopplad till bildbriefen (placeholder, aldrig påhittad bild) */}
+      <div style={{ height: 190, background: `linear-gradient(135deg, ${T.purpleDim}, ${T.blueDim})`, borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "0 24px", textAlign: "center" }}>
+        <span aria-hidden style={{ color: T.purpleBright, opacity: 0.8 }}><IconContent size={20} /></span>
+        <span style={{ fontFamily: fontSans, fontSize: "0.76rem", fontWeight: 300, color: T.text3, lineHeight: 1.5, maxWidth: 340 }}>{mediaHint}</span>
+      </div>
+
+      {/* Diskret engagemangsrad — visuell preview, inga reaktioner/kommentarer/antal */}
+      <div style={{ display: "flex", padding: "6px 8px" }}>
+        {([["like", "Gilla"], ["comment", "Kommentera"], ["share", "Dela"]] as const).map(([k, label]) => (
+          <div key={k} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 6px", color: T.text3, fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 400 }}>
+            <EngageIcon kind={k} /> {label}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -568,9 +704,9 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
 
   return (
     <div className="fade-up">
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <StatusBadge status={result.qualityReview.status} />
+          <StatusBadge status={result.qualityReview.userStatus} />
           <span style={{ fontFamily: fontSans, fontSize: "0.78rem", color: T.text3 }}>
             Vinkel: <span style={{ color: T.text2 }}>{result.recommendedAngle}</span>
           </span>
@@ -578,8 +714,14 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
         <GhostButton onClick={onBack}>← Ändra underlag</GhostButton>
       </div>
 
+      {result.qualityReview.statusReason && (
+        <p style={{ fontFamily: fontSans, fontSize: "0.86rem", fontWeight: 300, color: T.text2, lineHeight: 1.6, marginBottom: 18, maxWidth: 620 }}>
+          {result.qualityReview.statusReason}
+        </p>
+      )}
+
       {result.angleReason && (
-        <p style={{ fontFamily: fontSans, fontSize: "0.86rem", fontWeight: 300, color: T.text3, lineHeight: 1.6, marginBottom: 22, maxWidth: 620 }}>
+        <p style={{ fontFamily: fontSans, fontSize: "0.84rem", fontWeight: 300, color: T.text3, lineHeight: 1.6, marginBottom: 22, maxWidth: 620 }}>
           {result.angleReason}
         </p>
       )}
@@ -595,7 +737,7 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
             </div>
           </div>
         ) : (
-          <FacebookPreview companyName={companyName} text={displayText} />
+          <FacebookPreview companyName={companyName} text={displayText} imageBrief={primary.imageBrief} edited={edited} />
         )}
       </div>
 
@@ -653,10 +795,17 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
         </div>
       </section>
 
-      {/* Kvalitetsstatus */}
+      {/* Kvalitetsstatus — status + motivering är primärt, poängtalet sekundärt */}
       <section style={{ marginTop: 30 }}>
-        <SectionLabel>Kvalitetsgranskning · {result.qualityReview.overallScore}/100</SectionLabel>
-        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <SectionLabel>Kvalitetskontroll</SectionLabel>
+          <StatusBadge status={result.qualityReview.userStatus} />
+          <span style={{ fontFamily: fontSans, fontSize: "0.7rem", color: T.text4 }}>internt {result.qualityReview.overallScore}/100</span>
+        </div>
+        {result.qualityReview.statusReason && (
+          <p style={{ fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 300, color: T.text2, lineHeight: 1.6, margin: "10px 0 0", maxWidth: 620 }}>{result.qualityReview.statusReason}</p>
+        )}
+        <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 6 }}>
           {(Object.keys(CHECK_LABELS) as (keyof FacebookQualityChecks)[]).map((k) => {
             const ok = result.qualityReview.checks[k];
             return (
