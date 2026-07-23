@@ -17,6 +17,7 @@ import { getCompanyBrainContext } from "@/lib/companyBrainServer";
 import { callChatJson, AI } from "@/lib/server/ai";
 import {
   isContentType,
+  hasForbiddenProxyField,
   buildContentSystemPrompt,
   buildContentUserPrompt,
   validateGeneratedContent,
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
     const o = (body ?? {}) as Record<string, unknown>;
 
     // Avvisa uttryckligen råa prompter — den öppna proxyn är stängd.
-    if ("systemPrompt" in o || "userPrompt" in o || "model" in o || "max_tokens" in o || "maxTokens" in o) {
+    if (hasForbiddenProxyField(o)) {
       await guard.finish({ status: "error", errorCategory: "forbidden_field" });
       return safeError("Ogiltigt format: prompt, modell och tokenbudget ägs av servern.", 400);
     }

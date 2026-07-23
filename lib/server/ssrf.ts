@@ -70,7 +70,7 @@ function isPrivateIPv6(ip: string): boolean {
   return false;
 }
 
-function isPrivateIp(ip: string): boolean {
+export function isPrivateIp(ip: string): boolean {
   const kind = isIP(ip);
   if (kind === 4) return isPrivateIPv4(ip);
   if (kind === 6) return isPrivateIPv6(ip);
@@ -115,6 +115,22 @@ async function assertUrlAllowed(url: URL): Promise<string | null> {
     if (isPrivateIp(address)) return "Adressen pekar på ett internt nätverk.";
   }
   return null;
+}
+
+/**
+ * Publik testbar wrapper: validerar en råadress (protokoll, host, DNS)
+ * mot SSRF-blocklistan. Returnerar ett svenskt felmeddelande om adressen
+ * är otillåten, annars null. Detta är exakt samma kontroll som körs på
+ * varje redirect-hopp i safeFetchWebsite.
+ */
+export async function checkUrlAllowed(raw: string): Promise<string | null> {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return "Ogiltig webbadress.";
+  }
+  return assertUrlAllowed(url);
 }
 
 /** Läser en respons-kropp men avbryter om den överskrider MAX_BYTES. */

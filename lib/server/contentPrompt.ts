@@ -21,6 +21,15 @@ export function isContentType(x: unknown): x is ContentTypeId {
   return typeof x === "string" && (CONTENT_TYPES as readonly string[]).includes(x);
 }
 
+/** Fält som en klient ALDRIG får skicka — de skulle återöppna proxyn. */
+const FORBIDDEN_PROXY_FIELDS = ["systemPrompt", "userPrompt", "model", "max_tokens", "maxTokens", "temperature"] as const;
+
+/** Sant om request-body innehåller något förbjudet prompt-/modellstyrande fält. */
+export function hasForbiddenProxyField(o: unknown): boolean {
+  if (!o || typeof o !== "object") return false;
+  return FORBIDDEN_PROXY_FIELDS.some((f) => f in (o as Record<string, unknown>));
+}
+
 const TYPE_INSTRUCTIONS: Record<ContentTypeId, string> = {
   social: `Skapa ett socialt medieinlägg (Facebook/Instagram). Max 3 meningar. Konkret scenario. Direkt publiceringsfärdigt.
 JSON: { "type": "Socialt inlägg", "title": "rubrik", "body": "inläggstext", "cta": "uppmaning", "notes": "bildidé" }`,

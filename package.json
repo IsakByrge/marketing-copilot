@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:prefill": "tsx scripts/strategyPrefill.integration.mts",
-    "test:strategist": "tsx lib/strategist/strategist.test.mts"
+    "test:strategist": "tsx lib/strategist/strategist.test.mts",
+    "test:security": "tsx lib/server/security.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
