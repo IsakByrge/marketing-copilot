@@ -5,17 +5,15 @@
 // hård timeout och inga tysta SDK-omförsök — routen svarar
 // alltid, i alla kodvägar.
 // ─────────────────────────────────────────────────────────────
-import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { ANALYSIS_LIMITS, validateRecommendation } from "@/app/campaign-builder/analysis";
 import type { CampaignBrief } from "@/app/campaign-builder/types";
+import { guardAiRequest } from "@/lib/server/guard";
+import { getOpenAI, AI } from "@/lib/server/ai";
 
+export const runtime = "nodejs";
 // Låt inte plattformen döda funktionen mitt i modellanropet.
 export const maxDuration = 60;
-
-// maxRetries: 0 — SDK:ns tysta omförsök skulle annars kunna
-// tredubbla svarstiden bortom klientens timeout.
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0 });
 
 const clip = (s: unknown, n: number): string =>
   (typeof s === "string" ? s : "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -68,17 +66,23 @@ Ge din kampanjrekommendation enligt reglerna och svara med endast JSON.`;
 export async function POST(request: Request) {
   // Kort id för korrelation i loggen — ingen företagsdata loggas.
   const requestId = crypto.randomUUID().slice(0, 8);
+
+  const guarded = await guardAiRequest("campaign-analysis");
+  if (!guarded.ok) return guarded.response;
+  const { guard } = guarded;
+
   try {
     const raw = (await request.json()) as Partial<CampaignBrief>;
 
     if (!raw || typeof raw !== "object" || !clip(raw.goal, 40) || !raw.basics || !clip(raw.basics.product, 200)) {
       console.error(`CAMPAIGN_ANALYSIS_ERROR ${requestId}: InvalidBrief`);
+      await guard.finish({ status: "error", errorCategory: "invalid_brief" });
       return NextResponse.json({ error: "Kampanjunderlaget är ofullständigt." }, { status: 400 });
     }
 
-    const completion = await client.chat.completions.create(
+    const completion = await getOpenAI().chat.completions.create(
       {
-        model: "gpt-4o-mini",
+        model: AI.CHAT_MODEL,
         temperature: 0.5,
         max_tokens: 900,
         response_format: { type: "json_object" },
@@ -91,25 +95,30 @@ export async function POST(request: Request) {
     );
 
     const content = completion.choices[0]?.message?.content ?? "";
+    const usage = { promptTokens: completion.usage?.prompt_tokens ?? 0, completionTokens: completion.usage?.completion_tokens ?? 0 };
     let parsed: unknown;
     try {
       parsed = JSON.parse(content);
     } catch {
       console.error(`CAMPAIGN_ANALYSIS_ERROR ${requestId}: InvalidJson`);
+      await guard.finish({ status: "error", errorCategory: "invalid_json", model: AI.CHAT_MODEL, ...usage });
       return NextResponse.json({ error: "Ogiltigt svar från analysen." }, { status: 502 });
     }
 
     const recommendation = validateRecommendation(parsed);
     if (!recommendation) {
       console.error(`CAMPAIGN_ANALYSIS_ERROR ${requestId}: SchemaValidationFailed`);
+      await guard.finish({ status: "error", errorCategory: "schema_validation", model: AI.CHAT_MODEL, ...usage });
       return NextResponse.json({ error: "Analysen gav ett ofullständigt svar." }, { status: 502 });
     }
 
+    await guard.finish({ status: "ok", model: AI.CHAT_MODEL, ...usage });
     return NextResponse.json(recommendation);
   } catch (error) {
     // Logga bara feltyp + request-id — aldrig känslig företagsinformation.
     const name = error instanceof Error ? error.name : "UnknownError";
     console.error(`CAMPAIGN_ANALYSIS_ERROR ${requestId}: ${name}`);
+    await guard.finish({ status: "error", errorCategory: name });
     return NextResponse.json({ error: "Analysen är inte tillgänglig just nu." }, { status: 500 });
   }
 }
