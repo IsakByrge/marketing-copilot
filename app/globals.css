@@ -1,8 +1,80 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* ─── TOKENS ─────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM FOUNDATION — approved emerald tokens (Sprint 1)
+
+   ADDITIVE and dormant. The legacy dark "Mission Control" palette in
+   app/_shared/theme.ts and the gold/graphite --mc-* tokens below are
+   intentionally left untouched: the frozen dark pages, the App Shell and
+   the legacy routes must not change in Sprint 1. Nothing renders these
+   tokens yet — the new UI primitives (app/_shared/primitives.tsx) are the
+   first and only consumers, ahead of page-by-page adoption in later sprints.
+
+   Utility names map 1:1 to the locked token vocabulary:
+     background      → bg-background        text-primary   → text-text-primary
+     surface         → bg-surface           text-secondary → text-text-secondary
+     surface-sunken  → bg-surface-sunken    text-tertiary  → text-text-tertiary
+     primary         → bg-primary/text-primary/border-primary
+     primary-hover   → hover:bg-primary-hover
+     border          → border-border        border-strong  → border-border-strong
+   `static` forces every token into :root even before a utility references it,
+   so the foundation tokens are always available via var(--…) and to the
+   page-by-page adoption that follows in later sprints.
+   ═══════════════════════════════════════════════════════════════════ */
+@theme static {
+  /* Colour — locked base values */
+  --color-background:     #F5FAF8;
+  --color-surface:        #FFFFFF;
+  --color-surface-sunken: #EFF5F2;
+  --color-primary:        #0F6B5B;
+  --color-primary-hover:  #0B5A4C;
+  --color-text-primary:   #111111;
+  --color-text-secondary: #5E6763;
+  --color-text-tertiary:  #6E7772;
+  --color-border:         #E5ECE8;
+  --color-border-strong:  #D3DFDA;
+
+  /* Status colours — NOT in the locked base palette. Provisional, accessible
+     defaults for Alert / Field-error; confirm or replace when the status
+     scale is locked. */
+  --color-success:         #0F6B5B;
+  --color-success-surface: #E7F3EF;
+  --color-danger:          #B42318;
+  --color-danger-surface:  #FEF3F2;
+  --color-warning:         #B54708;
+  --color-warning-surface: #FFFAEB;
+
+  /* Radii — standard 8px, maximum 12px */
+  --radius-sm: 6px;
+  --radius:    8px;
+  --radius-lg: 12px;
+
+  /* Typography — Geist is the design-system typeface. The next/font
+     registration (--font-geist) lands in the following commit; until then
+     this falls back cleanly to the system sans stack. */
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-weight-normal:   400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+
+  /* Elevation — light, low, never glow */
+  --shadow-xs: 0 1px 2px rgba(17, 17, 17, 0.04);
+  --shadow-sm: 0 1px 3px rgba(17, 17, 17, 0.06), 0 1px 2px rgba(17, 17, 17, 0.04);
+  --shadow-md: 0 4px 12px -4px rgba(17, 17, 17, 0.08);
+
+  /* Motion — neutralised by the prefers-reduced-motion block further down */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+
+  /* z-index scale */
+  --z-nav:    100;
+  --z-drawer: 200;
+  --z-modal:  300;
+  --z-toast:  400;
+}
+
+/* ─── LEGACY TOKENS (frozen — used by legacy routes only) ───────────── */
 :root {
   --mc-bg:            #2a2f3a;
   --mc-surface:       #323845;
