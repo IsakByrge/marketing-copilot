@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Outfit } from "next/font/google";
+import { Cormorant_Garamond, Outfit, Geist } from "next/font/google";
 import "./globals.css";
+
+// Geist is the design-system typeface (weights 400/500/600 come from the
+// variable font). Exposed as --font-geist, which the --font-sans design
+// token in globals.css references. Registered additively: Outfit + Cormorant
+// stay so the frozen dark pages and legacy routes render unchanged in Sprint 1.
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+  display: "swap",
+});
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -30,7 +40,7 @@ export default function RootLayout({
   return (
     <html
       lang="sv"
-      className={`h-full ${cormorant.variable} ${outfit.variable}`}
+      className={`h-full ${geist.variable} ${cormorant.variable} ${outfit.variable}`}
       style={{ background: "#111111" }}
     >
       <body
