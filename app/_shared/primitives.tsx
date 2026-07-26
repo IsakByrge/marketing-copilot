@@ -13,6 +13,7 @@
 // Adoption of these primitives happens page-by-page in later sprints.
 // ─────────────────────────────────────────────────────────────────────
 import type { ComponentPropsWithRef, ReactNode } from "react";
+import { useId } from "react";
 
 /** Tiny className joiner — drops falsy values, no dependency. */
 export function cx(...parts: Array<string | false | null | undefined>): string {
@@ -125,5 +126,112 @@ export function Card({ padding = "md", interactive = false, className, children,
     >
       {children}
     </div>
+  );
+}
+
+/* ─── Input / Textarea ────────────────────────────────────────────── */
+
+// A ring on :focus (not only :focus-visible) is the expected affordance for
+// text fields — it appears for both pointer and keyboard focus.
+const fieldControlBase =
+  "w-full font-sans text-sm text-text-primary bg-surface border rounded px-3.5 py-2.5 " +
+  "placeholder:text-text-tertiary transition-colors focus:outline-none " +
+  "focus:ring-2 disabled:opacity-50 disabled:pointer-events-none";
+
+const fieldControlOk = "border-border focus:border-primary focus:ring-primary/20";
+const fieldControlError = "border-danger focus:border-danger focus:ring-danger/20";
+
+export interface InputProps extends ComponentPropsWithRef<"input"> {
+  invalid?: boolean;
+}
+
+export function Input({ invalid = false, className, type, ...props }: InputProps) {
+  return (
+    <input
+      type={type ?? "text"}
+      aria-invalid={invalid || undefined}
+      className={cx(fieldControlBase, invalid ? fieldControlError : fieldControlOk, className)}
+      {...props}
+    />
+  );
+}
+
+export interface TextareaProps extends ComponentPropsWithRef<"textarea"> {
+  invalid?: boolean;
+}
+
+export function Textarea({ invalid = false, className, rows, ...props }: TextareaProps) {
+  return (
+    <textarea
+      rows={rows ?? 4}
+      aria-invalid={invalid || undefined}
+      className={cx(fieldControlBase, "min-h-24 resize-y leading-relaxed", invalid ? fieldControlError : fieldControlOk, className)}
+      {...props}
+    />
+  );
+}
+
+/* ─── Field ───────────────────────────────────────────────────────── */
+
+export interface FieldProps {
+  label: string;
+  /** Rendered with a single form control; receives the generated id + aria wiring. */
+  children: (fieldProps: { id: string; invalid: boolean; "aria-describedby"?: string }) => ReactNode;
+  hint?: string;
+  error?: string;
+  optional?: boolean;
+  className?: string;
+}
+
+/**
+ * Labelled wrapper for a single control. Owns id/label association and
+ * hint/error wiring via a render-prop so the control receives the right
+ * `id`, `aria-invalid` and `aria-describedby` automatically.
+ */
+export function Field({ label, children, hint, error, optional, className }: FieldProps) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
+  const errorId = error ? `${id}-error` : undefined;
+  const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
+
+  return (
+    <div className={cx("flex flex-col gap-1.5", className)}>
+      <label htmlFor={id} className="font-sans text-sm font-medium text-text-primary">
+        {label}
+        {optional && <span className="ml-1 font-normal text-text-tertiary">— valfritt</span>}
+      </label>
+      {hint && <p id={hintId} className="font-sans text-xs text-text-tertiary">{hint}</p>}
+      {children({ id, invalid: Boolean(error), "aria-describedby": describedBy })}
+      {error && <p id={errorId} className="font-sans text-xs font-medium text-danger">{error}</p>}
+    </div>
+  );
+}
+
+/* ─── Chip ────────────────────────────────────────────────────────── */
+
+export type ChipTone = "neutral" | "primary" | "success" | "danger" | "warning";
+
+const chipTones: Record<ChipTone, string> = {
+  neutral: "bg-surface-sunken text-text-secondary border-border",
+  primary: "bg-primary/10 text-primary border-primary/20",
+  success: "bg-success-surface text-success border-success/20",
+  danger: "bg-danger-surface text-danger border-danger/20",
+  warning: "bg-warning-surface text-warning border-warning/20",
+};
+
+export interface ChipProps extends ComponentPropsWithRef<"span"> {
+  tone?: ChipTone;
+}
+
+export function Chip({ tone = "neutral", className, ...props }: ChipProps) {
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-sans text-xs font-medium",
+        chipTones[tone],
+        className,
+      )}
+      {...props}
+    />
   );
 }
