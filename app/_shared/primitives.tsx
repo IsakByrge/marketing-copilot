@@ -235,3 +235,99 @@ export function Chip({ tone = "neutral", className, ...props }: ChipProps) {
     />
   );
 }
+
+/* ─── Alert ───────────────────────────────────────────────────────── */
+
+export type AlertTone = "info" | "success" | "warning" | "danger";
+
+const alertTones: Record<AlertTone, { container: string; title: string }> = {
+  info: { container: "bg-surface-sunken border-border", title: "text-text-primary" },
+  success: { container: "bg-success-surface border-success/30", title: "text-success" },
+  warning: { container: "bg-warning-surface border-warning/30", title: "text-warning" },
+  danger: { container: "bg-danger-surface border-danger/30", title: "text-danger" },
+};
+
+export interface AlertProps extends Omit<ComponentPropsWithRef<"div">, "title"> {
+  tone?: AlertTone;
+  title?: ReactNode;
+  icon?: ReactNode;
+  children?: ReactNode;
+}
+
+export function Alert({ tone = "info", title, icon, className, children, ...props }: AlertProps) {
+  const tokens = alertTones[tone];
+  // Assertive for problems the user must act on; polite for neutral/positive.
+  const role = tone === "danger" || tone === "warning" ? "alert" : "status";
+  return (
+    <div
+      role={role}
+      className={cx("flex items-start gap-3 rounded border px-4 py-3 font-sans", tokens.container, className)}
+      {...props}
+    >
+      {icon && <span aria-hidden className={cx("mt-0.5 shrink-0", tokens.title)}>{icon}</span>}
+      <div className="min-w-0 text-sm">
+        {title && <p className={cx("font-medium", tokens.title)}>{title}</p>}
+        {children && <div className={cx("text-text-secondary leading-relaxed", Boolean(title) && "mt-1")}>{children}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Skeleton ────────────────────────────────────────────────────── */
+
+export type SkeletonShape = "line" | "block" | "circle";
+
+const skeletonShapes: Record<SkeletonShape, string> = {
+  line: "h-4 rounded",
+  block: "rounded-lg",
+  circle: "rounded-full aspect-square",
+};
+
+export interface SkeletonProps extends ComponentPropsWithRef<"div"> {
+  shape?: SkeletonShape;
+}
+
+/** Loading placeholder. `animate-pulse` is neutralised by prefers-reduced-motion. */
+export function Skeleton({ shape = "line", className, ...props }: SkeletonProps) {
+  return (
+    <div
+      aria-hidden
+      className={cx("animate-pulse bg-surface-sunken", skeletonShapes[shape], className)}
+      {...props}
+    />
+  );
+}
+
+/* ─── EmptyState ──────────────────────────────────────────────────── */
+
+export interface EmptyStateProps {
+  title: string;
+  body?: string;
+  icon?: ReactNode;
+  action?: ReactNode;
+  className?: string;
+}
+
+/** Honest empty view — never fabricated data. */
+export function EmptyState({ title, body, icon, action, className }: EmptyStateProps) {
+  return (
+    <div
+      className={cx(
+        "flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-surface px-6 py-12 text-center",
+        className,
+      )}
+    >
+      {icon && (
+        <span
+          aria-hidden
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary"
+        >
+          {icon}
+        </span>
+      )}
+      <p className="font-sans text-base font-medium text-text-primary">{title}</p>
+      {body && <p className="max-w-sm font-sans text-sm text-text-secondary leading-relaxed">{body}</p>}
+      {action && <div className="mt-1">{action}</div>}
+    </div>
+  );
+}
