@@ -25,6 +25,24 @@ const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 " +
   "focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
+/**
+ * CSS-only progress indicator (no dependency). Inherits the control's text
+ * colour via border-current; `animate-spin` is neutralised by the global
+ * prefers-reduced-motion block (it then reads as a static ring while
+ * aria-busy still announces the busy state).
+ */
+export function Spinner({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cx(
+        "inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent",
+        className,
+      )}
+    />
+  );
+}
+
 /* ─── Button ──────────────────────────────────────────────────────── */
 
 export type ButtonVariant = "primary" | "secondary" | "ghost";
@@ -50,48 +68,83 @@ const buttonVariants: Record<ButtonVariant, string> = {
 export interface ButtonProps extends ComponentPropsWithRef<"button"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** Shows a spinner, sets aria-busy and disables the control. */
+  loading?: boolean;
 }
 
-export function Button({ variant = "primary", size = "md", className, type, ...props }: ButtonProps) {
+export function Button({
+  variant = "primary",
+  size = "md",
+  loading = false,
+  disabled,
+  className,
+  type,
+  children,
+  ...props
+}: ButtonProps) {
   return (
     <button
       type={type ?? "button"}
-      className={cx(buttonBase, buttonSizes[size], buttonVariants[variant], className)}
+      aria-busy={loading || undefined}
+      disabled={disabled || loading}
+      className={cx(buttonBase, buttonSizes[size], buttonVariants[variant], "relative", className)}
       {...props}
-    />
+    >
+      {loading && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <Spinner />
+        </span>
+      )}
+      {/* Kept in the DOM while loading so width never jumps and the text
+          remains the control's accessible name; only visually hidden. */}
+      <span className={cx("contents", loading && "invisible")}>{children}</span>
+    </button>
   );
 }
 
 /* ─── IconButton ──────────────────────────────────────────────────── */
 
-export type IconButtonSize = "sm" | "md";
-
-const iconButtonSizes: Record<IconButtonSize, string> = {
-  sm: "h-8 w-8",
-  md: "h-10 w-10",
-};
-
+// A single 44×44px control — the locked minimum touch target for icon/touch
+// controls (WCAG 2.5.5). A smaller *visual* icon simply sits centred inside
+// this hit area (pass e.g. size={18} to the icon child). No sub-44px size is
+// offered: there is no verified use case for one, and a smaller hit target
+// would violate the locked requirement. If one is ever needed, add it as a
+// larger hit area with a centred smaller glyph — never a smaller button box.
 export interface IconButtonProps extends ComponentPropsWithRef<"button"> {
   /** Accessible name — required, since the control has no visible text. */
   "aria-label": string;
   variant?: ButtonVariant;
-  size?: IconButtonSize;
+  /** Shows a spinner, sets aria-busy and disables the control. */
+  loading?: boolean;
 }
 
-export function IconButton({ variant = "ghost", size = "md", className, type, ...props }: IconButtonProps) {
+export function IconButton({
+  variant = "ghost",
+  loading = false,
+  disabled,
+  className,
+  type,
+  children,
+  ...props
+}: IconButtonProps) {
   return (
     <button
       type={type ?? "button"}
+      aria-busy={loading || undefined}
+      disabled={disabled || loading}
       className={cx(
-        "inline-flex items-center justify-center rounded transition-colors cursor-pointer",
+        "inline-flex h-11 w-11 items-center justify-center rounded transition-colors cursor-pointer",
         "disabled:pointer-events-none disabled:opacity-50",
-        iconButtonSizes[size],
         buttonVariants[variant],
         focusRing,
         className,
       )}
       {...props}
-    />
+    >
+      {/* The 44px hit area is fixed, so swapping icon → spinner never shifts
+          layout; the accessible name is carried by the required aria-label. */}
+      {loading ? <Spinner /> : children}
+    </button>
   );
 }
 
@@ -108,18 +161,20 @@ const cardPadding: Record<CardPadding, string> = {
 
 export interface CardProps extends ComponentPropsWithRef<"div"> {
   padding?: CardPadding;
-  /** Adds a hover affordance for clickable cards. */
-  interactive?: boolean;
   children?: ReactNode;
 }
 
-export function Card({ padding = "md", interactive = false, className, children, ...props }: CardProps) {
+// A resting Card has NO shadow (per UX Redesign Blueprint v1.0) — separation
+// comes from background, border and spacing alone. There is intentionally no
+// `interactive` prop: a foundation Card must not encourage clickable <div>s.
+// Clickable cards are built later with a semantic <a>/<button> in the sprint
+// that implements the real use case.
+export function Card({ padding = "md", className, children, ...props }: CardProps) {
   return (
     <div
       className={cx(
-        "rounded-lg border border-border bg-surface shadow-sm",
+        "rounded-lg border border-border bg-surface",
         cardPadding[padding],
-        interactive && "transition-colors hover:border-border-strong",
         className,
       )}
       {...props}
