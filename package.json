@@ -11,7 +11,8 @@
     "smoke": "tsx scripts/route-smoke.mts",
     "test:prefill": "tsx scripts/strategyPrefill.integration.mts",
     "test:strategist": "tsx lib/strategist/strategist.test.mts",
-    "test:security": "tsx lib/server/security.test.mts"
+    "test:security": "tsx lib/server/security.test.mts",
+    "test:overview": "tsx app/dashboard/_components/overviewLogic.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
