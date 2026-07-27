@@ -12,7 +12,8 @@
 // the App Shell and the legacy routes keep using unchanged in Sprint 1.
 // Adoption of these primitives happens page-by-page in later sprints.
 // ─────────────────────────────────────────────────────────────────────
-import type { ComponentPropsWithRef, ReactNode } from "react";
+import Link from "next/link";
+import type { ComponentProps, ComponentPropsWithRef, ReactNode } from "react";
 import { useId } from "react";
 
 /** Tiny className joiner — drops falsy values, no dependency. */
@@ -99,6 +100,34 @@ export function Button({
           remains the control's accessible name; only visually hidden. */}
       <span className={cx("contents", loading && "invisible")}>{children}</span>
     </button>
+  );
+}
+
+/* ─── ButtonLink ──────────────────────────────────────────────────── */
+
+// A navigation control that looks like a Button but renders a real anchor
+// (via next/link), so CTAs that navigate keep correct link semantics instead
+// of nesting a <button> inside an <a>. Shares the Button styling exactly.
+export interface ButtonLinkProps extends Omit<ComponentProps<typeof Link>, "className"> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  className?: string;
+}
+
+export function ButtonLink({
+  variant = "primary",
+  size = "md",
+  className,
+  children,
+  ...props
+}: ButtonLinkProps) {
+  return (
+    <Link
+      className={cx(buttonBase, buttonSizes[size], buttonVariants[variant], className)}
+      {...props}
+    >
+      {children}
+    </Link>
   );
 }
 
