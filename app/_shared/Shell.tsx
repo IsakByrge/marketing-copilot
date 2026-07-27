@@ -12,6 +12,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
+import { clearAppStorage } from "./appStorage";
 import { T, fontSans, fontSerif, transition } from "./theme";
 import {
   IconToday, IconBuilder, IconCampaigns, IconContent, IconCompany, IconHistory,
@@ -179,6 +180,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     const sb = createClient();
+    // Clear our own cached client data BEFORE ending the session so a
+    // shared machine never leaks the previous user's plan/profile. This
+    // only removes marketing-copilot-* keys; the Supabase session logout
+    // below is unchanged.
+    clearAppStorage();
     await sb.auth.signOut();
     router.push("/login");
   }
