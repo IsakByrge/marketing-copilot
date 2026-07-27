@@ -22,27 +22,32 @@
    page-by-page adoption that follows in later sprints.
    ═══════════════════════════════════════════════════════════════════ */
 @theme static {
-  /* Colour — locked base values */
-  --color-background:     #F5FAF8;
-  --color-surface:        #FFFFFF;
-  --color-surface-sunken: #EFF5F2;
-  --color-primary:        #0F6B5B;
-  --color-primary-hover:  #0B5A4C;
-  --color-text-primary:   #111111;
-  --color-text-secondary: #5E6763;
-  --color-text-tertiary:  #6E7772;
-  --color-border:         #E5ECE8;
-  --color-border-strong:  #D3DFDA;
+  /* Colour — aligned to Design System 2.0 (§4.1/§4.2). These values are
+     authoritative. Consumed only by the light emerald layer
+     (app/_shared/primitives.tsx, the AppShell and page compositions); the
+     dark "Mission Control" routes use theme.ts + the --mc-* vars below and
+     are unaffected by any change here. */
+  --color-background:      #F5FAF8; /* canvas */
+  --color-surface:         #FFFFFF; /* card / panel */
+  --color-surface-sunken:  #EFF5F2; /* subtle inset / hover fill */
+  --color-primary:         #0F6B5B; /* brand.600 — CTA, active nav, key accent */
+  --color-primary-hover:   #0B5A4C; /* brand.700 */
+  --color-primary-surface: #EBF6F2; /* brand.100 — AI callouts, selected surfaces */
+  --color-text-primary:    #192220; /* ink */
+  --color-text-secondary:  #5C6C67; /* muted */
+  --color-text-tertiary:   #6E7772; /* metadata (product token, lighter than muted) */
+  --color-border:          #DCE7E2;
+  --color-border-strong:   #D3DFDA;
 
-  /* Status colours — NOT in the locked base palette. Provisional, accessible
-     defaults for Alert / Field-error; confirm or replace when the status
-     scale is locked. */
-  --color-success:         #0F6B5B;
-  --color-success-surface: #E7F3EF;
-  --color-danger:          #B42318;
-  --color-danger-surface:  #FEF3F2;
-  --color-warning:         #B54708;
-  --color-warning-surface: #FFFAEB;
+  /* Semantic colours — Design System 2.0 §4.2 (now locked). */
+  --color-success:         #277A52;
+  --color-success-surface: #EAF6EF;
+  --color-warning:         #B0802B;
+  --color-warning-surface: #FBF4E4;
+  --color-danger:          #A13838; /* DS "error" — token kept as danger for the primitives API */
+  --color-danger-surface:  #FBECEC;
+  --color-info:            #2F5E9B;
+  --color-info-surface:    #EDF3FB;
 
   /* Radii — standard 8px, maximum 12px */
   --radius-sm: 6px;
@@ -57,10 +62,11 @@
   --font-weight-medium:   500;
   --font-weight-semibold: 600;
 
-  /* Elevation — light, low, never glow */
-  --shadow-xs: 0 1px 2px rgba(17, 17, 17, 0.04);
-  --shadow-sm: 0 1px 3px rgba(17, 17, 17, 0.06), 0 1px 2px rgba(17, 17, 17, 0.04);
-  --shadow-md: 0 4px 12px -4px rgba(17, 17, 17, 0.08);
+  /* Elevation — Design System 2.0 §7.2, ink-based, functional not decorative.
+     Resting cards carry no shadow; these are for hover, popovers and overlays. */
+  --shadow-xs: 0 1px 2px rgba(15, 34, 29, 0.08);   /* level 1 — hover / subtle lift */
+  --shadow-sm: 0 8px 24px rgba(15, 34, 29, 0.10);  /* level 2 — dropdown / popover / sticky */
+  --shadow-md: 0 20px 48px rgba(15, 34, 29, 0.16); /* level 3 — modal / critical overlay */
 
   /* Motion — neutralised by the prefers-reduced-motion block further down */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
