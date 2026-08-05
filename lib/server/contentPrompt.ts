@@ -10,6 +10,7 @@
 // inloggade användarens Company Brain (aldrig ur klienten).
 // ─────────────────────────────────────────────────────────────
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
+import { voiceBlock, todayLabel } from "./voice";
 
 /** Tillåtna innehållstyper (samma id:n som klientens val — inga nya funktioner). */
 export const CONTENT_TYPES = ["social", "linkedin", "newsletter", "campaign", "offer", "case", "custom"] as const;
@@ -52,8 +53,6 @@ const joinList = (v: string[] | undefined, n = 12): string =>
 
 /** Systemprompt byggd server-side ur den inloggade användarens Company Brain. */
 export function buildContentSystemPrompt(ctx: CompanyBrainContext | null): string {
-  const month = new Date().toLocaleString("sv-SE", { month: "long" });
-
   const companyBlock = ctx
     ? `FÖRETAGSPROFIL (från Company Brain — bekräftade uppgifter, hitta inte på mer):
 Sammanfattning: ${ctx.summary || "(okänt)"}
@@ -71,12 +70,12 @@ Skapa innehåll som känns skrivet av någon som KÄNNER företaget inifrån —
 
 ${companyBlock}
 
-KRITISKA REGLER:
+${voiceBlock()}
+
+DESSUTOM:
 - Använd företagets faktiska tjänster och tonläge; följ innehållsriktlinjerna.
 - Använd ALDRIG något ur listan över förbjudna påståenden.
-- Anpassa till ${month}.
-- Hitta INTE på fakta, siffror eller resultat som inte framgår av profilen.
-- Inga generiska AI-fraser som "Vi strävar efter kvalitet" eller "I dagens digitala värld".
+- Nuläge: ${todayLabel()}. Anpassa säsong och tidsangivelser efter det.
 - Returnera ENDAST giltig JSON enligt det begärda schemat — ingen förtext, inga backticks.`;
 }
 

@@ -311,3 +311,19 @@ input, textarea {
 input::placeholder, textarea::placeholder {
   color: #a0aec0 !important;
 }
+
+/* ─── LJUSA EMERALD-SIDOR ────────────────────────────────
+   Reglerna ovan tvingar vit text i alla fält för den mörka
+   legacy-upplevelsen. På ljus bakgrund blir det vitt på vitt.
+   Här återställs texten inuti AppShell — legacy-sidorna rörs inte.
+   Tas bort helt när sista mörka sidan är migrerad.            */
+.app-light input,
+.app-light textarea,
+.app-light select {
+  color: var(--color-text-primary) !important;
+}
+
+.app-light input::placeholder,
+.app-light textarea::placeholder {
+  color: var(--color-text-tertiary) !important;
+}

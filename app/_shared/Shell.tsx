@@ -29,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/campaign-builder", label: "Campaign Builder", icon: IconBuilder },
   { href: "/campaigns", label: "Kampanjer", icon: IconCampaigns },
   { href: "/content", label: "Innehåll", icon: IconContent },
+  { href: "/produkttexter", label: "Produkttexter", icon: IconContent },
   { href: "/content/facebook", label: "Facebook Specialist", icon: IconSparkle },
   { href: "/company", label: "Företagskunskap", icon: IconCompany },
   { href: "/history", label: "Historik", icon: IconHistory },

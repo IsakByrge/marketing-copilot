@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { callChatJson, AI } from "@/lib/server/ai";
+import { voiceBlock, isoWeek } from "@/lib/server/voice";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -106,10 +107,8 @@ export async function POST(request: Request) {
     const year = now.getFullYear();
     const month = now.toLocaleString("sv-SE", { month: "long" });
     const day = now.getDate();
-    const jan1 = new Date(now.getFullYear(), 0, 1);
-    const week = Math.ceil(
-      ((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7
-    );
+    // ISO 8601 — den tidigare approximationen gav fel vecka stora delar av året.
+    const week = isoWeek(now);
 
     const upcomingDates = getUpcomingDates(now);
 
@@ -167,22 +166,14 @@ Ska undvikas: ${(profile.avoid ?? []).join(", ")}
 Innehållsriktlinjer: ${(profile.contentGuidelines ?? []).join(", ")}
 ${fileContext}
 
-KRITISKA REGLER:
-1. Använd ALLTID företagets faktiska namn och specifika tjänster
-2. Anpassa till ${day} ${month} ${year} — rätt år är ${year}
-3. Matcha branschens verkliga språk
-4. CTA:er ska vara konkreta handlingar, inte "Kontakta oss"
-5. Hitta INTE på fakta som inte framgår av profilen
-6. Variera innehållet — upprepa INTE teman, fokus eller inläggstitlar från tidigare planer
-7. Om användaren gett feedback ovan: luta tydligt mot de gillade inläggens stil och ton, och undvik mönstren i de ogillade
+${voiceBlock({ variation: true })}
 
-FÖRBJUDNA FRASER:
-- "Vi strävar efter att leverera kvalitet"
-- "Nöjda kunder är vår prioritet"
-- "Med lång erfarenhet inom branschen"
-- "Tveka inte att höra av dig"
-- "I dagens digitala värld"
-- Alla generiska fraser som kan gälla vilket företag som helst
+DESSUTOM:
+1. Använd ALLTID företagets faktiska namn och specifika tjänster
+2. Anpassa till ${day} ${month} ${year} — rätt år är ${year}, inte något tidigare år
+3. Matcha branschens verkliga språk
+4. Upprepa INTE teman, fokus eller inläggstitlar från tidigare planer
+5. Om användaren gett feedback ovan: luta tydligt mot de gillade inläggens stil och ton, och undvik mönstren i de ogillade
 
 Returnera exakt denna JSON:
 {

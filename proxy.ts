@@ -25,7 +25,7 @@ export async function proxy(request: NextRequest) {
   const protectedRoutes = [
     "/dashboard", "/onboarding", "/profile", "/create", "/post", "/newsletter",
     "/campaign", "/plan", "/generating", "/campaign-builder",
-    "/content", "/company", "/campaigns", "/history",
+    "/content", "/company", "/campaigns", "/history", "/produkttexter", "/innehall",
   ];
   const isProtected = protectedRoutes.some(r => request.nextUrl.pathname.startsWith(r));
 
