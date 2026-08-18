@@ -22,23 +22,25 @@
    page-by-page adoption that follows in later sprints.
    ═══════════════════════════════════════════════════════════════════ */
 @theme static {
-  /* Colour — locked base values */
-  --color-background:     #F5FAF8;
+  /* Colour — varm papperspalett (variant B, vald 18 aug 2026).
+     Ersätter den tidigare kalla vit-gröna. Bakgrunden är papper, inte
+     vitt; korten är vita och lyfter därför utan att behöva skuggor. */
+  --color-background:     #FAF7F1;
   --color-surface:        #FFFFFF;
-  --color-surface-sunken: #EFF5F2;
-  --color-primary:        #0F6B5B;
-  --color-primary-hover:  #0B5A4C;
-  --color-text-primary:   #111111;
-  --color-text-secondary: #5E6763;
-  --color-text-tertiary:  #6E7772;
-  --color-border:         #E5ECE8;
-  --color-border-strong:  #D3DFDA;
+  --color-surface-sunken: #F3EFE6;
+  --color-primary:        #125E4B;
+  --color-primary-hover:  #0E4C3D;
+  --color-text-primary:   #1A1A18;
+  --color-text-secondary: #5C574E;
+  --color-text-tertiary:  #8A8377;
+  --color-border:         #E8E1D5;
+  --color-border-strong:  #D8CFBE;
 
   /* Status colours — NOT in the locked base palette. Provisional, accessible
      defaults for Alert / Field-error; confirm or replace when the status
      scale is locked. */
-  --color-success:         #0F6B5B;
-  --color-success-surface: #E7F3EF;
+  --color-success:         #125E4B;
+  --color-success-surface: #E6EFEA;
   --color-danger:          #B42318;
   --color-danger-surface:  #FEF3F2;
   --color-warning:         #B54708;

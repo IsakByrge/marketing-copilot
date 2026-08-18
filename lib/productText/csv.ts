@@ -133,11 +133,28 @@ export interface ColumnGuess {
 
 /** Kandidatnamn per fält, gemener, i prioritetsordning. */
 const PATTERNS: Record<keyof ColumnGuess, string[]> = {
-  id: ["artikelnummer", "artnr", "art.nr", "artikelnr", "sku", "produktnummer", "id"],
+  // "id" är medvetet borttaget: det delsträngsmatchade "Hidden (1/0)" i
+  // Wikinggruppens export, så alla produkter fick artikelnummer "0" och alla
+  // texter kollapsade till en. Vi matchar bara på riktiga artikelnummerord.
+  id: ["artikelnummer", "artnr", "art.nr", "artikelnr", "sku", "produktnummer", "article number", "article no", "articleno", "product number"],
   name: ["produktnamn", "artikelnamn", "namn", "titel", "name", "title"],
   description: ["beskrivning", "produktbeskrivning", "artikelbeskrivning", "brödtext", "lång beskrivning", "description", "body"],
   group: ["produktgrupp", "kategori", "varugrupp", "grupp", "category"],
 };
+
+/**
+ * Rubriker som innehåller något av dessa ord får ALDRIG delsträngsmatchas —
+ * de är notoriska falska träffar (t.ex. "Hidden (1/0)" mot "id", eller
+ * "Meta description" mot "description"). Exakt matchning fungerar fortfarande:
+ * en kolumn som exakt heter "Category" väljs, men "Supplier category" väljs
+ * inte som produktgrupp via delsträng.
+ */
+export const NEVER_PARTIAL = [
+  "hidden", "meta", "image", "url", "stock", "price", "vat", "campaign", "supplier", "producer",
+] as const;
+
+const isNeverPartial = (headerLower: string): boolean =>
+  NEVER_PARTIAL.some((word) => headerLower.includes(word));
 
 /** Gissar vilka kolumner som är vad. Användaren kan alltid ändra i gränssnittet. */
 export function guessColumns(headers: string[]): ColumnGuess {
@@ -148,12 +165,50 @@ export function guessColumns(headers: string[]): ColumnGuess {
       if (exact !== -1) return headers[exact];
     }
     for (const p of PATTERNS[key]) {
-      const partial = lower.findIndex((h) => h.includes(p));
+      const partial = lower.findIndex((h) => h.includes(p) && !isNeverPartial(h));
       if (partial !== -1) return headers[partial];
     }
     return null;
   };
   return { id: pick("id"), name: pick("name"), description: pick("description"), group: pick("group") };
+}
+
+// ── Verifiering av artikelnummerkolumn ──────────────────────
+
+export interface IdColumnCheck {
+  /** Sant bara när varje rad har ett värde OCH alla värden är unika. */
+  ok: boolean;
+  /** Antal rader med ett ifyllt (icke-tomt) värde. */
+  filled: number;
+  /** Antal unika ifyllda värden. */
+  unique: number;
+  /** Upp till tre dubblettvärden, för felmeddelandet. */
+  examples: string[];
+}
+
+/**
+ * Kontrollerar att en vald kolumn duger som artikelnummer: varje rad måste ha
+ * ett värde och alla värden måste vara unika. Annars skulle flera artiklar få
+ * samma text, och en import skriva över hela sortimentet med en beskrivning.
+ */
+export function checkIdColumn(rows: Row[], column: string): IdColumnCheck {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  let filled = 0;
+  for (const row of rows) {
+    const value = (row[column] ?? "").trim();
+    if (!value) continue;
+    filled++;
+    if (seen.has(value)) duplicates.add(value);
+    else seen.add(value);
+  }
+  const ok = filled === rows.length && duplicates.size === 0;
+  return {
+    ok,
+    filled,
+    unique: seen.size,
+    examples: [...duplicates].slice(0, 3),
+  };
 }
 
 // ── Tunna texter ────────────────────────────────────────────

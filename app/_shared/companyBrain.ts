@@ -26,6 +26,10 @@ export type BusinessPriority = "low" | "normal" | "high";
 
 export interface CompanyProduct {
   id: string;
+  /** Butikens artikelnummer — kopplar posten till en rad i CSV-exporten så
+   *  produkttexter kan slå upp rätt fakta. Frivilligt: en produkt kan finnas
+   *  i hjärnan utan att (ännu) finnas i sortimentets export. */
+  articleNumber?: string;
   name: string;
   category?: string;
   description?: string;
@@ -196,6 +200,7 @@ export function sanitizeProduct(raw: unknown): CompanyProduct {
   const o = (raw && typeof raw === "object") ? (raw as Record<string, unknown>) : {};
   return {
     id: typeof o.id === "string" && o.id ? o.id : newBrainId(),
+    articleNumber: clipText(o.articleNumber, 60) || undefined,
     name: clipText(o.name, 120) || "Namnlös produkt",
     category: clipText(o.category, 80) || undefined,
     description: clipText(o.description, BRAIN_LIMITS.MAX_LONG_TEXT) || undefined,

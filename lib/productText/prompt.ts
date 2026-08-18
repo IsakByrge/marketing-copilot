@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
 import { voiceBlock } from "@/lib/server/voice";
+import { formatFacts, type FactsLookup } from "./productFacts";
 
 export const MAX_BATCH = 10;
 export const MAX_FIELD_LEN = 4_000;
@@ -52,18 +53,43 @@ SPECIFIKT FÖR PRODUKTTEXTER
 - 35–70 ord per produkt.
 - Minst en mening ska svara på något kunden faktiskt undrar över enligt
   företagsprofilen.
-- Är produktnamnet otydligt: skriv kortare hellre än att gissa detaljer.
 - Ren text utan html-taggar och utan rubrik.
+
+UNDERLAG OCH SAKUPPGIFTER
+Varje produkt levereras med ett block märkt UNDERLAG. Det är de enda
+sakuppgifter du har. Du får omformulera och prioritera dem, men aldrig lägga
+till egenskaper som inte står där.
+
+Detta får ALDRIG skrivas om det inte står i UNDERLAG: material, mått, vikt,
+volym, kapacitet, tryck, flöde, effekt, ventil- eller kopplingstyp, vilken
+utrustning produkten passar till, certifieringar och standarder.
+
+Står uppgiften i produktnamnet får den upprepas — namnet är verifierat. Saknas
+en uppgift: utelämna den. Skriv hellre fyra korta meningar som stämmer än sju
+som låter bra.
+
+Undvik tomma påståenden som "passar perfekt för olika användningsområden".
 
 Svara med JSON: { "texts": [ { "id": "artikelnummer", "description": "texten" } ] }
 Ett objekt per produkt du fått, med exakt samma id.`;
 }
 
-export function buildUserPrompt(products: ProductInput[]): string {
+export function buildUserPrompt(products: ProductInput[], lookup?: FactsLookup): string {
   const lines = products.map((p) => {
     const parts = [`id: ${p.id}`, `namn: ${p.name}`];
     if (p.group) parts.push(`produktgrupp: ${p.group}`);
     if (p.current && p.current.trim()) parts.push(`nuvarande text: ${p.current.trim()}`);
+
+    const facts = lookup ? lookup(p.id) : null;
+    const formatted = facts ? formatFacts(facts) : null;
+    if (formatted) {
+      parts.push(`UNDERLAG:\n${formatted}`);
+    } else {
+      parts.push(
+        "UNDERLAG: saknas. Använd endast produktnamnet och produktgruppen. " +
+        "Nämn inte material, mått, tryck, kopplingstyp eller vad produkten passar till.",
+      );
+    }
     return parts.join("\n");
   });
   return `Skriv en produktbeskrivning för var och en av följande ${products.length} produkter.\n\n${lines.join("\n\n---\n\n")}`;
@@ -94,6 +120,12 @@ export function validateGenerated(parsed: unknown, asked: ProductInput[]): Gener
   if (!Array.isArray(list)) return null;
 
   const wanted = new Set(asked.map((p) => p.id));
+  const seenIds = new Set<string>();
+  // Identisk text på olika artiklar betyder att modellen tappat bort vilken
+  // produkt den skriver om — kassera dem hellre än att skriva fel text.
+  const seenContent = new Set<string>();
+  const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+
   const out: GeneratedText[] = [];
   for (const raw of list) {
     if (!raw || typeof raw !== "object") continue;
@@ -101,7 +133,15 @@ export function validateGenerated(parsed: unknown, asked: ProductInput[]): Gener
     const id = typeof o.id === "string" ? o.id.trim() : "";
     const description = typeof o.description === "string" ? o.description.trim() : "";
     if (!wanted.has(id) || !description) continue;
-    out.push({ id, description: description.replace(/<[^>]*>/g, "").slice(0, MAX_FIELD_LEN) });
+    if (seenIds.has(id)) continue;
+
+    const clean = description.replace(/<[^>]*>/g, "").slice(0, MAX_FIELD_LEN);
+    const key = normalize(clean);
+    if (seenContent.has(key)) continue;
+
+    seenIds.add(id);
+    seenContent.add(key);
+    out.push({ id, description: clean });
   }
   return out.length > 0 ? out : null;
 }

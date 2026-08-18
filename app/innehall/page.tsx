@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
 import { Button, Card, Textarea, Chip, Alert, EmptyState, Skeleton, cx } from "@/app/_shared/primitives";
 import { useAccountData, type MarketingPlan } from "@/app/_shared/useAccountData";
+import { isoWeek } from "@/lib/server/voice";
 import { createClient } from "@/lib/supabase-browser";
 
 type Rating = "up" | "down";
@@ -110,13 +111,29 @@ export default function ContentPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
-        <header className="mb-8">
-          <h1 className="text-2xl font-medium tracking-tight">Innehåll</h1>
-          <p className="mt-1.5 text-sm text-text-secondary">
-            {plan?.focus
-              ? `Veckans fokus: ${plan.focus}`
-              : "Inlägg, nyhetsbrev och kampanjförslag från din senaste plan."}
+        {/* Variant B: rekommendationen står fritt på papperstonen och bär
+            sidan. Korten under är vita och lyfter mot den. */}
+        <header className="mb-9">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+            Vecka {isoWeek(new Date())} · {new Date().toLocaleDateString("sv-SE", { weekday: "long" })}
           </p>
+          {plan?.focus ? (
+            <>
+              <h1 className="mt-3 max-w-2xl text-[clamp(1.5rem,3.2vw,1.85rem)] font-semibold leading-[1.25] tracking-tight">
+                {plan.focus}
+              </h1>
+              {plan.tags?.length > 0 && (
+                <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
+                  Jag lutar åt {plan.tags.slice(0, 3).join(", ").toLowerCase()} den här veckan,
+                  utifrån det du fyllt i under Vad jag vet.
+                </p>
+              )}
+            </>
+          ) : (
+            <h1 className="mt-3 text-[clamp(1.5rem,3.2vw,1.85rem)] font-semibold leading-[1.25] tracking-tight">
+              Inlägg och nyhetsbrev
+            </h1>
+          )}
         </header>
 
         {!loaded && (
@@ -139,8 +156,8 @@ export default function ContentPage() {
           <div className="space-y-10">
             {posts.length > 0 && (
               <section>
-                <h2 className="mb-3 text-sm font-medium text-text-secondary">
-                  Inlägg · {posts.length} st
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+                  {posts.length} inlägg väntar
                 </h2>
                 <div className="space-y-3">
                   {posts.map((p, i) => {
@@ -216,7 +233,7 @@ export default function ContentPage() {
 
             {newsletter && (
               <section>
-                <h2 className="mb-3 text-sm font-medium text-text-secondary">Nyhetsbrev</h2>
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">Nyhetsbrev</h2>
                 <Card padding="sm">
                   <button
                     type="button"
@@ -253,7 +270,7 @@ export default function ContentPage() {
 
             {campaigns.length > 0 && (
               <section>
-                <h2 className="mb-3 text-sm font-medium text-text-secondary">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
                   Kampanjförslag · {campaigns.length} st
                 </h2>
                 <div className="space-y-3">

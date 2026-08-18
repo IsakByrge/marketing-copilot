@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { hasForbiddenProxyField } from "@/lib/server/contentPrompt";
-import { getCompanyBrainContext } from "@/lib/companyBrainServer";
+import { getCompanyBrainContext, getCompanyBrain } from "@/lib/companyBrainServer";
 import { callChatJson, AI } from "@/lib/server/ai";
 import {
   buildSystemPrompt,
@@ -19,6 +19,7 @@ import {
   validateGenerated,
   MAX_BATCH,
 } from "@/lib/productText/prompt";
+import { buildFactsLookup } from "@/lib/productText/productFacts";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -52,9 +53,10 @@ export async function POST(request: Request) {
       return safeError(`Skicka mellan 1 och ${MAX_BATCH} produkter med id och namn.`, 400);
     }
 
-    const ctx = await getCompanyBrainContext();
+    const [ctx, brain] = await Promise.all([getCompanyBrainContext(), getCompanyBrain()]);
+    const lookup = brain ? buildFactsLookup(brain) : undefined;
     const system = buildSystemPrompt(ctx);
-    const user = buildUserPrompt(products);
+    const user = buildUserPrompt(products, lookup);
 
     // ~120 tokens per text plus overhead. Taket i ai.ts gäller ändå.
     const maxTokens = Math.min(400 + products.length * 200, 4_096);

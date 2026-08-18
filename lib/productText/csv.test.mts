@@ -1,7 +1,7 @@
 // Kör: npx tsx lib/productText/csv.test.mts
 import assert from "node:assert/strict";
 import {
-  parseCsv, toCsv, detectDelimiter, guessColumns, isThin, textLength,
+  parseCsv, toCsv, detectDelimiter, guessColumns, checkIdColumn, isThin, textLength,
 } from "./csv";
 
 let passed = 0;
@@ -68,6 +68,69 @@ test("gissar kolumner på delsträng", () => {
 
 test("saknad kolumn ger null", () => {
   assert.equal(guessColumns(["kolumn a", "kolumn b"]).id, null);
+});
+
+// Wikinggruppens riktiga export: ~25 rubriker där naiv delsträngsmatchning
+// tidigare tog "Hidden (1/0)" som artikelnummer och "Meta description" som
+// beskrivning. Dessa regressionstester ska hindra att det händer igen.
+const WIKING_HEADERS = [
+  "Article number", "Product name", "Description", "Meta description",
+  "Meta title", "Category", "Supplier category", "Producer", "Supplier",
+  "Hidden (1/0)", "Image 1", "Image 2", "Product URL", "Stock", "Stock status",
+  "Price", "Price incl VAT", "VAT rate", "Campaign price", "Weight",
+  "EAN", "Unit", "Sort order", "Created", "Updated",
+];
+
+test("Wikinggruppens rubriker mappas rätt", () => {
+  const g = guessColumns(WIKING_HEADERS);
+  assert.equal(g.id, "Article number");
+  assert.equal(g.name, "Product name");
+  assert.equal(g.description, "Description");
+  assert.equal(g.group, "Category");
+});
+
+test("Hidden (1/0) väljs aldrig som artikelnummer", () => {
+  // Utan en riktig artikelnummerkolumn ska id bli null, inte "Hidden (1/0)".
+  const g = guessColumns(["Hidden (1/0)", "Product name", "Description"]);
+  assert.equal(g.id, null);
+});
+
+test("Meta description väljs inte före Description", () => {
+  // Även om Meta description står först i filen.
+  const g = guessColumns(["Meta description", "Description"]);
+  assert.equal(g.description, "Description");
+});
+
+test("NEVER_PARTIAL blockerar delsträng men inte exakt match", () => {
+  // "Supplier category" får inte delsträngsmatchas mot grupp...
+  assert.equal(guessColumns(["Supplier category"]).group, null);
+  // ...men en exakt "Category" väljs fortfarande.
+  assert.equal(guessColumns(["Category"]).group, "Category");
+});
+
+test("checkIdColumn: unika, ifyllda värden är ok", () => {
+  const rows = [{ Art: "1001" }, { Art: "1002" }, { Art: "1003" }];
+  const c = checkIdColumn(rows, "Art");
+  assert.equal(c.ok, true);
+  assert.equal(c.filled, 3);
+  assert.equal(c.unique, 3);
+  assert.deepEqual(c.examples, []);
+});
+
+test("checkIdColumn: dubbletter ger inte ok och listar exempel", () => {
+  const rows = [{ Art: "0" }, { Art: "0" }, { Art: "0" }, { Art: "7" }];
+  const c = checkIdColumn(rows, "Art");
+  assert.equal(c.ok, false);
+  assert.equal(c.filled, 4);
+  assert.equal(c.unique, 2);
+  assert.deepEqual(c.examples, ["0"]);
+});
+
+test("checkIdColumn: tomma värden ger inte ok", () => {
+  const rows = [{ Art: "1001" }, { Art: "" }, { Art: "1003" }];
+  const c = checkIdColumn(rows, "Art");
+  assert.equal(c.ok, false);
+  assert.equal(c.filled, 2);
 });
 
 test("textLength räknar utan html", () => {

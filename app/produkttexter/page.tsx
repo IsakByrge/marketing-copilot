@@ -15,7 +15,7 @@ import {
   Button, Card, Textarea, Field, Chip, Alert, EmptyState, cx,
 } from "@/app/_shared/primitives";
 import {
-  parseCsv, toCsv, guessColumns, isThin, textLength, THIN_LIMIT,
+  parseCsv, toCsv, guessColumns, checkIdColumn, isThin, textLength, THIN_LIMIT,
   type Row, type ColumnGuess,
 } from "@/lib/productText/csv";
 import { MAX_BATCH } from "@/lib/productText/prompt";
@@ -84,13 +84,18 @@ export default function ProductTextsPage() {
       .filter((p) => p.id && p.name);
   }, [rows, cols]);
 
+  // Verifierar den valda artikelnummerkolumnen: tomma eller icke-unika värden
+  // betyder att flera artiklar skulle få samma text och en import skriva över
+  // hela sortimentet. Blockerar därför att man går vidare.
+  const idCheck = useMemo(() => (cols.id ? checkIdColumn(rows, cols.id) : null), [rows, cols.id]);
+
   const thinCount = useMemo(() => products.filter((p) => isThin(p.current)).length, [products]);
   const visible = useMemo(
     () => (onlyThin ? products.filter((p) => isThin(p.current)) : products),
     [products, onlyThin],
   );
 
-  const ready = Boolean(cols.id && cols.name && cols.description);
+  const ready = Boolean(cols.id && cols.name && cols.description && idCheck?.ok);
   const draftCount = Object.keys(drafts).length;
 
   function toggle(id: string) {
@@ -157,6 +162,16 @@ export default function ProductTextsPage() {
 
   function download() {
     if (!cols.id || !cols.description) return;
+    // Dubbelt skydd: konsekvensen av ett dåligt artikelnummer är att skriva fel
+    // data till hela butiken vid import, så vi kontrollerar igen här.
+    const check = checkIdColumn(rows, cols.id);
+    if (!check.ok) {
+      setError(
+        `Artikelnummerkolumnen "${cols.id}" har tomma eller upprepade värden. ` +
+        "Exporten avbröts eftersom en import annars kunde skriva över flera artiklar med samma text.",
+      );
+      return;
+    }
     const changed = rows.filter((r) => drafts[(r[cols.id!] ?? "").trim()]);
     const out = changed.map((r) => ({ ...r, [cols.description!]: drafts[(r[cols.id!] ?? "").trim()] }));
     const blob = new Blob(["﻿" + toCsv(headers, out, delimiter)], { type: "text/csv;charset=utf-8" });
@@ -235,6 +250,20 @@ export default function ProductTextsPage() {
                 </Field>
               ))}
             </div>
+
+            {cols.id && idCheck && !idCheck.ok && (
+              <Alert tone="danger" title="Artikelnummerkolumnen duger inte" className="mt-6">
+                Kolumnen <strong>{cols.id}</strong> har {idCheck.filled} ifyllda värden
+                men bara {idCheck.unique} unika
+                {idCheck.examples.length > 0 && (
+                  <> — t.ex. {idCheck.examples.map((e) => `"${e}"`).join(", ")}</>
+                )}.
+                Varje artikel måste ha ett eget, unikt artikelnummer. Annars får
+                flera produkter samma text, och en import skulle skriva över hela
+                sortimentet med en enda beskrivning. Välj rätt kolumn för
+                artikelnummer.
+              </Alert>
+            )}
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Button onClick={() => setStage("work")} disabled={!ready}>

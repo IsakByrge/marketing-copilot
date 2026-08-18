@@ -49,7 +49,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-light min-h-svh bg-background font-sans text-text-primary">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-border bg-surface lg:flex">
+      {/* Sidomenyn ligger på den nedsänkta papperstonen, innehållsytan på
+          bakgrunden och korten i vitt — tre steg som ger djup utan skuggor. */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-border bg-surface-sunken lg:flex">
         <Link href="/dashboard" className="flex items-center gap-2.5 px-5 py-5">
           <span className="flex h-7 w-7 items-center justify-center rounded bg-primary text-sm font-medium text-white">
             M
@@ -68,8 +70,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 className={cx(
                   "mb-0.5 flex items-center gap-3 rounded px-3 py-2.5 text-sm transition-colors",
                   on
-                    ? "bg-surface-sunken font-medium text-primary"
-                    : "text-text-secondary hover:bg-surface-sunken hover:text-text-primary",
+                    ? "bg-surface font-medium text-primary"
+                    : "text-text-secondary hover:bg-surface hover:text-text-primary",
                 )}
               >
                 <Icon size={17} />
@@ -86,7 +88,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </aside>
 
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-2.5 border-b border-border bg-surface px-4 lg:hidden">
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-2.5 border-b border-border bg-surface-sunken px-4 lg:hidden">
         <span className="flex h-7 w-7 items-center justify-center rounded bg-primary text-sm font-medium text-white">
           M
         </span>
@@ -95,7 +97,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <main className="pb-20 lg:ml-56 lg:pb-0">{children}</main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-surface lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-surface-sunken lg:hidden">
         {ITEMS.map(({ href, label, icon: Icon }) => {
           const on = isActive(pathname, href);
           return (
