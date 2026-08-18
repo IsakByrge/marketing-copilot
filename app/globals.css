@@ -329,3 +329,11 @@ input::placeholder, textarea::placeholder {
 .app-light textarea::placeholder {
   color: var(--color-text-tertiary) !important;
 }
+
+/* Basregeln längre upp tvingar Cormorant på alla h1–h3 för den mörka
+   legacy-upplevelsen. Den ljusa designen är sans rakt igenom. */
+.app-light h1,
+.app-light h2,
+.app-light h3 {
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+}
