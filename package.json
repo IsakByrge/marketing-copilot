@@ -15,7 +15,8 @@
     "test:overview": "tsx app/dashboard/_components/overviewLogic.test.mts",
     "test:producttext": "tsx lib/productText/csv.test.mts",
     "test:voice": "tsx lib/server/voice.test.mts",
-    "test:editmemory": "tsx lib/server/editMemory.test.mts"
+    "test:editmemory": "tsx lib/server/editMemory.test.mts",
+    "test:imageprompt": "tsx lib/server/imagePrompt.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

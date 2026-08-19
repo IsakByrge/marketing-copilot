@@ -18,6 +18,8 @@ import {
   LoadingPanel, ErrorNote, EmptyState, CopyButton, SectionLabel,
 } from "@/app/_shared/uiLight";
 import { IconContent, IconSparkle, IconCheck, IconX } from "@/app/_shared/icons";
+import ImageMaker from "@/app/_shared/ImageMaker";
+import { briefToSubject } from "@/lib/server/imagePrompt";
 import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
 import {
   GOAL_OPTIONS, ANGLE_OPTIONS, LENGTH_OPTIONS, TONE_SUGGESTIONS,
@@ -822,6 +824,15 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
           <BriefRow label="Komposition" value={primary.imageBrief.composition} />
           {primary.imageBrief.textOverlay && <BriefRow label="Text i bild" value={primary.imageBrief.textOverlay} />}
           {primary.imageBrief.avoid.length > 0 && <BriefRow label="Undvik" value={primary.imageBrief.avoid.join(", ")} />}
+        </div>
+
+        {/* Briefen är redan skriven — bilden skapas bara om du väljer det.
+            Aldrig automatiskt: en bild kostar hundra gånger mer än texten. */}
+        <div style={{ marginTop: 12 }}>
+          <ImageMaker
+            initialPrompt={briefToSubject(primary.imageBrief)}
+            avoid={primary.imageBrief.avoid}
+          />
         </div>
       </section>
 

@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
 import { Button, ButtonLink, Card, Textarea, Chip, Alert, EmptyState, Skeleton, cx } from "@/app/_shared/primitives";
 import { useAccountData, type MarketingPlan } from "@/app/_shared/useAccountData";
+import ImageMaker from "@/app/_shared/ImageMaker";
 import { isoWeek } from "@/lib/server/voice";
 import { createClient } from "@/lib/supabase-browser";
 
@@ -374,7 +375,9 @@ export default function ContentPage() {
                               onChange={(e) => updateEdit(key, e.target.value)}
                             />
                             {p.image && (
-                              <p className="mt-2 text-xs text-text-tertiary">Bildidé: {p.image}</p>
+                              <div className="mt-3">
+                                <ImageMaker initialPrompt={p.image} />
+                              </div>
                             )}
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               <CopyButton
