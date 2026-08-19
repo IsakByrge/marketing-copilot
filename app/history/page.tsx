@@ -7,9 +7,9 @@
 // visats i UI:t förrän nu. Ingen ny affärslogik, bara en lista
 // i stället för limit(1).
 // ─────────────────────────────────────────────────────────────
-import Shell from "@/app/_shared/Shell";
-import { T, fontSerif, fontSans } from "@/app/_shared/theme";
-import { PageHeader, PrimaryButton, EmptyState } from "@/app/_shared/ui";
+import AppShell from "@/app/_shared/AppShell";
+import { T, fontSerif, fontSans } from "@/app/_shared/themeLight";
+import { PageHeader, PrimaryButton, EmptyState } from "@/app/_shared/uiLight";
 import { IconHistory } from "@/app/_shared/icons";
 import { useAccountData } from "@/app/_shared/useAccountData";
 
@@ -21,7 +21,7 @@ export default function HistoryPage() {
   const { history, loaded } = useAccountData();
 
   return (
-    <Shell>
+    <AppShell>
       <div style={{ maxWidth: 760, margin: "0 auto", padding: "56px 40px 80px" }}>
         <PageHeader eyebrow="Historik" title="Tidigare marknadsplaner." subtitle="Varje plan din marknadschef har skapat, i tidsordning." />
 
@@ -65,6 +65,6 @@ export default function HistoryPage() {
           </div>
         )}
       </div>
-    </Shell>
+    </AppShell>
   );
 }

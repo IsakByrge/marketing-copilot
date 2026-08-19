@@ -11,12 +11,12 @@
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
-import Shell from "@/app/_shared/Shell";
-import { T, fontSans, fontSerif, transition } from "@/app/_shared/theme";
+import AppShell from "@/app/_shared/AppShell";
+import { T, fontSans, fontSerif, transition } from "@/app/_shared/themeLight";
 import {
   PageHeader, PrimaryButton, GhostButton, Field, TextInput, TextArea,
   LoadingPanel, ErrorNote, EmptyState, CopyButton, SectionLabel,
-} from "@/app/_shared/ui";
+} from "@/app/_shared/uiLight";
 import { IconContent, IconSparkle, IconCheck, IconX } from "@/app/_shared/icons";
 import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
 import {
@@ -312,7 +312,7 @@ export default function FacebookSpecialistPage() {
 
   if (loaded && !hasCompany) {
     return (
-      <Shell>
+      <AppShell>
         <div style={{ maxWidth: 720, margin: "0 auto", padding: "56px 40px 100px" }}>
           <PageHeader eyebrow="Facebook Specialist" title="Skapa Facebook-inlägg som passar ditt företag."
             subtitle="Skapa Facebook-inlägg som är anpassade efter ditt företag, ditt mål och din målgrupp." />
@@ -320,12 +320,12 @@ export default function FacebookSpecialistPage() {
             body="Facebook-specialisten skriver utifrån ditt företag. Skapa en företagsprofil först."
             action={<PrimaryButton href="/onboarding">Starta onboarding</PrimaryButton>} />
         </div>
-      </Shell>
+      </AppShell>
     );
   }
 
   return (
-    <Shell>
+    <AppShell>
       <div style={{ maxWidth: 880, margin: "0 auto", padding: "48px 40px 110px" }}>
         {phase !== "result" && (
           <PageHeader
@@ -536,7 +536,7 @@ export default function FacebookSpecialistPage() {
           />
         )}
       </div>
-    </Shell>
+    </AppShell>
   );
 }
 
@@ -546,7 +546,8 @@ const CHECK_LABELS: Record<keyof FacebookQualityChecks, string> = {
   clearCustomerValue: "Kundnytta", credibleClaims: "Trovärdiga påståenden", correctTone: "Rätt ton",
   clearCTA: "Tydlig CTA", appropriateLength: "Rimlig längd", readableFormatting: "Läsbar formatering",
   noForbiddenClaims: "Inga förbjudna påståenden", naturalSwedish: "Naturlig svenska",
-  honestSocialProof: "Ärligt socialt bevis",
+  honestSocialProof: "Ärligt socialt bevis", noEmptyClosing: "Konkret avslut",
+  noBannedPhrases: "Inga tomma fraser",
 };
 
 /** Användarvänlig huvudstatus — den primära signalen (poängtalet är sekundärt). */
@@ -677,6 +678,26 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
     onRegenerate(buildBrief(overrides));
   }
 
+  /** Sparar paret AI-original → din version, så framtida inlägg låter som du. */
+  async function rememberEdit() {
+    if (!edited || editedText === primary.postText) return;
+    try {
+      await fetch("/api/text-edits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "facebook_post",
+          original: primary.postText,
+          edited: editedText,
+          label: primary.label,
+          companyId,
+        }),
+      });
+    } catch {
+      // Tyst med flit — minnet får aldrig stå i vägen för arbetet.
+    }
+  }
+
   async function saveDraft() {
     setSaveState("saving");
     try {
@@ -693,6 +714,7 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
         edited_text: edited ? editedText : null,
       });
       if (error) throw error;
+      void rememberEdit();
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2500);
     } catch {
@@ -748,7 +770,7 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
 
       {/* Actions */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-        <CopyButton getText={() => fullCopy} label="Kopiera" />
+        <CopyButton getText={() => { void rememberEdit(); return fullCopy; }} label="Kopiera" />
         <GhostButton onClick={() => setEditing((e) => !e)}>{editing ? "Stäng redigering" : "Redigera"}</GhostButton>
         <GhostButton onClick={() => regen({})}>Skapa ny variant</GhostButton>
         <GhostButton onClick={() => regen({ length: "short" })}>Förkorta</GhostButton>

@@ -20,6 +20,7 @@ import {
   MAX_BATCH,
 } from "@/lib/productText/prompt";
 import { buildFactsLookup } from "@/lib/productText/productFacts";
+import { editMemoryBlock } from "@/lib/server/editMemory";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -53,9 +54,13 @@ export async function POST(request: Request) {
       return safeError(`Skicka mellan 1 och ${MAX_BATCH} produkter med id och namn.`, 400);
     }
 
-    const [ctx, brain] = await Promise.all([getCompanyBrainContext(), getCompanyBrain()]);
+    const [ctx, brain, editMemory] = await Promise.all([
+      getCompanyBrainContext(),
+      getCompanyBrain(),
+      editMemoryBlock("product_text"),
+    ]);
     const lookup = brain ? buildFactsLookup(brain) : undefined;
-    const system = buildSystemPrompt(ctx);
+    const system = buildSystemPrompt(ctx, editMemory);
     const user = buildUserPrompt(products, lookup);
 
     // ~120 tokens per text plus overhead. Taket i ai.ts gäller ändå.

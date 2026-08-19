@@ -138,6 +138,10 @@ export interface FacebookQualityChecks {
   naturalSwedish: boolean;
   /** Inget fabricerat eller obestyrkt social proof. */
   honestSocialProof: boolean;
+  /** Avslutet innehåller något konkret, och texten saknar utropstecken. */
+  noEmptyClosing: boolean;
+  /** Ingen av de delade förbjudna formuleringarna (lib/server/voice.ts). */
+  noBannedPhrases: boolean;
 }
 
 /** Användarvänlig huvudstatus — ersätter poängtalet som primär signal. */

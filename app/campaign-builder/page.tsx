@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Shell from "@/app/_shared/Shell";
+import AppShell from "@/app/_shared/AppShell";
 import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
 import { STRATEGIST_GOALS } from "@/lib/strategist/goals";
 import { saveStrategyV2 } from "@/lib/campaignStrategyStore";
@@ -21,16 +21,19 @@ import type {
 } from "@/lib/strategist/types";
 import type { CampaignGoal } from "@/app/campaign-builder/types";
 
+// Variant B: samma nycklar som förut, ljus papperspalett. "gold" heter
+// fortfarande gold i koden men är den gröna accenten — nyckelnamnen
+// behålls för att hålla ändringen liten och risken låg.
 const T = {
-  bg: "#0a0a10", surface: "#131319", surface2: "#191921", surfaceHover: "#1e1e27",
-  line: "rgba(255,255,255,0.07)", line2: "rgba(255,255,255,0.13)",
-  text: "#f5f5f8", text2: "#aeb2c2", text3: "#6f7386", text4: "#4b4e5c",
-  gold: "#8b6bf2", goldBright: "#a78bfa", goldDim: "rgba(139,107,242,0.14)", goldBorder: "rgba(139,107,242,0.35)",
-  green: "#3ecf8e", greenDim: "rgba(62,207,142,0.13)", orange: "#f0a058", orangeDim: "rgba(240,160,88,0.13)",
-  red: "#f0616b", redDim: "rgba(240,97,107,0.13)",
+  bg: "#FAF7F1", surface: "#FFFFFF", surface2: "#F3EFE6", surfaceHover: "#EFE9DC",
+  line: "#E8E1D5", line2: "#D8CFBE",
+  text: "#1A1A18", text2: "#5C574E", text3: "#8A8377", text4: "#A8A093",
+  gold: "#125E4B", goldBright: "#125E4B", goldDim: "#E6EFEA", goldBorder: "#BFD6CC",
+  green: "#125E4B", greenDim: "#E6EFEA", orange: "#8A5A12", orangeDim: "#FAF0DC",
+  red: "#A33228", redDim: "#FBEAE7",
 };
-const sans = "var(--font-outfit), sans-serif";
-const serif = "var(--font-cormorant), serif";
+const sans = "var(--font-geist), ui-sans-serif, system-ui, sans-serif";
+const serif = "var(--font-geist), ui-sans-serif, system-ui, sans-serif";
 
 type Phase = "brief" | "analyzing" | "questions" | "recommending" | "result";
 
@@ -207,7 +210,7 @@ export default function MarketingStrategistPage() {
   /* ── Tomläge: ingen företagsprofil ─────────────────────────── */
   if (loaded && !hasCompany) {
     return (
-      <Shell>
+      <AppShell>
         <div style={{ maxWidth: 720, margin: "0 auto", padding: "56px 24px 100px" }}>
           <Header companyName="" />
           <div style={{ padding: "36px 28px", borderRadius: 16, background: T.surface, border: `1px dashed ${T.line2}` }}>
@@ -216,12 +219,12 @@ export default function MarketingStrategistPage() {
             <PrimaryButton href="/onboarding">Starta onboarding →</PrimaryButton>
           </div>
         </div>
-      </Shell>
+      </AppShell>
     );
   }
 
   return (
-    <Shell>
+    <AppShell>
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "44px 24px 120px" }}>
         <Header companyName={companyName} />
         <PhaseIndicator phase={phase} />
@@ -257,7 +260,7 @@ export default function MarketingStrategistPage() {
           <ResultView strategy={strategy} savedStrategyId={savedStrategyId} onAdjust={() => setPhase(questions.length ? "questions" : "brief")} onRestart={reset} />
         )}
       </div>
-    </Shell>
+    </AppShell>
   );
 }
 

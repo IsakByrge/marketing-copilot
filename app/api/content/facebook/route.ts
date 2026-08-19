@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────
 import { validateBrief } from "@/app/content/facebook/types";
 import { runFacebookSpecialist, criticalFollowUp, type FacebookPhase } from "@/lib/facebook/specialist";
+import { editMemoryBlock } from "@/lib/server/editMemory";
 import { buildFacebookContext } from "@/lib/facebook/context";
 import { guardAiRequest } from "@/lib/server/guard";
 import { AI } from "@/lib/server/ai";
@@ -87,6 +88,7 @@ export async function POST(request: Request) {
           emit,
           signal: request.signal,
           requestId,
+          editMemory: await editMemoryBlock("facebook_post"),
         });
 
         // Endast icke-känslig telemetri i loggen.

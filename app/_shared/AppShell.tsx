@@ -9,14 +9,14 @@
 // Mobil är huvudfallet: sidomenyn är dold under lg och ersätts av en
 // fast tabbrad i botten med 44px träffyta.
 //
-// Fyra ytor, inte nio. Fler läggs till när det finns ett verkligt behov.
+// Fem ytor, inte nio. Fler läggs till när det finns ett verkligt behov.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { cx } from "./primitives";
-import { IconToday, IconContent, IconCompany, IconPencil } from "./icons";
+import { IconToday, IconContent, IconCompany, IconPencil, IconSparkle } from "./icons";
 
 interface Item {
   href: string;
@@ -28,6 +28,7 @@ const ITEMS: Item[] = [
   { href: "/dashboard", label: "Idag", icon: IconToday },
   { href: "/produkttexter", label: "Produkttexter", icon: IconPencil },
   { href: "/innehall", label: "Innehåll", icon: IconContent },
+  { href: "/content/facebook", label: "Facebook", icon: IconSparkle },
   { href: "/company", label: "Vad jag vet", icon: IconCompany },
 ];
 
@@ -97,7 +98,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <main className="pb-20 lg:ml-56 lg:pb-0">{children}</main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-surface-sunken lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-surface-sunken lg:hidden">
         {ITEMS.map(({ href, label, icon: Icon }) => {
           const on = isActive(pathname, href);
           return (

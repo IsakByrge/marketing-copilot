@@ -30,7 +30,7 @@ export interface GeneratedText {
 const joinList = (v: string[] | undefined, n = 12): string =>
   (v ?? []).filter(Boolean).slice(0, n).join(", ");
 
-export function buildSystemPrompt(ctx: CompanyBrainContext | null): string {
+export function buildSystemPrompt(ctx: CompanyBrainContext | null, editMemory = ""): string {
   const company = ctx
     ? `FÖRETAGET (ur Company Brain — bekräftade uppgifter, hitta inte på mer):
 Sammanfattning: ${ctx.summary || "(okänt)"}
@@ -48,6 +48,8 @@ Säsonger: ${joinList(ctx.seasons) || "(inga angivna)"}`
 ${company}
 
 ${voiceBlock({ variation: true })}
+
+${editMemory}
 
 SPECIFIKT FÖR PRODUKTTEXTER
 - 35–70 ord per produkt.

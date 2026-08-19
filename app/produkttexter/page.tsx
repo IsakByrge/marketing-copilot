@@ -45,6 +45,9 @@ export default function ProductTextsPage() {
   const [cols, setCols] = useState<ColumnGuess>({ id: null, name: null, description: null, group: null });
 
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // AI:ns oredigerade version, sparad separat. Skillnaden mot `drafts`
+  // vid export är det som lär produkten hur du skriver.
+  const [originals, setOriginals] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -151,12 +154,40 @@ export default function ProductTextsPage() {
           for (const t of usable) next[t.id] = t.description;
           return next;
         });
+        setOriginals((prev) => {
+          const next = { ...prev };
+          for (const t of usable) next[t.id] = t.description;
+          return next;
+        });
         setProgress({ done: Math.min(i + MAX_BATCH, queue.length), total: queue.length });
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Något gick fel. Försök igen.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveEdits() {
+    const pairs = Object.entries(drafts)
+      .filter(([id, edited]) => originals[id] && originals[id] !== edited)
+      .slice(0, 20);
+
+    for (const [id, edited] of pairs) {
+      try {
+        await fetch("/api/text-edits", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: "product_text",
+            original: originals[id],
+            edited,
+            label: products.find((p) => p.id === id)?.name,
+          }),
+        });
+      } catch {
+        // Tyst med flit — användaren ska aldrig störas av att minnet fallerar.
+      }
     }
   }
 
@@ -174,6 +205,10 @@ export default function ProductTextsPage() {
     }
     const changed = rows.filter((r) => drafts[(r[cols.id!] ?? "").trim()]);
     const out = changed.map((r) => ({ ...r, [cols.description!]: drafts[(r[cols.id!] ?? "").trim()] }));
+    // Lär av redigeringarna. Körs utan att blockera nedladdningen: minnet är
+    // en förbättring, aldrig en förutsättning för att få ut sin fil.
+    void saveEdits();
+
     const blob = new Blob(["﻿" + toCsv(headers, out, delimiter)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
