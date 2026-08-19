@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { callChatJson, AI } from "@/lib/server/ai";
 import { voiceBlock, isoWeek } from "@/lib/server/voice";
+import { editMemoryBlock } from "@/lib/server/editMemory";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -111,6 +112,8 @@ export async function POST(request: Request) {
     const week = isoWeek(now);
 
     const upcomingDates = getUpcomingDates(now);
+    // Lär av hur användaren brukar skriva om planens inlägg.
+    const editMemory = await editMemoryBlock("plan_post");
 
     // Hämta historik från Supabase (RLS-scopat till den inloggade användaren)
     const pastPlans = await getPastPlans(guard.supabase, profile.companyName ?? "", userId);
@@ -167,6 +170,8 @@ Innehållsriktlinjer: ${(profile.contentGuidelines ?? []).join(", ")}
 ${fileContext}
 
 ${voiceBlock({ variation: true })}
+
+${editMemory}
 
 DESSUTOM:
 1. Använd ALLTID företagets faktiska namn och specifika tjänster

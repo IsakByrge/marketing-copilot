@@ -7,16 +7,20 @@
 // samma mönster som produkttexterna — se allt, öppna, redigera direkt,
 // kopiera. Ingen navigering fram och tillbaka för att läsa ett inlägg.
 //
-// Redigeringar lever i den här vyn och följer med i kopieringen. De
-// sparas inte till databasen — planen är källan, och det som ska ut
-// hamnar ändå i Facebook eller nyhetsbrevsverktyget.
+// Redigeringar sparas lokalt per plan, så de överlever en omladdning.
+// Planen i databasen lämnas orörd — den är AI:ns original, och det är
+// skillnaden mot din version som är värd något.
+//
+// När du kopierar en text skickas paret (original, din version) till
+// redigeringsminnet. Det är den här sidan du redigerar mest, så det är
+// härifrån produkten lär sig din röst snabbast.
 //
 // Tummarna sparas däremot: generate-plan läser dem och lutar mot det du
 // gillat. Det är produktens enda lärande-loop idag.
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
-import { Button, Card, Textarea, Chip, Alert, EmptyState, Skeleton, cx } from "@/app/_shared/primitives";
+import { Button, ButtonLink, Card, Textarea, Chip, Alert, EmptyState, Skeleton, cx } from "@/app/_shared/primitives";
 import { useAccountData, type MarketingPlan } from "@/app/_shared/useAccountData";
 import { isoWeek } from "@/lib/server/voice";
 import { createClient } from "@/lib/supabase-browser";
@@ -33,7 +37,7 @@ function newsletterText(n: MarketingPlan["newsletter"]): string {
     .filter(Boolean).join("\n");
 }
 
-function CopyButton({ getText }: { getText: () => string }) {
+function CopyButton({ getText, onCopied }: { getText: () => string; onCopied?: () => void }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
@@ -41,6 +45,7 @@ function CopyButton({ getText }: { getText: () => string }) {
       variant="secondary"
       onClick={() => {
         navigator.clipboard.writeText(getText());
+        onCopied?.();
         setCopied(true);
         setTimeout(() => setCopied(false), 1800);
       }}
@@ -55,6 +60,15 @@ export default function ContentPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [ratings, setRatings] = useState<Record<number, Rating>>({});
+
+  // Snabbskapande: ett enskilt inlägg utan att hela veckoplanen görs om.
+  // Går via /api/create-content, som redan äger prompten server-side.
+  const [quickTopic, setQuickTopic] = useState("");
+  const [quickType, setQuickType] = useState<"social" | "newsletter" | "offer">("social");
+  const [quickBusy, setQuickBusy] = useState(false);
+  const [quickError, setQuickError] = useState<string | null>(null);
+  const [quickResult, setQuickResult] = useState<{ title: string; body: string; cta?: string } | null>(null);
+  const [quickOriginal, setQuickOriginal] = useState("");
 
   // Tidigare tummar, så knapparna visar rätt läge direkt.
   useEffect(() => {
@@ -104,6 +118,89 @@ export default function ContentPage() {
     }
   }
 
+  // Nyckel per plan, så ändringar i en gammal plan inte läcker in i en ny.
+  const editsKey = plan?.id ? `mc-innehall-edits-${plan.id}` : null;
+
+  // Läs tillbaka sparade ändringar när planen laddats.
+  useEffect(() => {
+    if (!editsKey) return;
+    try {
+      const saved = localStorage.getItem(editsKey);
+      if (saved) setEdits(JSON.parse(saved));
+    } catch {
+      // Trasig lagring ska inte hindra sidan från att visas.
+    }
+  }, [editsKey]);
+
+  function updateEdit(key: string, value: string) {
+    setEdits((prev) => {
+      const next = { ...prev, [key]: value };
+      if (editsKey) {
+        try {
+          localStorage.setItem(editsKey, JSON.stringify(next));
+        } catch {
+          // Full lagring — ändringen lever ändå kvar i vyn.
+        }
+      }
+      return next;
+    });
+  }
+
+  /** Skickar paret till redigeringsminnet. Tyst; får aldrig störa. */
+  async function rememberEdit(
+    kind: "plan_post" | "newsletter",
+    original: string,
+    edited: string,
+    label?: string,
+  ) {
+    if (!edited || original === edited) return;
+    try {
+      await fetch("/api/text-edits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, original, edited, label }),
+      });
+    } catch {
+      // Minnet är en förbättring, aldrig en förutsättning.
+    }
+  }
+
+  async function createQuick() {
+    const request = quickTopic.trim();
+    if (!request) return;
+
+    setQuickBusy(true);
+    setQuickError(null);
+    try {
+      const res = await fetch("/api/create-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: quickType, request }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "Kunde inte skapa innehållet just nu.");
+      }
+      const data = await res.json();
+      const result = {
+        title: typeof data.title === "string" ? data.title : "",
+        body: typeof data.body === "string" ? data.body : "",
+        cta: typeof data.cta === "string" ? data.cta : undefined,
+      };
+      setQuickResult(result);
+      // Spara originalet så redigeringar kan läras in vid kopiering.
+      setQuickOriginal([result.title, result.body, result.cta].filter(Boolean).join("\n\n"));
+    } catch (e) {
+      setQuickError(e instanceof Error ? e.message : "Något gick fel. Försök igen.");
+    } finally {
+      setQuickBusy(false);
+    }
+  }
+
+  const quickText = quickResult
+    ? [quickResult.title, quickResult.body, quickResult.cta].filter(Boolean).join("\n\n")
+    : "";
+
   const posts = plan?.posts ?? [];
   const newsletter = plan?.newsletter;
   const campaigns = plan?.campaigns ?? [];
@@ -152,6 +249,85 @@ export default function ContentPage() {
           />
         )}
 
+        {loaded && (
+          <section className="mb-10">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+              Skriv något nu
+            </h2>
+            <Card padding="sm">
+              <Textarea
+                rows={2}
+                value={quickTopic}
+                onChange={(e) => setQuickTopic(e.target.value)}
+                placeholder="t.ex. Terrassvärmare inför hösten — påminn om att se över slangen"
+              />
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {([
+                  ["social", "Inlägg"],
+                  ["newsletter", "Nyhetsbrev"],
+                  ["offer", "Erbjudande"],
+                ] as const).map(([value, label]) => (
+                  <Button
+                    key={value}
+                    size="sm"
+                    variant={quickType === value ? "primary" : "secondary"}
+                    onClick={() => setQuickType(value)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+                <span className="ml-auto">
+                  <Button
+                    size="sm"
+                    onClick={createQuick}
+                    loading={quickBusy}
+                    disabled={!quickTopic.trim()}
+                  >
+                    Skriv
+                  </Button>
+                </span>
+              </div>
+
+              {quickError && (
+                <Alert tone="danger" title="Det gick inte" className="mt-4">{quickError}</Alert>
+              )}
+
+              {quickResult && (
+                <div className="mt-4 border-t border-border pt-4">
+                  <p className="font-medium">{quickResult.title}</p>
+                  <Textarea
+                    className="mt-2"
+                    rows={7}
+                    value={quickText}
+                    onChange={(e) => {
+                      const [title, ...rest] = e.target.value.split("\n\n");
+                      setQuickResult({ title, body: rest.join("\n\n"), cta: undefined });
+                    }}
+                  />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <CopyButton
+                      getText={() => quickText}
+                      onCopied={() => void rememberEdit(
+                        quickType === "newsletter" ? "newsletter" : "plan_post",
+                        quickOriginal,
+                        quickText,
+                        quickResult.title,
+                      )}
+                    />
+                    <ButtonLink
+                      size="sm"
+                      variant="ghost"
+                      href={`/content/facebook?amne=${encodeURIComponent(quickTopic.slice(0, 400))}`}
+                    >
+                      Gör om ordentligt
+                    </ButtonLink>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </section>
+        )}
+
         {loaded && plan && (
           <div className="space-y-10">
             {posts.length > 0 && (
@@ -195,13 +371,26 @@ export default function ContentPage() {
                             <Textarea
                               rows={7}
                               value={value}
-                              onChange={(e) => setEdits({ ...edits, [key]: e.target.value })}
+                              onChange={(e) => updateEdit(key, e.target.value)}
                             />
                             {p.image && (
                               <p className="mt-2 text-xs text-text-tertiary">Bildidé: {p.image}</p>
                             )}
                             <div className="mt-3 flex flex-wrap items-center gap-2">
-                              <CopyButton getText={() => edits[key] ?? postText(p)} />
+                              <CopyButton
+                                getText={() => edits[key] ?? postText(p)}
+                                onCopied={() => void rememberEdit("plan_post", postText(p), edits[key] ?? "", p.title)}
+                              />
+                              {/* Veckoplanens inlägg är snabba utkast. Specialisten
+                                  granskar kvalitet och ger tre vinklar — den här
+                                  knappen tar med ämnet dit utan omskrivning. */}
+                              <ButtonLink
+                                size="sm"
+                                variant="ghost"
+                                href={`/content/facebook?amne=${encodeURIComponent(`${p.title}. ${p.text}`.slice(0, 400))}`}
+                              >
+                                Gör om ordentligt
+                              </ButtonLink>
                               <span className="ml-auto flex gap-2">
                                 <Button
                                   size="sm"
@@ -257,10 +446,13 @@ export default function ContentPage() {
                       <Textarea
                         rows={12}
                         value={edits["nl"] ?? newsletterText(newsletter)}
-                        onChange={(e) => setEdits({ ...edits, nl: e.target.value })}
+                        onChange={(e) => updateEdit("nl", e.target.value)}
                       />
                       <div className="mt-3">
-                        <CopyButton getText={() => edits["nl"] ?? newsletterText(newsletter)} />
+                        <CopyButton
+                          getText={() => edits["nl"] ?? newsletterText(newsletter)}
+                          onCopied={() => void rememberEdit("newsletter", newsletterText(newsletter), edits["nl"] ?? "", newsletter.subject)}
+                        />
                       </div>
                     </div>
                   )}

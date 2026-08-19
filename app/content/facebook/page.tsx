@@ -190,6 +190,14 @@ export default function FacebookSpecialistPage() {
   // Direktnavigering från Campaign Builder (/content/facebook?strategy=<id>)
   // hanteras här: när strategin finns i användarens lista förväljs och förifylls
   // den direkt (setState sker i en async-callback, inte synkront i effektkroppen).
+  // Direktlänk från Innehåll: /content/facebook?amne=<text> förifyller
+  // ämnesfältet så ett grovt veckoplansutkast kan tas vidare till den
+  // riktiga motorn utan att skrivas in på nytt.
+  useEffect(() => {
+    const topic = new URLSearchParams(window.location.search).get("amne");
+    if (topic) setProductOrTopic(topic.slice(0, 500));
+  }, []);
+
   useEffect(() => {
     const wanted = new URLSearchParams(window.location.search).get("strategy");
     (async () => {
