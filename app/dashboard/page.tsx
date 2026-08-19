@@ -15,6 +15,7 @@ import { useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
 import { Button, ButtonLink, Card, Alert, EmptyState, Skeleton } from "@/app/_shared/primitives";
 import { useAccountData } from "@/app/_shared/useAccountData";
+import UsagePanel from "@/app/_shared/UsagePanel";
 import { firstNameFromEmail } from "@/app/_shared/Shell";
 import { isoWeek } from "@/lib/server/voice";
 import { createClient } from "@/lib/supabase-browser";
@@ -213,6 +214,11 @@ export default function DashboardPage() {
                   </div>
                 </section>
               )}
+
+              <section>
+                <Label>Din AI-användning</Label>
+                <UsagePanel />
+              </section>
 
               <section>
                 <Label>Inte kopplat ännu</Label>

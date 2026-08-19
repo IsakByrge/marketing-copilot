@@ -24,13 +24,19 @@ import type { CampaignGoal } from "@/app/campaign-builder/types";
 // Variant B: samma nycklar som förut, ljus papperspalett. "gold" heter
 // fortfarande gold i koden men är den gröna accenten — nyckelnamnen
 // behålls för att hålla ändringen liten och risken låg.
+// Pekare till designtokens i globals.css, inte egna färgvärden. Samma
+// princip som themeLight.ts: en källa till sanning för paletten.
 const T = {
-  bg: "#FAF7F1", surface: "#FFFFFF", surface2: "#F3EFE6", surfaceHover: "#EFE9DC",
-  line: "#E8E1D5", line2: "#D8CFBE",
-  text: "#1A1A18", text2: "#5C574E", text3: "#8A8377", text4: "#A8A093",
-  gold: "#125E4B", goldBright: "#125E4B", goldDim: "#E6EFEA", goldBorder: "#BFD6CC",
-  green: "#125E4B", greenDim: "#E6EFEA", orange: "#8A5A12", orangeDim: "#FAF0DC",
-  red: "#A33228", redDim: "#FBEAE7",
+  bg: "var(--color-background)", surface: "var(--color-surface)",
+  surface2: "var(--color-surface-sunken)", surfaceHover: "var(--color-surface-sunken)",
+  line: "var(--color-border)", line2: "var(--color-border-strong)",
+  text: "var(--color-text-primary)", text2: "var(--color-text-secondary)",
+  text3: "var(--color-text-tertiary)", text4: "var(--color-text-tertiary)",
+  gold: "var(--color-primary)", goldBright: "var(--color-primary)",
+  goldDim: "var(--color-success-surface)", goldBorder: "var(--color-border-strong)",
+  green: "var(--color-success)", greenDim: "var(--color-success-surface)",
+  orange: "var(--color-warning)", orangeDim: "var(--color-warning-surface)",
+  red: "var(--color-danger)", redDim: "var(--color-danger-surface)",
 };
 const sans = "var(--font-geist), ui-sans-serif, system-ui, sans-serif";
 const serif = "var(--font-geist), ui-sans-serif, system-ui, sans-serif";
