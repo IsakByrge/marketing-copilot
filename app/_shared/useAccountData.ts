@@ -88,7 +88,11 @@ export function useAccountData() {
             const latest = plans[0];
             setPlan({
               id: latest.id, createdAt: latest.created_at,
-              company: company.name, focus: latest.focus, tags: latest.tags ?? [],
+              company: company.name, focus: latest.focus,
+              // Null for planer skapade fore migration 0007 - da visar
+              // Idag sin reservtext i stallet.
+              intro: latest.intro ?? undefined,
+              tags: latest.tags ?? [],
               posts: latest.posts ?? [], newsletter: latest.newsletter,
               campaigns: latest.campaigns ?? [], opportunities: latest.opportunities ?? [],
             });

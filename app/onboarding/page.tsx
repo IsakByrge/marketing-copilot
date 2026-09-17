@@ -433,7 +433,8 @@ export default function OnboardingPage() {
         if (user) {
           await sb.from("plans").insert({
             company_id: companyId, user_id: user.id,
-            focus: result.focus, tags: result.tags, posts: result.posts,
+            focus: result.focus, intro: result.intro ?? null,
+            tags: result.tags, posts: result.posts,
             newsletter: result.newsletter, campaigns: result.campaigns,
             opportunities: result.opportunities,
           });

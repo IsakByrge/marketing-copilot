@@ -99,7 +99,8 @@ export default function DashboardPage() {
           // läser vidare på den, och det finns bara efter en insert.
           const { data: saved } = await sb.from("plans").insert({
             company_id: company.id, user_id: user.id,
-            focus: newPlan.focus, tags: newPlan.tags, posts: newPlan.posts,
+            focus: newPlan.focus, intro: newPlan.intro ?? null,
+            tags: newPlan.tags, posts: newPlan.posts,
             newsletter: newPlan.newsletter, campaigns: newPlan.campaigns,
             opportunities: newPlan.opportunities,
           }).select().single();
