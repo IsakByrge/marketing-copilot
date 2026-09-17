@@ -87,6 +87,7 @@ const brain: CompanyBrainContext = {
   marketingGoals: [DEPAMAL, "Fler återkommande påfyllningskunder"],
   preferredCallsToAction: ["Kom förbi depån", "Läs mer på webbplatsen"],
   proofPoints: [],
+  locations: ["Norrköping", "Linköping", "Nyköping"],
 };
 
 // ── Kontroller ──────────────────────────────────────────────

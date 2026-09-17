@@ -13,6 +13,7 @@
 import { voiceBlock, isoWeek } from "./voice";
 import { factGuardBlock } from "./factGuard";
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
+import { veckansOrt } from "@/app/_shared/locations";
 
 export type PlanCompanyProfile = {
   companyName?: string; industry?: string; summary?: string;
@@ -82,6 +83,7 @@ ${mal}
 ${brain.seasons.length ? `\nVIKTIGA SÄSONGER: ${brain.seasons.join(", ")}` : ""}
 ${brain.usps.length ? `\nDET SOM SKILJER FÖRETAGET: ${brain.usps.join("; ")}` : ""}
 ${brain.proofPoints.length ? `\nVERIFIERADE BEVIS SOM FÅR ÅBEROPAS: ${brain.proofPoints.join("; ")}` : ""}
+${brain.locations.length ? `\nPLATSER KUNDER KAN BESÖKA: ${brain.locations.join(", ")}` : ""}
 
 STYRREGLER FÖR URVALET:
 - Produkter med prioritet "high" ELLER lönsamhet "high" som är i säsong just
@@ -106,6 +108,17 @@ export interface PlanPromptInput {
   feedbackContext: string;
   fileContext: string;
   editMemory: string;
+}
+
+/**
+ * Instruktionen om veckans ort. Roterar på ISO-veckan, så fem veckor i
+ * rad inte alla handlar om samma depå. Tom sträng när ingen ort finns —
+ * då ska inlägget inte nämna någon.
+ */
+function veckansLokalaOrt(brain: CompanyBrainContext | null, now: Date): string {
+  const ort = veckansOrt(brain?.locations ?? [], isoWeek(now));
+  if (!ort) return "";
+  return `\n   DEN HÄR VECKAN handlar det lokala inlägget om ${ort}. Nämn orten i\n   texten. Andra orter får nämnas i förbigående, men ${ort} är veckans.`;
 }
 
 export function buildPlanUserPrompt(input: PlanPromptInput): string {
@@ -140,6 +153,7 @@ ${factGuardBlock({
   products: brain?.priorityProducts.map((p) => p.name) ?? profile.products ?? [],
   approvedCtas: brain?.preferredCallsToAction ?? [],
   forbiddenClaims: brain?.forbiddenClaims ?? [],
+  locations: brain?.locations ?? [],
 })}
 
 ${voiceBlock({ variation: true, example: false })}
@@ -160,8 +174,9 @@ Exakt ett inlägg per roll, i den här ordningen:
 2. "tips" — praktisk kunskap läsaren kan använda direkt, utan att köpa något.
 3. "prioriterad_produkt" — handlar om den högst prioriterade produkten i
    säsong. Skriv produktens namn i fältet "produkt".
-4. "lokalt" — knyter an till orten, depån eller platsen där kunderna finns.
-   Hitta inte på platser; använd bara dem som står i företagsdatan.
+4. "lokalt" — knyter an till orten där kunderna finns.${veckansLokalaOrt(brain, now)}
+   Hitta ALDRIG på en plats. Finns ingen ort i företagsdatan: skriv
+   inlägget allmänt om närområdet utan att nämna någon ort alls.
 5. "socialt" — ställer en fråga eller bjuder in till ett samtal. Inga
    tävlingar, inga utlottningar, inget som kräver bilder vi inte har.
 

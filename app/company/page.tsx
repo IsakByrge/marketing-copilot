@@ -20,8 +20,9 @@ import { useCompanyBrain, type SaveStatus } from "@/app/_shared/useCompanyBrain"
 import {
   computeCompleteness, topKnowledgeGaps, newManualProduct, newBrainId,
   type CompanyBrain, type CompanyProduct, type CompanyCompetitor, type KnowledgeGap,
-  type ProfitabilityLevel, type BusinessPriority,
+  type ProfitabilityLevel, type BusinessPriority, type CompanyLocation,
 } from "@/app/_shared/companyBrain";
+import { ortesFranText } from "@/app/_shared/locations";
 
 const PROFITABILITY_LABEL: Record<ProfitabilityLevel, string> = {
   unknown: "Vet inte", low: "Låg", normal: "Normal", high: "Hög",
@@ -343,6 +344,41 @@ function ProductRow({ product, onEdit, onDelete, onConfirm, onReject }: {
   );
 }
 
+function LocationForm({ location, onSave, onCancel }: {
+  location: CompanyLocation; onSave: (l: CompanyLocation) => void; onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState<CompanyLocation>(location);
+  return (
+    <div className="space-y-4 rounded-lg border border-border bg-surface-sunken p-5">
+      <Labeled label="Ort">
+        <Input
+          value={draft.city}
+          onChange={(e) => setDraft((d) => ({ ...d, city: e.target.value }))}
+          placeholder="t.ex. Norrköping"
+        />
+      </Labeled>
+      <Labeled label="Adress" optional>
+        <Input
+          value={draft.address ?? ""}
+          onChange={(e) => setDraft((d) => ({ ...d, address: e.target.value }))}
+          placeholder="t.ex. Verkstadsgatan 4"
+        />
+      </Labeled>
+      <Labeled label="Öppettider" optional>
+        <Input
+          value={draft.openingHours ?? ""}
+          onChange={(e) => setDraft((d) => ({ ...d, openingHours: e.target.value }))}
+          placeholder="t.ex. Vardagar 7–16"
+        />
+      </Labeled>
+      <div className="flex gap-2">
+        <Button onClick={() => onSave(draft)} disabled={!draft.city.trim()}>Spara</Button>
+        <Button variant="ghost" onClick={onCancel}>Avbryt</Button>
+      </div>
+    </div>
+  );
+}
+
 function CompetitorForm({ competitor, onSave, onCancel }: {
   competitor: CompanyCompetitor; onSave: (c: CompanyCompetitor) => void; onCancel: () => void;
 }) {
@@ -370,6 +406,17 @@ export default function CompanyPage() {
   const { brain, setBrain, save, saveStatus, loaded, hasCompany, companyName } = useCompanyBrain();
   const [editingProductId, setEditingProductId] = useState<string | "new" | null>(null);
   const [editingCompetitorId, setEditingCompetitorId] = useState<string | "new" | null>(null);
+  const [editingLocationId, setEditingLocationId] = useState<string | "new" | null>(null);
+
+  // Vad som skulle lasas ur sammanfattningen om inga platser ar ifyllda.
+  // Visas sa att anvandaren ser vad produkten redan tror sig veta.
+  const reservOrter = ortesFranText(brain.companySummary);
+
+  function saveLocation(l: CompanyLocation) {
+    const exists = brain.locations.some((x) => x.id === l.id);
+    persist({ ...brain, locations: exists ? brain.locations.map((x) => x.id === l.id ? l : x) : [...brain.locations, l] });
+    setEditingLocationId(null);
+  }
 
   function persist(next: CompanyBrain) {
     setBrain(next);
@@ -536,6 +583,57 @@ export default function CompanyPage() {
                 </p>
                 <TagList items={brain.commonCustomerObjections} onChange={(v) => setBrain({ ...brain, commonCustomerObjections: v })} placeholder="t.ex. Gasol känns farligt att hantera" />
                 <Button onClick={() => save(brain)}>Spara invändningar</Button>
+              </div>
+            </Section>
+
+            <Section
+              title="Depåer och platser"
+              status={brain.locations.length ? `${brain.locations.length} st` : reservOrter.length ? `${reservOrter.length} läst ur sammanfattningen` : "Inga angivna ännu"}
+            >
+              <div className="space-y-3">
+                <p className="text-sm leading-relaxed text-text-secondary">
+                  Orterna används i veckans lokala inlägg, en ort per vecka i tur och ordning.
+                  Fyller du inget här läser jag orterna ur sammanfattningen i stället — men bara
+                  de jag är säker på.
+                </p>
+
+                {brain.locations.length === 0 && reservOrter.length > 0 && (
+                  <Alert className="mb-1">
+                    Läser just nu {reservOrter.join(", ")} ur sammanfattningen. Lägg till dem här
+                    om du vill kunna ange adress och öppettider.
+                  </Alert>
+                )}
+
+                {brain.locations.map((l) => (
+                  editingLocationId === l.id ? (
+                    <LocationForm key={l.id} location={l} onSave={saveLocation} onCancel={() => setEditingLocationId(null)} />
+                  ) : (
+                    <div key={l.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-sunken p-4">
+                      <div>
+                        <p className="font-medium">{l.city}</p>
+                        {(l.address || l.openingHours) && (
+                          <p className="text-xs text-text-tertiary">
+                            {[l.address, l.openingHours].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => setEditingLocationId(l.id)}>Redigera</Button>
+                        <Button size="sm" variant="ghost" onClick={() => persist({ ...brain, locations: brain.locations.filter((x) => x.id !== l.id) })}>Ta bort</Button>
+                      </div>
+                    </div>
+                  )
+                ))}
+
+                {editingLocationId === "new" ? (
+                  <LocationForm
+                    location={{ id: newBrainId(), city: "" }}
+                    onSave={saveLocation}
+                    onCancel={() => setEditingLocationId(null)}
+                  />
+                ) : (
+                  <Button variant="secondary" onClick={() => setEditingLocationId("new")}>Lägg till plats</Button>
+                )}
               </div>
             </Section>
 
