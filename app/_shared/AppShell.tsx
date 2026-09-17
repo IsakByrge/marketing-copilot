@@ -51,16 +51,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-light min-h-svh bg-background font-sans text-text-primary">
       {/* Sidomenyn ligger på den nedsänkta papperstonen, innehållsytan på
-          bakgrunden och korten i vitt — tre steg som ger djup utan skuggor. */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-border bg-surface-sunken lg:flex">
-        <Link href="/dashboard" className="flex items-center gap-2.5 px-5 py-5">
+          bakgrunden och korten i vitt — tre steg som ger djup utan skuggor.
+
+          Fast i vänsterkanten över hela skärmhöjden: menyn står still när
+          innehållet scrollar. Bara nav-listan scrollar, och bara om den
+          blir längre än skärmen — logotyp och konto ligger alltid kvar. */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col overflow-hidden border-r border-border bg-surface-sunken lg:flex">
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5 px-5 py-5">
           <span className="flex h-7 w-7 items-center justify-center rounded bg-primary text-sm font-medium text-white">
             M
           </span>
           <span className="text-sm font-medium">Marketing Copilot</span>
         </Link>
 
-        <nav className="flex-1 px-3 py-2">
+        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
           {ITEMS.map(({ href, label, icon: Icon }) => {
             const on = isActive(pathname, href);
             return (
@@ -83,7 +87,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         {email && (
-          <div className="border-t border-border px-5 py-4 text-xs text-text-tertiary">
+          <div className="shrink-0 border-t border-border px-5 py-4 text-xs text-text-tertiary">
             <p className="truncate">{email}</p>
           </div>
         )}

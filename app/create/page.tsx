@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useAccountData } from "@/app/_shared/useAccountData";
 
 const T = {
   bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
@@ -15,12 +16,6 @@ type ContentType = {
   icon: string;
   description: string;
   placeholder: string;
-};
-
-type CompanyProfile = {
-  companyName: string; industry: string; summary: string;
-  customers: string[]; products: string[]; tone: string[];
-  strengths: string[]; avoid: string[]; contentGuidelines: string[];
 };
 
 type GeneratedContent = {
@@ -163,7 +158,9 @@ function ResultView({ content, onNew }: { content: GeneratedContent; onNew: () =
 
 // ── Main ──────────────────────────────────────────────────
 export default function CreatePage() {
-  const [profile, setProfile] = useState<CompanyProfile | null>(null);
+  // Profilen används bara som grind — servern hämtar Company Brain ur
+  // sessionen. Den kommer ur Supabase, inte ur enhetens lagring.
+  const { profile } = useAccountData();
   const [selectedType, setSelectedType] = useState<ContentType>(CONTENT_TYPES[0]);
   const [request, setRequest] = useState("");
   const [phase, setPhase] = useState<"select" | "generating" | "result">("select");
@@ -171,13 +168,6 @@ export default function CreatePage() {
   const [error, setError] = useState("");
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
   const pad = isMobile ? 20 : 48;
-
-  useEffect(() => {
-    const saved = localStorage.getItem("marketing-copilot-company-profile");
-    if (!saved) return;
-    // Defer state-uppdateringen ur den synkrona effektkroppen (undviker kaskad-render).
-    queueMicrotask(() => { try { setProfile(JSON.parse(saved)); } catch {} });
-  }, []);
 
   async function handleGenerate() {
     if (!profile) return;

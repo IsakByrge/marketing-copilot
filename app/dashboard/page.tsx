@@ -47,13 +47,10 @@ export default function DashboardPage() {
     setGenerating(true);
     setError(null);
     try {
-      const saved = localStorage.getItem("marketing-copilot-brain-files");
-      const brainFiles = saved ? JSON.parse(saved) : [];
-
       const res = await fetch("/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyProfile: profile, brainFiles }),
+        body: JSON.stringify({ companyProfile: profile }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -61,7 +58,6 @@ export default function DashboardPage() {
       }
 
       const newPlan = await res.json();
-      localStorage.setItem("marketing-copilot-plan", JSON.stringify(newPlan));
       setPlan(newPlan);
 
       try {
@@ -75,16 +71,19 @@ export default function DashboardPage() {
           content_guidelines: profile.contentGuidelines, user_id: user.id,
         }, { onConflict: "user_id,name" }).select().single();
         if (company) {
-          await sb.from("plans").insert({
+          // Ta emot raden tillbaka: planens id behövs av sidorna som
+          // läser vidare på den, och det finns bara efter en insert.
+          const { data: saved } = await sb.from("plans").insert({
             company_id: company.id, user_id: user.id,
             focus: newPlan.focus, tags: newPlan.tags, posts: newPlan.posts,
             newsletter: newPlan.newsletter, campaigns: newPlan.campaigns,
             opportunities: newPlan.opportunities,
-          });
+          }).select().single();
+          if (saved) setPlan({ ...newPlan, id: saved.id });
         }
       } catch (syncError) {
         console.warn("Supabase-synk misslyckades:", syncError);
-        setError("Planen skapades men kunde inte sparas. Den finns kvar så länge du inte byter enhet.");
+        setError("Planen skapades men kunde inte sparas. Den ligger kvar tills du laddar om sidan — försök igen då.");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Något gick fel. Försök igen.");

@@ -197,7 +197,12 @@ export default function FacebookSpecialistPage() {
   // riktiga motorn utan att skrivas in på nytt.
   useEffect(() => {
     const topic = new URLSearchParams(window.location.search).get("amne");
-    if (topic) setProductOrTopic(topic.slice(0, 500));
+    if (!topic) return;
+    // Sätts utanför den synkrona effektkroppen — samma skäl som i
+    // strategi-effekten nedan: undviker kaskad-render. useSearchParams
+    // vore alternativet, men den här sidan förrenderas statiskt och
+    // skulle då behöva en Suspense-gräns runt hela klientträdet.
+    queueMicrotask(() => setProductOrTopic(topic.slice(0, 500)));
   }, []);
 
   useEffect(() => {

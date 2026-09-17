@@ -128,7 +128,7 @@ function SidebarFooter({ email, onSignOut, onNavigate }: { email: string | null;
   return (
     <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 14, display: "flex", flexDirection: "column", gap: 2 }}>
       <Link
-        href="/profile" onClick={onNavigate} className="mcx-navlink"
+        href="/company" onClick={onNavigate} className="mcx-navlink"
         style={{
           display: "flex", alignItems: "center", gap: 13, padding: "10px 14px", borderRadius: 8,
           textDecoration: "none", color: T.text3, transition,
@@ -181,6 +181,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   async function signOut() {
     const sb = createClient();
     await sb.auth.signOut();
+    // Städa bort nycklar från när företagsdata låg på enheten. Appen
+    // skriver dem inte längre, men de ligger kvar hos alla som använt
+    // en tidigare version — och de innehåller ett företags uppgifter.
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith("marketing-copilot-") || key.startsWith("mc-innehall-edits-")) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch {
+      // Blockerad lagring är inget skäl att stoppa utloggningen.
+    }
     router.push("/login");
   }
 
@@ -199,14 +211,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div style={{ display: "flex", flexDirection: compact ? "column" : "row", minHeight: "100svh", background: T.bg }}>
       {!compact && (
         <aside style={{
-          width: 252, flexShrink: 0, position: "sticky", top: 0, height: "100svh",
+          width: 252, flexShrink: 0,
+          // alignSelf hindrar flex-stretch från att sträcka sidomenyn till
+          // hela sidans höjd — då skulle den inte ha någon plats att sticka i.
+          position: "sticky", top: 0, alignSelf: "flex-start",
+          height: "100svh", overflow: "hidden",
           background: T.sidebar, borderRight: `1px solid ${T.line}`,
           display: "flex", flexDirection: "column", padding: "22px 14px 16px",
         }}>
           <div style={{ padding: "4px 6px 26px" }}>
             <Wordmark />
           </div>
-          <nav aria-label="Huvudnavigation" style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+          <nav aria-label="Huvudnavigation" style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflowY: "auto" }}>
             {NAV_ITEMS.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href)} />
             ))}
@@ -250,7 +266,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                     <IconClose size={18} />
                   </button>
                 </div>
-                <nav aria-label="Huvudnavigation" style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+                <nav aria-label="Huvudnavigation" style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflowY: "auto" }}>
                   {NAV_ITEMS.map((item) => (
                     <NavLink key={item.href} item={item} active={isActive(item.href)} onNavigate={() => setDrawerOpen(false)} />
                   ))}

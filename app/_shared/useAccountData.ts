@@ -2,10 +2,13 @@
 
 // ─────────────────────────────────────────────────────────────
 // Delad datahämtning för företagsprofil + senaste marknadsplan.
-// Exakt samma Supabase-frågor och localStorage-fallback som den
-// ursprungliga dashboarden använde — bara flyttat hit så att
-// Idag, Innehåll, Företagskunskap, Kampanjer och Historik kan
-// återanvända samma, oförändrade, riktiga datakälla.
+// Idag, Innehåll, Företagskunskap, Kampanjer och Historik läser
+// alla härifrån.
+//
+// Supabase är enda källan. Ingen spegling i localStorage: en kopia
+// på enheten kan visa en annan användares företag efter utloggning,
+// och den överlever kontobyten. Går hämtningen inte igenom visas
+// inget hellre än något gammalt — ärliga tomlägen, se VISION.md.
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
@@ -47,69 +50,59 @@ export function useAccountData() {
     let cancelled = false;
 
     async function load() {
-      let planLoadedFromServer = false;
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
       if (cancelled) return;
 
-      if (user) {
-        setEmail(user.email ?? null);
-        try {
-          const { data: companies } = await sb
-            .from("companies").select("*").eq("user_id", user.id)
-            .order("created_at", { ascending: false }).limit(1);
-          const company = companies?.[0] ?? null;
+      if (!user) {
+        setLoaded(true);
+        return;
+      }
 
-          if (company) {
-            const p: CompanyProfile = {
-              companyName: company.name, industry: company.industry, summary: company.summary,
-              customers: company.customers ?? [], products: company.products ?? [],
-              tone: company.tone ?? [], strengths: company.strengths ?? [],
-              avoid: company.avoid ?? [], contentGuidelines: company.content_guidelines ?? [],
-            };
-            if (!cancelled) {
-              setProfile(p);
-              localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(p));
-            }
+      setEmail(user.email ?? null);
+      try {
+        const { data: companies } = await sb
+          .from("companies").select("*").eq("user_id", user.id)
+          .order("created_at", { ascending: false }).limit(1);
+        const company = companies?.[0] ?? null;
+        if (cancelled) return;
 
-            const { data: plans } = await sb
-              .from("plans").select("*").eq("company_id", company.id)
-              .order("created_at", { ascending: false }).limit(20);
+        if (company) {
+          setProfile({
+            companyName: company.name, industry: company.industry, summary: company.summary,
+            customers: company.customers ?? [], products: company.products ?? [],
+            tone: company.tone ?? [], strengths: company.strengths ?? [],
+            avoid: company.avoid ?? [], contentGuidelines: company.content_guidelines ?? [],
+          });
 
-            if (!cancelled && plans && plans.length > 0) {
-              const latest = plans[0];
-              const planFromDb: MarketingPlan = {
-                id: latest.id, company: company.name, focus: latest.focus, tags: latest.tags ?? [],
-                posts: latest.posts ?? [], newsletter: latest.newsletter,
-                campaigns: latest.campaigns ?? [], opportunities: latest.opportunities ?? [],
-              };
-              setPlan(planFromDb);
-              localStorage.setItem("marketing-copilot-plan", JSON.stringify(planFromDb));
-              planLoadedFromServer = true;
+          const { data: plans } = await sb
+            .from("plans").select("*").eq("company_id", company.id)
+            .order("created_at", { ascending: false }).limit(20);
 
-              setHistory(plans.map((row) => ({
-                id: row.id,
-                createdAt: row.created_at,
-                focus: row.focus,
-                tags: row.tags ?? [],
-                campaignCount: Array.isArray(row.campaigns) ? row.campaigns.length : 0,
-                postCount: Array.isArray(row.posts) ? row.posts.length : 0,
-              })));
-            }
+          if (!cancelled && plans && plans.length > 0) {
+            const latest = plans[0];
+            setPlan({
+              id: latest.id, company: company.name, focus: latest.focus, tags: latest.tags ?? [],
+              posts: latest.posts ?? [], newsletter: latest.newsletter,
+              campaigns: latest.campaigns ?? [], opportunities: latest.opportunities ?? [],
+            });
+
+            setHistory(plans.map((row) => ({
+              id: row.id,
+              createdAt: row.created_at,
+              focus: row.focus,
+              tags: row.tags ?? [],
+              campaignCount: Array.isArray(row.campaigns) ? row.campaigns.length : 0,
+              postCount: Array.isArray(row.posts) ? row.posts.length : 0,
+            })));
           }
-        } catch {
-          const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
-          if (savedProfile && !cancelled) try { setProfile(JSON.parse(savedProfile)); } catch { /* ignorera trasig data */ }
         }
-      } else {
-        const savedProfile = localStorage.getItem("marketing-copilot-company-profile");
-        if (savedProfile) try { setProfile(JSON.parse(savedProfile)); } catch { /* ignorera trasig data */ }
+      } catch (e) {
+        // Ingen lokal reservkopia att falla tillbaka på — sidorna visar
+        // sitt tomläge i stället för gammal eller främmande data.
+        console.warn("Kunde inte hämta kontodata:", e);
       }
 
-      if (!planLoadedFromServer && !cancelled) {
-        const savedPlan = localStorage.getItem("marketing-copilot-plan");
-        if (savedPlan) try { setPlan(JSON.parse(savedPlan)); } catch { /* ignorera trasig data */ }
-      }
       if (!cancelled) setLoaded(true);
     }
 

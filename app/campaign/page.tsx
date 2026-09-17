@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useAccountData } from "@/app/_shared/useAccountData";
 
 const T = {
   bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
@@ -10,20 +11,12 @@ const T = {
   gold: "#c9a96e", goldDim: "rgba(201,169,110,0.15)", goldBorder: "rgba(201,169,110,0.30)",
 };
 
-type Campaign = { title: string; goal: string; message: string; channels: string; cta: string; };
-type MarketingPlan = { company: string; focus: string; campaigns?: Campaign[]; };
-
 export default function CampaignPage() {
-  const [plan, setPlan] = useState<MarketingPlan | null>(null);
+  // Planen kommer ur Supabase via den delade hooken — samma källa som
+  // Idag och Innehåll läser. Ingen lokal kopia.
+  const { plan, loaded } = useAccountData();
   const [active, setActive] = useState(0);
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("marketing-copilot-plan");
-    if (!saved) return;
-    // Defer state-uppdateringen ur den synkrona effektkroppen (undviker kaskad-render).
-    queueMicrotask(() => { try { setPlan(JSON.parse(saved)); } catch {} });
-  }, []);
 
   function copyAll() {
     const c = plan?.campaigns?.[active];
@@ -33,13 +26,13 @@ export default function CampaignPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  if (!plan) return (
+  if (!loaded) return (
     <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 48px" }}>
       <p style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2 }}>Laddar kampanj…</p>
     </main>
   );
 
-  const campaigns = plan.campaigns ?? [];
+  const campaigns = plan?.campaigns ?? [];
   const campaign = campaigns[active];
 
   if (!campaign) return (
@@ -110,7 +103,7 @@ export default function CampaignPage() {
         <div style={{ marginBottom: 56 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "0.65rem", fontWeight: 400, letterSpacing: "0.18em", textTransform: "uppercase", color: T.gold, marginBottom: 16 }}>
             <span style={{ width: 18, height: 1, background: T.gold, opacity: .5, display: "block" }} />
-            {plan.company} · Kampanjidé {active + 1}
+            {plan?.company} · Kampanjidé {active + 1}
           </div>
           <h1 style={{ fontFamily: "var(--font-cormorant), serif", fontWeight: 300, fontSize: "clamp(2.2rem,5vw,3.8rem)", lineHeight: .95, letterSpacing: "-0.02em", color: T.text, marginBottom: 16 }}>
             {campaign.title}

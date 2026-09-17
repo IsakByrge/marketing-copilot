@@ -353,9 +353,6 @@ export default function OnboardingPage() {
     };
     p.companyName = name;
 
-    // Spara råinput också (hemsida) för framtida bruk
-    localStorage.setItem("marketing-copilot-company-input", JSON.stringify({ ...input, ...p }));
-
     setProfile(p);
     setPrefilled(!!(result && result._websiteScraped));
     setScreen("confirm");
@@ -399,13 +396,14 @@ export default function OnboardingPage() {
       finalProfile.strengths = [answers.differentiator.split(" ").slice(0, 8).join(" ")];
     }
 
-    localStorage.setItem("marketing-copilot-company-profile", JSON.stringify(finalProfile));
-// Spara till Supabase så dashboarden hittar profilen (kopplad till kontot)
+    // Supabase är lagringen — ingen kopia på enheten. Företags-id:t
+    // behövs strax nedan för att planen ska hamna på rätt företag.
+    let companyId: string | null = null;
     try {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
       if (user) {
-        await sb.from("companies").upsert({
+        const { data: company } = await sb.from("companies").upsert({
           name: finalProfile.companyName,
           industry: finalProfile.industry,
           summary: finalProfile.summary,
@@ -420,7 +418,8 @@ export default function OnboardingPage() {
           differentiator: finalProfile.differentiator,
           recent_job: finalProfile.recentJob,
           user_id: user.id,
-        }, { onConflict: "user_id,name" });
+        }, { onConflict: "user_id,name" }).select().single();
+        companyId = company?.id ?? null;
       }
     } catch (sbError) {
       console.warn("Kunde inte spara företag till Supabase:", sbError);
@@ -433,8 +432,24 @@ export default function OnboardingPage() {
       new Promise(r => setTimeout(r, 4200)),
     ]);
 
-    if (result) {
-      localStorage.setItem("marketing-copilot-plan", JSON.stringify({ id: "ai-generated-plan", ...result }));
+    // Första planen sparas i databasen, inte på enheten. Misslyckas det
+    // står dashboarden tom i stället för att visa något som inte finns
+    // kvar nästa gång — hellre det än ett falskt minne.
+    if (result && companyId) {
+      try {
+        const sb = createClient();
+        const { data: { user } } = await sb.auth.getUser();
+        if (user) {
+          await sb.from("plans").insert({
+            company_id: companyId, user_id: user.id,
+            focus: result.focus, tags: result.tags, posts: result.posts,
+            newsletter: result.newsletter, campaigns: result.campaigns,
+            opportunities: result.opportunities,
+          });
+        }
+      } catch (planError) {
+        console.warn("Kunde inte spara planen till Supabase:", planError);
+      }
     }
 
     router.push("/dashboard");

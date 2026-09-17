@@ -1,22 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useAccountData } from "@/app/_shared/useAccountData";
 
 const T = {
   bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
   line: "rgba(255,255,255,0.10)", line2: "rgba(255,255,255,0.18)",
   text: "#ffffff", text2: "#cbd5e0", text3: "#a0aec0",
   gold: "#c9a96e", goldDim: "rgba(201,169,110,0.15)",
-};
-
-type MarketingPlan = {
-  company: string;
-  focus: string;
-  tags: string[];
-  posts: { title: string; text: string; cta: string; image: string; }[];
-  newsletter: { subject: string; preview: string; body: string; cta: string; };
-  campaigns: { title: string; goal: string; message: string; channels: string; cta: string; }[];
 };
 
 function NavBack() {
@@ -35,17 +26,22 @@ function NavBack() {
 }
 
 export default function PlanPage() {
-  const [plan, setPlan] = useState<MarketingPlan | null>(null);
+  // Supabase är källan. Tills hämtningen är klar visas laddningsläget,
+  // därefter antingen planen eller ett ärligt tomläge.
+  const { plan, loaded } = useAccountData();
 
-  useEffect(() => {
-    const saved = localStorage.getItem("marketing-copilot-plan");
-    if (!saved) return;
-    // Defer state-uppdateringen ur den synkrona effektkroppen (undviker kaskad-
-    // render). localStorage läses fortfarande bara på klienten — beteende oförändrat.
-    queueMicrotask(() => {
-      try { setPlan(JSON.parse(saved)); } catch (e) { console.error(e); }
-    });
-  }, []);
+  if (!loaded) {
+    return (
+      <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 48px" }}>
+        <div style={{ maxWidth: 800, margin: "0 auto" }}>
+          <NavBack />
+          <p style={{ marginTop: 80, fontSize: "1rem", fontWeight: 300, color: T.text2 }}>
+            Laddar planen…
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (!plan) {
     return (

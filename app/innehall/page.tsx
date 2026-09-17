@@ -7,9 +7,14 @@
 // samma mönster som produkttexterna — se allt, öppna, redigera direkt,
 // kopiera. Ingen navigering fram och tillbaka för att läsa ett inlägg.
 //
-// Redigeringar sparas lokalt per plan, så de överlever en omladdning.
+// Redigeringar sparas i plan_text_edits, en rad per (plan, inlägg).
+// De låg tidigare i webbläsarens lagring, men marknadsföringstext är
+// affärsdata: på en enhet överlever den en utloggning och följer fel
+// konto. Nu ligger den bakom RLS som allt annat.
+//
 // Planen i databasen lämnas orörd — den är AI:ns original, och det är
-// skillnaden mot din version som är värd något.
+// skillnaden mot din version som är värd något. Saknas en sparad rad
+// visas originalet.
 //
 // När du kopierar en text skickas paret (original, din version) till
 // redigeringsminnet. Det är den här sidan du redigerar mest, så det är
@@ -18,9 +23,9 @@
 // Tummarna sparas däremot: generate-plan läser dem och lutar mot det du
 // gillat. Det är produktens enda lärande-loop idag.
 // ─────────────────────────────────────────────────────────────
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
-import { Button, ButtonLink, Card, Textarea, Chip, Alert, EmptyState, Skeleton, cx } from "@/app/_shared/primitives";
+import { Button, ButtonLink, Card, Textarea, Chip, Alert, EmptyState, Skeleton } from "@/app/_shared/primitives";
 import { useAccountData, type MarketingPlan } from "@/app/_shared/useAccountData";
 import ImageMaker from "@/app/_shared/ImageMaker";
 import { isoWeek } from "@/lib/server/voice";
@@ -59,8 +64,48 @@ function CopyButton({ getText, onCopied }: { getText: () => string; onCopied?: (
 export default function ContentPage() {
   const { plan, loaded } = useAccountData();
   const [open, setOpen] = useState<string | null>(null);
-  const [edits, setEdits] = useState<Record<string, string>>({});
   const [ratings, setRatings] = useState<Record<number, Rating>>({});
+
+  // Ändringarna hör till en bestämd plan. Genereras en ny plan ska den
+  // gamlas text inte ligga kvar i rutorna — därför bär state:t med sig
+  // vilken plan det gäller i stället för att nollställas i en effekt.
+  const [editStore, setEditStore] = useState<{ planId?: string; values: Record<string, string> }>({ values: {} });
+  const planId = plan?.id;
+  const edits = editStore.planId === planId ? editStore.values : {};
+  const [saveFailed, setSaveFailed] = useState(false);
+
+  // Läs tillbaka sparade ändringar så fort planens id är känt.
+  useEffect(() => {
+    if (!planId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const sb = createClient();
+        const { data, error } = await sb
+          .from("plan_text_edits")
+          .select("item_key, edited_text")
+          .eq("plan_id", planId);
+        if (error) throw error;
+        if (cancelled) return;
+        const saved: Record<string, string> = {};
+        for (const row of data ?? []) {
+          if (typeof row.item_key === "string" && typeof row.edited_text === "string") {
+            saved[row.item_key] = row.edited_text;
+          }
+        }
+        // Hann du skriva medan hämtningen pågick vinner det du skrev —
+        // annars skulle svaret radera bokstäver under fingrarna.
+        setEditStore((prev) =>
+          prev.planId === planId
+            ? { planId, values: { ...saved, ...prev.values } }
+            : { planId, values: saved },
+        );
+      } catch (e) {
+        console.warn("Kunde inte läsa sparade ändringar:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [planId]);
 
   // Snabbskapande: ett enskilt inlägg utan att hela veckoplanen görs om.
   // Går via /api/create-content, som redan äger prompten server-side.
@@ -119,32 +164,58 @@ export default function ContentPage() {
     }
   }
 
-  // Nyckel per plan, så ändringar i en gammal plan inte läcker in i en ny.
-  const editsKey = plan?.id ? `mc-innehall-edits-${plan.id}` : null;
+  // ── Sparning ────────────────────────────────────────────────
+  // Väntar ut skrivandet i stället för att skriva per tangenttryck, och
+  // skickar direkt när fältet tappar fokus. user_id sätts aldrig här —
+  // kolumnens default är auth.uid(), så klienten kan inte påstå vem den
+  // är, och RLS avgör resten.
+  const pendingEdits = useRef(new Map<string, string>());
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Läs tillbaka sparade ändringar när planen laddats.
-  useEffect(() => {
-    if (!editsKey) return;
-    try {
-      const saved = localStorage.getItem(editsKey);
-      if (saved) setEdits(JSON.parse(saved));
-    } catch {
-      // Trasig lagring ska inte hindra sidan från att visas.
+  const flushEdits = useCallback(async () => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
     }
-  }, [editsKey]);
+    if (!planId || pendingEdits.current.size === 0) return;
 
-  function updateEdit(key: string, value: string) {
-    setEdits((prev) => {
-      const next = { ...prev, [key]: value };
-      if (editsKey) {
-        try {
-          localStorage.setItem(editsKey, JSON.stringify(next));
-        } catch {
-          // Full lagring — ändringen lever ändå kvar i vyn.
+    const rows = [...pendingEdits.current].map(([item_key, edited_text]) => ({
+      plan_id: planId, item_key, edited_text,
+    }));
+    pendingEdits.current.clear();
+
+    try {
+      const sb = createClient();
+      const { error } = await sb
+        .from("plan_text_edits")
+        .upsert(rows, { onConflict: "user_id,plan_id,item_key" });
+      if (error) throw error;
+      setSaveFailed(false);
+    } catch (e) {
+      console.warn("Kunde inte spara ändringen:", e);
+      // Lägg tillbaka raderna så nästa försök tar med dem — men bara där
+      // du inte redan hunnit skriva något nyare, som annars skulle tappas.
+      for (const row of rows) {
+        if (!pendingEdits.current.has(row.item_key)) {
+          pendingEdits.current.set(row.item_key, row.edited_text);
         }
       }
-      return next;
-    });
+      setSaveFailed(true);
+    }
+  }, [planId]);
+
+  // Lämnar du sidan innan debouncen löpt ut ska ändringen ändå med.
+  useEffect(() => () => { void flushEdits(); }, [flushEdits]);
+
+  function updateEdit(key: string, value: string) {
+    setEditStore((prev) => ({
+      planId,
+      values: { ...(prev.planId === planId ? prev.values : {}), [key]: value },
+    }));
+    if (!planId) return;
+    pendingEdits.current.set(key, value);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => { void flushEdits(); }, 1200);
   }
 
   /** Skickar paret till redigeringsminnet. Tyst; får aldrig störa. */
@@ -331,6 +402,13 @@ export default function ContentPage() {
 
         {loaded && plan && (
           <div className="space-y-10">
+            {/* Tyst tappad text är värre än ett synligt fel — säg det. */}
+            {saveFailed && (
+              <Alert tone="danger" title="Ändringen är inte sparad">
+                Texten finns kvar i rutan, men kunde inte skrivas till databasen.
+                Kopiera den någonstans innan du lämnar sidan.
+              </Alert>
+            )}
             {posts.length > 0 && (
               <section>
                 <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
@@ -373,6 +451,7 @@ export default function ContentPage() {
                               rows={7}
                               value={value}
                               onChange={(e) => updateEdit(key, e.target.value)}
+                              onBlur={() => void flushEdits()}
                             />
                             {p.image && (
                               <div className="mt-3">
@@ -450,6 +529,7 @@ export default function ContentPage() {
                         rows={12}
                         value={edits["nl"] ?? newsletterText(newsletter)}
                         onChange={(e) => updateEdit("nl", e.target.value)}
+                        onBlur={() => void flushEdits()}
                       />
                       <div className="mt-3">
                         <CopyButton

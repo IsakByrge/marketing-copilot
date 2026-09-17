@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
+import { useAccountData } from "@/app/_shared/useAccountData";
 
 const T = {
   bg: "#2a2f3a", surface: "#323845", surface2: "#3a4050",
@@ -11,12 +12,10 @@ const T = {
   gold: "#c9a96e", goldDim: "rgba(201,169,110,0.15)", goldBorder: "rgba(201,169,110,0.30)",
 };
 
-type MarketingPost = { title: string; text: string; cta: string; image: string; };
-type MarketingPlan = { company: string; focus: string; posts: MarketingPost[]; };
-
 export default function PostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [plan, setPlan] = useState<MarketingPlan | null>(null);
+  // Planen kommer ur Supabase — inlägget är en vy av den, inte en egen kopia.
+  const { plan, loaded } = useAccountData();
   const [copied, setCopied] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -30,34 +29,36 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   const index = Number(id);
 
   useEffect(() => {
-    const saved = localStorage.getItem("marketing-copilot-plan");
-    let parsedPlan: MarketingPlan | null = null;
-    if (saved) try { parsedPlan = JSON.parse(saved); } catch {}
-    // parsedPlan används synkront nedan; state-uppdateringen defereras ur effektkroppen.
-    if (parsedPlan) { const p = parsedPlan; queueMicrotask(() => setPlan(p)); }
     const check = () => setIsMobile(window.innerWidth < 640);
     check();
     window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
+  // Tidigare tumme, när företaget väl är känt.
+  const company = plan?.company;
+  useEffect(() => {
+    if (!company) return;
+    let cancelled = false;
     (async () => {
       try {
-        if (!parsedPlan) return;
         const sb = createClient();
         const { data: { user } } = await sb.auth.getUser();
-        if (!user) return;
+        if (!user || cancelled) return;
         const { data } = await sb
           .from("content_feedback")
           .select("rating_text")
           .eq("user_id", user.id)
-          .eq("company_name", parsedPlan.company)
+          .eq("company_name", company)
           .eq("post_index", index)
           .limit(1);
-        if (data && data[0]) setFeedback(data[0].rating_text === "up" ? "up" : "down");
-      } catch {}
+        if (data && data[0] && !cancelled) setFeedback(data[0].rating_text === "up" ? "up" : "down");
+      } catch {
+        // Tummen är en förbättring, inte en förutsättning.
+      }
     })();
-
-    return () => window.removeEventListener("resize", check);
-  }, [index]);
+    return () => { cancelled = true; };
+  }, [company, index]);
 
   function copyPost() {
     if (!post) return;
@@ -122,9 +123,16 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
     finally { setEditingImage(false); }
   }
 
-  if (!plan) return (
+  if (!loaded) return (
     <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 20px" }}>
       <p style={{ fontSize: "0.88rem", fontWeight: 300, color: T.text2 }}>Laddar inlägg…</p>
+    </main>
+  );
+
+  if (!plan) return (
+    <main style={{ minHeight: "100svh", background: T.bg, padding: "80px 20px" }}>
+      <Link href="/dashboard" style={{ fontSize: "0.7rem", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, textDecoration: "none" }}>← Till Idag</Link>
+      <p style={{ marginTop: 80, fontSize: "1rem", fontWeight: 300, color: T.text2 }}>Ingen plan hittades.</p>
     </main>
   );
 
