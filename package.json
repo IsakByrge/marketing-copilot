@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "smoke": "tsx scripts/route-smoke.mts",
+    "eval:plan": "tsx scripts/evalPlan.mts",
     "test:prefill": "tsx scripts/strategyPrefill.integration.mts",
     "test:strategist": "tsx lib/strategist/strategist.test.mts",
     "test:security": "tsx lib/server/security.test.mts",
@@ -20,7 +21,10 @@
     "test:usage": "tsx lib/server/usageReport.test.mts",
     "test:storage": "tsx app/_shared/appStorage.test.mts",
     "test:contrast": "tsx app/_shared/contrast.test.mts",
-    "test:admin": "tsx lib/server/admin.test.mts"
+    "test:admin": "tsx lib/server/admin.test.mts",
+    "test:factguard": "tsx lib/server/factGuard.test.mts",
+    "test:locations": "tsx app/_shared/locations.test.mts",
+    "test:websites": "tsx app/_shared/websites.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

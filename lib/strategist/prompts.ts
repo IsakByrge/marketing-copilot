@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────
 import type { StrategistBrief, FollowUpAnswer, StrategyAnalysis } from "./types";
 import type { StrategistCompanyContext } from "./companyContext";
+import { factGuardBlock } from "@/lib/server/factGuard";
 
 /* ── Delad Company Brain-kontext (väljs ut, inte hela objektet) ── */
 export function companyBrainBlock(ctx: StrategistCompanyContext): string {
@@ -60,6 +61,12 @@ export function briefBlock(brief: StrategistBrief): string {
   ].join("\n");
 }
 
+/** Faktaspärren, delad med veckoplanen, snabbskapandet, Facebook och
+ *  produkttexterna. Kampanjbyggaren foreslar produkter och budskap som
+ *  sedan blir kundtext, sa samma regler galler har. Utan kontext blir
+ *  blocket maximalt restriktivt - kontexten vavs in i anvandarprompten. */
+export const FACT_GUARD = factGuardBlock();
+
 /* ── Steg 1: analys + följdfrågor ─────────────────────────── */
 export const ANALYZE_SYSTEM = `Du är en senior svensk marknadsstrateg som rådger småföretag. Du fyller INTE i ett formulär och du sammanfattar INTE användarens svar. Du analyserar, prioriterar, ifrågasätter och landar i en tydlig rekommenderad riktning.
 
@@ -90,7 +97,9 @@ Svara med ENDAST giltig JSON (ingen förtext, inga backticks). Visa aldrig ditt 
     { "id": "q1", "question": "frågan, kort och naturlig", "reason": "varför den ställs", "answerType": "text|single_select|multi_select", "options": ["..."], "strategicImpact": "vad svaret konkret kan förändra", "relatedField": "primaryAudience|offer|product|mainMessage|channel|timing|geographicArea|kpi|risk" }
   ]
 }
-rationale: 2–4 poster. identifiedGaps/alternativeDirections: 0–4. followUpQuestions: 0–4 (utelämna "options" för text-frågor).`;
+rationale: 2–4 poster. identifiedGaps/alternativeDirections: 0–4. followUpQuestions: 0–4 (utelämna "options" för text-frågor).
+
+${FACT_GUARD}`;
 
 export function buildAnalyzeUser(brief: StrategistBrief, ctx: StrategistCompanyContext): string {
   return `${companyBrainBlock(ctx)}\n\n─────────\n${briefBlock(brief)}\n\nGör din strategiska analys och ställ bara de följdfrågor som verkligen påverkar ett beslut. Svara med endast JSON.`;
@@ -132,7 +141,9 @@ Svara med ENDAST giltig JSON (ingen förtext, inga backticks). Visa aldrig ditt 
     "assumptions": ["antagande du gjort", "..."]
   },
   "companyBrainReferences": ["fakta ur Company Brain som stödde rekommendationen", "..."]
-}`;
+}
+
+${FACT_GUARD}`;
 
 export function buildRecommendUser(
   brief: StrategistBrief,

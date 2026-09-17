@@ -19,7 +19,21 @@ export type CompanyProfile = {
   strengths: string[]; avoid: string[]; contentGuidelines: string[];
 };
 
-export type MarketingPost = { title: string; text: string; cta: string; image: string };
+export type MarketingPost = {
+  title: string; text: string; cta: string; image: string;
+  /** Inlaggets roll i veckan: saljande, tips, prioriterad_produkt,
+   *  lokalt, socialt. Saknas i planer skapade fore innehallssprinten. */
+  roll?: string;
+  /** Foreslagen veckodag, sa fem inlagg inte hamnar samma dag. */
+  dag?: string;
+  /** Produkten inlagget handlar om, tom nar det inte galler en produkt. */
+  produkt?: string;
+  /** Vilket marknadsforingsmal inlagget tjanar. Tom nar inget passar. */
+  mal?: string;
+  /** Vad som behover fyllas i innan inlagget gar att publicera.
+   *  Satts server-side nar texten innehaller en platshallare. */
+  saknas?: string[];
+};
 export type Newsletter = { subject: string; preview: string; body: string; cta: string };
 export type PlanCampaign = { title: string; goal: string; message: string; channels: string; cta: string };
 export type Opportunity = { title: string; date: string; relevance: string };

@@ -34,6 +34,25 @@ import { createClient } from "@/lib/supabase-browser";
 
 type Rating = "up" | "down";
 
+/** Modellen svarar med nycklar utan diakriter; hit hor visningsnamnen. */
+const ROLLNAMN: Record<string, string> = {
+  saljande: "Säljande",
+  tips: "Tips",
+  prioriterad_produkt: "Prioriterad produkt",
+  lokalt: "Lokalt",
+  socialt: "Socialt",
+};
+
+/** Veckodag med liten bokstav. Servern normaliserar nya planer, men
+ *  aldre kan ha "Mandag", "måndag" eller "monday" om vartannat. */
+const DAGNAMN: Record<string, string> = {
+  mandag: "måndag", tisdag: "tisdag", onsdag: "onsdag", torsdag: "torsdag",
+  fredag: "fredag", lordag: "lördag", sondag: "söndag",
+  måndag: "måndag", lördag: "lördag", söndag: "söndag",
+};
+
+const visaDag = (d: string) => DAGNAMN[d.toLowerCase()] ?? d.toLowerCase();
+
 function postText(p: { title: string; text: string; cta: string }): string {
   return [p.title, p.text, p.cta].filter(Boolean).join("\n\n");
 }
@@ -126,11 +145,15 @@ export default function ContentPage() {
         const sb = createClient();
         const { data: { user } } = await sb.auth.getUser();
         if (!user || cancelled) return;
+        // Bara tummar som satts pa just den har planen. Tidigare lastes
+        // alla rader for foretaget och mappades pa post_index, sa inlagg 0
+        // i en ny plan arvde tummen fran inlagg 0 i en gammal.
+        if (!plan.id) return;
         const { data } = await sb
           .from("content_feedback")
           .select("post_index, rating_text")
           .eq("user_id", user.id)
-          .eq("company_name", plan.company);
+          .eq("plan_id", plan.id);
         if (!data || cancelled) return;
         const next: Record<number, Rating> = {};
         for (const row of data) {
@@ -144,7 +167,7 @@ export default function ContentPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [plan?.company]);
+  }, [plan?.company, plan?.id]);
 
   async function rate(index: number, title: string, rating: Rating) {
     if (!plan?.company) return;
@@ -153,13 +176,19 @@ export default function ContentPage() {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
+      // Nyckeln ar (user_id, plan_id, post_index) sedan 0008, sa varje
+      // plan har egna tummar och forra veckans bevaras. Utan plan_id
+      // finns ingen rad att peka pa - da sparas ingen tumme alls, hellre
+      // det an att skriva en rad som galler fel text.
+      if (!plan.id) return;
       await sb.from("content_feedback").upsert({
         user_id: user.id,
         company_name: plan.company,
+        plan_id: plan.id,
         post_index: index,
         post_title: title,
         rating_text: rating,
-      }, { onConflict: "user_id,company_name,post_index" });
+      }, { onConflict: "user_id,plan_id,post_index" });
     } catch (e) {
       console.warn("Kunde inte spara feedback:", e);
     }
@@ -292,12 +321,13 @@ export default function ContentPage() {
               <h1 className="mt-3 max-w-2xl text-[clamp(1.5rem,3.2vw,1.85rem)] font-semibold leading-[1.25] tracking-tight">
                 {plan.focus}
               </h1>
-              {plan.tags?.length > 0 && (
-                <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
-                  Jag lutar åt {plan.tags.slice(0, 3).join(", ").toLowerCase()} den här veckan,
-                  utifrån det du fyllt i under Vad jag vet.
-                </p>
-              )}
+              {/* Samma kalla och samma reservtext som Idag. Tidigare byggde
+                  den har sidan sin egen mening av plan.tags. */}
+              <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
+                {plan.intro?.trim()
+                  ? plan.intro
+                  : "Förslaget bygger på det du fyllt i under Vad jag vet."}
+              </p>
             </>
           ) : (
             <h1 className="mt-3 text-[clamp(1.5rem,3.2vw,1.85rem)] font-semibold leading-[1.25] tracking-tight">
@@ -432,9 +462,23 @@ export default function ContentPage() {
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-center gap-2">
                               <span className="font-medium">{p.title}</span>
+                              {p.saknas?.length ? <Chip tone="warning">Behöver komplettering</Chip> : null}
                               {rating === "up" && <Chip tone="success">Gillad</Chip>}
                               {rating === "down" && <Chip tone="neutral">Ogillad</Chip>}
                             </span>
+                            {/* Roll, dag, produkt och mal - diskret, sa det gar att
+                                kontrollera att veckan tacker det den ska. Saknas
+                                falten (planer fore sprinten) visas raden inte. */}
+                            {(p.roll || p.dag || p.produkt || p.mal) && (
+                              <span className="mt-1 block text-xs text-text-tertiary">
+                                {[
+                                  p.roll ? ROLLNAMN[p.roll] ?? p.roll : null,
+                                  p.dag ? visaDag(p.dag) : null,
+                                  p.produkt || null,
+                                  p.mal || null,
+                                ].filter(Boolean).join(" · ")}
+                              </span>
+                            )}
                             {!isOpen && (
                               <span className="mt-0.5 line-clamp-2 block text-sm text-text-secondary">
                                 {p.text}
@@ -448,6 +492,15 @@ export default function ContentPage() {
 
                         {isOpen && (
                           <div className="mt-4">
+                            {/* Vad som behover fyllas i. Texten innehaller en
+                                platshallare, och vi gissar inte fram svaret. */}
+                            {p.saknas?.length ? (
+                              <Alert tone="warning" title="Texten har luckor" className="mb-3">
+                                <ul className="list-disc space-y-1 pl-4">
+                                  {p.saknas.map((s) => <li key={s}>{s}</li>)}
+                                </ul>
+                              </Alert>
+                            ) : null}
                             <Textarea
                               rows={7}
                               value={value}

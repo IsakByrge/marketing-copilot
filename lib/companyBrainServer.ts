@@ -6,11 +6,11 @@
 // supabase-server.ts, som importerar next/headers (kan inte
 // buntas in i en klientkomponent).
 //
-// Byggd men INTE inkopplad i någon AI-route denna sprint (se
-// sprintanteckningarna) — ingen befintlig route hämtar företags-
-// data självständigt från Supabase idag, så det finns ingen
-// riskfri "redan hämtar profilen här"-plats att koppla in den på
-// utan att röra kampanjprompten. Redo för nästa sprint.
+// Inkopplad i /api/create-content, /api/product-texts och sedan
+// innehållssprinten även /api/generate-plan. Veckoplanen läste
+// tidigare bara de platta legacy-kolumnerna ur request-body, vilket
+// gjorde att prioritet, lönsamhet, säsong och marknadsföringsmål
+// aldrig nådde modellen.
 // ─────────────────────────────────────────────────────────────
 import { createClient } from "./supabase-server";
 import { migrateProfileToBrain, buildCompanyBrainContext, type CompanyBrain, type CompanyBrainContext } from "@/app/_shared/companyBrain";
