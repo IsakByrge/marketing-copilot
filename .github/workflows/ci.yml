@@ -106,6 +106,9 @@ jobs:
       - name: Test — planvalidering och säkerhetsord
         run: npm run test:planvalidate
 
+      - name: Test — säsongsspärr
+        run: npm run test:season
+
       # Smoke-test needs the built app running. Start it in the background,
       # wait until it answers, run the black-box route checks, then stop it.
       - name: Start production server

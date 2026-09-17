@@ -14,6 +14,7 @@ import { voiceBlock, isoWeek } from "./voice";
 import { factGuardBlock } from "./factGuard";
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
 import { veckansOrt } from "@/app/_shared/locations";
+import { sasongsBlock } from "./season";
 
 export type PlanCompanyProfile = {
   companyName?: string; industry?: string; summary?: string;
@@ -182,6 +183,8 @@ ${factGuardBlock({
   locations: brain?.locations ?? [],
   websites: brain?.websites ?? [],
 })}
+
+${sasongsBlock(now)}
 
 ${voiceBlock({ variation: true, example: false })}
 

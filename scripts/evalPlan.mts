@@ -30,6 +30,7 @@ import {
   sakerhetsordIText, arSakerhetsrad,
 } from "@/lib/server/planValidate";
 import { lankarIText, vardnamn } from "@/app/_shared/websites";
+import { sasongsfelIText, forbjudnaSasongsord } from "@/lib/server/season";
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
 
 // ── Miljö ───────────────────────────────────────────────────
@@ -275,20 +276,42 @@ function kontrollera(plan: Plan): Kontroll[] {
     detalj: namnd.length ? namnd.join(", ") : "ingen",
   });
 
-  // 2. Differentiator i det prioriterade inlagget.
+  // 2. Differentiator i det prioriterade inlägget.
+  //
+  // Kontrollen är SEMANTISK, inte ordagrann. Modellen skriver om USP:n
+  // med egna ord — "betalar du bara för den gasol du faktiskt fyller"
+  // i stället för "Betalar bara för det som faktiskt fylls" — och det
+  // är precis vad den ska göra. Att kräva exakt formulering vore att
+  // mäta papegojkonst, inte innehåll.
+  //
+  // Två vägar godkänns: tillräckligt många bärande ord ur en
+  // differentiator, eller någon av de nyckelfraser som bär samma
+  // innebörd. Fraserna hör till testprofilen och står därför här.
+  const USP_NYCKELFRASER = [
+    "betalar bara", "betala bara", "betalar du bara",
+    "det som går i", "det som faktiskt", "den mängd du",
+    "egen flaska", "din egen flaska", "per kilo",
+  ];
+
   const prio = posts.find((p) => p.roll === "prioriterad_produkt");
   const diffar = brain.priorityProducts[0]?.differentiators ?? [];
   const prioText = `${prio?.title ?? ""} ${prio?.text ?? ""}`.toLowerCase();
-  // Narhet: minst tre av differentiatorns bararande ord ska finnas.
-  const narTraff = diffar.some((d) => {
-    const ord = d.toLowerCase().split(/s+/).filter((w) => w.length > 3);
+
+  const barandeOrd = diffar.some((d) => {
+    const ord = d.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
     const funna = ord.filter((w) => prioText.includes(w));
-    return funna.length >= Math.min(3, ord.length);
+    return ord.length > 0 && funna.length >= Math.min(3, ord.length);
   });
+  const nyckelfras = USP_NYCKELFRASER.find((f) => prioText.includes(f));
+
   k.push({
     namn: "prioriterat inlägg bär produktens USP",
-    ok: Boolean(prio) && narTraff,
-    detalj: narTraff ? diffar[0] ?? "" : `saknas: ${diffar[0] ?? "(ingen differentiator)"}`,
+    ok: Boolean(prio) && (barandeOrd || Boolean(nyckelfras)),
+    detalj: barandeOrd
+      ? `bärande ord ur "${diffar[0] ?? ""}"`
+      : nyckelfras
+        ? `nyckelfras: "${nyckelfras}"`
+        : `saknas: ${diffar[0] ?? "(ingen differentiator)"}`,
   });
 
   // 3. Depamalet pa det lokala inlagget, och minst tva mal totalt.
@@ -337,6 +360,18 @@ function kontrollera(plan: Plan): Kontroll[] {
     detalj: utanProdukt.length ? `utan: ${utanProdukt.map((c) => c.title).join(" | ")}` : kampanjer.map((c) => c.produkt).join(" | "),
   });
 
+  // 3. Sasongsord som hor till fel arstid, aven i kampanjtitlar.
+  const sasongstexter = [
+    ...texter,
+    ...kampanjer.map((c) => c.title ?? ""),
+  ];
+  const sasongsfel = [...new Set(sasongstexter.flatMap((t) => sasongsfelIText(t)))];
+  k.push({
+    namn: "inga ord från fel årstid",
+    ok: sasongsfel.length === 0,
+    detalj: sasongsfel.length ? sasongsfel.join(", ") : `rent (förbjudet nu: ${forbjudnaSasongsord().slice(0, 3).join(", ")}…)`,
+  });
+
   // 6. Nyhetsbrevets styckeindelning.
   const stycken = antalStycken(plan.newsletter?.body);
   k.push({
@@ -380,7 +415,11 @@ const runs = Number(process.argv.find((a) => a.startsWith("--runs="))?.split("="
 const print = process.argv.includes("--print");
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const model = process.env.AI_CHAT_MODEL || "gpt-4o";
+// Samma upplösning som routen, så evalen mäter det prod faktiskt kör.
+// --model=... överstyr för en jämförelse.
+const modellFlagga = process.argv.find((a) => a.startsWith("--model="))?.split("=")[1];
+const model = modellFlagga || process.env.PLAN_MODEL || process.env.AI_CHAT_MODEL || "gpt-4o-mini";
+console.log(`Modell: ${model}`);
 
 const userPrompt = buildPlanUserPrompt({
   profile, brain, now: new Date(),
