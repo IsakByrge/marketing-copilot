@@ -30,6 +30,30 @@ test("de tre läckta säkerhetsråden fångas", () => {
   }
 });
 
+test("förvaringsrådet som slank igenom fångas nu", () => {
+  // Kom ur en riktig plan efter att sakerhetsregeln redan skarpts.
+  // Bara "ventil" (ur "ventilerat") traffade, och da som substantiv
+  // utan handling - texten gick igenom som ofarlig.
+  const forvaring = [
+    "Tänk på att placera din gasolflaska i ett ventilerat förråd eller en skyddad plats.",
+    "Överväg ett skyddande överdrag om gasolflaskan står ute längre perioder.",
+  ];
+  for (const m of forvaring) {
+    assert.ok(arSakerhetsrad(m), `slank igenom: ${m}`);
+  }
+});
+
+test("vanlig text om produkten ar fortfarande inte ett rad", () => {
+  // Skarpningen far inte gora varje mening om gasol till ett larm.
+  for (const m of [
+    "Vi fyller gasol i lösvikt till husbilsägare.",
+    "Kom förbi depån i Norrköping så hjälper personalen dig.",
+    "Du betalar bara för det som faktiskt fylls.",
+  ]) {
+    assert.equal(arSakerhetsrad(m), false, `falskt larm: ${m}`);
+  }
+});
+
 test("varje ord i listan fångas för sig", () => {
   const prov: Array<[string, string]> = [
     ["slang", "Vi säljer slang i flera längder."],

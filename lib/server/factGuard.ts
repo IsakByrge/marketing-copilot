@@ -178,8 +178,15 @@ om företagsdatan stöder det.
 SÄKERHETSRÅD — HÅRD GRÄNS:
 Uppmana ALDRIG läsaren att utföra en handling på gasolutrustning. Inte
 kontrollera, inspektera, se över, rengöra, byta, dra åt, koppla, testa
-eller läcksöka. Inte heller mjukare varianter: "passa på att", "glöm
-inte att", "det kan vara värt att".
+eller läcksöka. Inte heller FÖRVARA, placera, ställa, skydda eller täcka
+över — förvaringsråd är säkerhetsråd. Inte heller mjukare varianter:
+"passa på att", "glöm inte att", "det kan vara värt att", "tänk på att",
+"överväg att".
+
+Skriv alltså inte heller något som liknar:
+  "Placera gasolflaskan i ett ventilerat förråd"
+  "Överväg ett skyddande överdrag om flaskan står ute"
+De här två publicerades efter att regeln redan skärpts en gång.
 
 De här meningarna publicerades och skulle aldrig ha skrivits. Skriv
 aldrig något som liknar dem:

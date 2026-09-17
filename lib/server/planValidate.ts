@@ -69,6 +69,13 @@ export function saknatIText(text: string | undefined): string[] {
  * texten inte börjat instruera om dem.
  */
 export const SAKERHETSORD = [
+  // Sjalva flaskan hor hit. Ett forvaringsrad handlar om den, inte om
+  // en slang - det missades i en riktig plan: "placera din gasolflaska
+  // i ett ventilerat forrad" gick igenom eftersom bara "ventil"
+  // trafffade, och da som substantiv utan handling.
+  "gasolflask",
+  "gasoltub",
+  "gastub",
   "slang",
   "regulator",
   "läcka",
@@ -82,6 +89,19 @@ export const SAKERHETSORD = [
 
 /** Handlingsord som gör ett säkerhetsord till en uppmaning. */
 export const SAKERHETSHANDLINGAR = [
+  // Forvaring och hantering, inte bara felsokning. Listan sag tidigare
+  // bara efter "kontrollera"-artade verb och slapp igenom ett helt
+  // forvaringsrad.
+  "placera",
+  "placering",
+  "förvara",
+  "förvaring",
+  "skydda",
+  "täck över",
+  "överdrag",
+  "ställ",
+  "ventilerat",
+  "ventilerad",
   "kontrollera",
   "kolla",
   "se över",
