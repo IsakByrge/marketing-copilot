@@ -58,15 +58,12 @@ export function saknatIText(text: string | undefined): string[] {
 // ── Säkerhetsråd ────────────────────────────────────────────
 
 /**
- * Ord som gör en mening till ett potentiellt säkerhetsråd.
+ * Utrustning som ett säkerhetsråd kan handla om. Delad med
+ * eval-skriptet.
  *
- * Delade med eval-skriptet. Listan är MEDVETET grov: den flaggar för
- * granskning, den blockerar inte. Ett falskt larm kostar en blick, ett
- * missat råd om en gasolslang kostar mer.
- *
- * Att nämna en gasolslang som produkt är alltså också en träff. Det är
- * rätt avvägning — den som säljer slangar vill ändå läsa igenom att
- * texten inte börjat instruera om dem.
+ * Orden ensamma betyder ingenting — "vi säljer slang" är
+ * produktinformation. Det är först när ett av dem står i samma mening
+ * som en handling nedan som texten ska granskas.
  */
 export const SAKERHETSORD = [
   // Sjalva flaskan hor hit. Ett forvaringsrad handlar om den, inte om
@@ -97,11 +94,11 @@ export const SAKERHETSHANDLINGAR = [
   "förvara",
   "förvaring",
   "skydda",
-  "täck över",
+  "täck",
   "överdrag",
   "ställ",
-  "ventilerat",
-  "ventilerad",
+  "anslut",
+  "ansluta",
   "kontrollera",
   "kolla",
   "se över",
@@ -118,30 +115,82 @@ export const SAKERHETSHANDLINGAR = [
   "reparera",
 ] as const;
 
+/** Meningar, grovt uppdelade. Radbrytning räknas som gräns. */
+function meningar(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((m) => m.trim())
+    .filter(Boolean);
+}
+
 /**
- * Ord i texten som bör granskas innan den publiceras.
+ * Utrustningsord matchas som DELSTRÄNG — utan ordgräns.
  *
- * Ett säkerhetsord ensamt räcker, eftersom sammanhanget är svårt att
- * avgöra mekaniskt och konsekvensen av att missa är en kund som följer
- * ett råd vi aldrig haft täckning för.
+ * Svenskan sätter ihop ord, och utrustningen hamnar då sist i
+ * sammansättningen: "gasolslangar", "gasolkaminen", "husbilsgasoltub".
+ * Kräver man att ordet ska börja ett ord missas precis de former som
+ * faktiskt förekommer i inläggen.
+ */
+function harUtrustningsord(text: string, ord: string): boolean {
+  return text.toLowerCase().includes(ord);
+}
+
+/**
+ * Handlingsord matchas vid ordBÖRJAN, med valfri svensk ändelse.
+ *
+ * Här går delsträng fel åt andra hållet: "byt" finns i "utbytbar" och
+ * "täck" i "upptäckt", vilket flaggade ren produkttext. Handlingen
+ * måste börja ett ord, men får böjas — "byt" fångar "byta" och "byter".
+ *
+ * Asymmetrin är alltså inte en slarvighet. Substantiven står inuti
+ * sammansättningar, verben står först i sina egna ord.
+ */
+function harHandling(mening: string, ord: string): boolean {
+  const flykt = ord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<!\\p{L})${flykt}\\p{L}*`, "iu").test(mening);
+}
+
+/**
+ * Utrustningsord som NÄMNS någonstans i texten, oavsett sammanhang.
+ *
+ * Används bara till den upplysande raden i eval:plan. Att sälja slang
+ * ska synas i rapporten, men det är inget att flagga för granskning.
  */
 export function sakerhetsordIText(text: string | undefined): string[] {
   if (!text) return [];
-  const l = text.toLowerCase();
+  return SAKERHETSORD.filter((o) => harUtrustningsord(text, o));
+}
+
+/**
+ * Utrustningsord som står i SAMMA MENING som en handling.
+ *
+ * Det här är vad som flaggar ett inlägg för granskning.
+ *
+ * Tidigare räckte ett omnämnande. Det gav larm på varje inlägg som
+ * råkade nämna en gasolflaska — alltså i praktiken på allt, och en
+ * flagga som alltid lyser är ingen flagga. "Vi säljer slang i flera
+ * längder" är produktinformation. "Placera slangen svalt" är ett råd.
+ * Skillnaden ligger i meningen, inte i texten som helhet.
+ */
+export function granskningsordIText(text: string | undefined): string[] {
+  if (!text) return [];
   const traffar = new Set<string>();
-  for (const ord of SAKERHETSORD) {
-    if (l.includes(ord)) traffar.add(ord);
+  for (const mening of meningar(text)) {
+    if (!SAKERHETSHANDLINGAR.some((h) => harHandling(mening, h))) continue;
+    for (const ord of SAKERHETSORD) {
+      if (harUtrustningsord(mening, ord)) traffar.add(ord);
+    }
   }
   return [...traffar];
 }
 
-/** Sant när texten både nämner utrustning OCH uppmanar till något. */
+/**
+ * Sant när NÅGON mening både nämner utrustning och uppmanar till något.
+ * Samma regel som flaggan, så rapport och gränssnitt aldrig säger emot
+ * varandra.
+ */
 export function arSakerhetsrad(text: string | undefined): boolean {
-  if (!text) return false;
-  const l = text.toLowerCase();
-  const harOrd = SAKERHETSORD.some((o) => l.includes(o));
-  const harHandling = SAKERHETSHANDLINGAR.some((h) => l.includes(h));
-  return harOrd && harHandling;
+  return granskningsordIText(text).length > 0;
 }
 
 // ── Utropstecken ────────────────────────────────────────────
@@ -362,9 +411,9 @@ export function valideraPlan<T extends ValideradPlan>(
     const saknas = [...saknatIText(title), ...saknatIText(text), ...saknatIText(cta)];
     const dag = normaliseraDag(p.dag);
     const granskas = [...new Set([
-      ...sakerhetsordIText(title),
-      ...sakerhetsordIText(text),
-      ...sakerhetsordIText(cta),
+      ...granskningsordIText(title),
+      ...granskningsordIText(text),
+      ...granskningsordIText(cta),
     ])];
     return {
       ...p,
