@@ -25,7 +25,10 @@ import {
 import { RISKY_CTA_WORDS } from "@/lib/server/factGuard";
 import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
 import { INTERNAL_TERMS } from "@/lib/server/factGuard";
-import { hittaPlatshallare, antalStycken, normaliseraDag, valideraPlan } from "@/lib/server/planValidate";
+import {
+  hittaPlatshallare, antalStycken, normaliseraDag, valideraPlan,
+  sakerhetsordIText, arSakerhetsrad,
+} from "@/lib/server/planValidate";
 import { lankarIText, vardnamn } from "@/app/_shared/websites";
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
 
@@ -99,7 +102,8 @@ const brain: CompanyBrainContext = {
 const ord = (s: string) => (s ?? "").trim().split(/\s+/).filter(Boolean).length;
 
 interface Post { roll?: string; dag?: string; produkt?: string; mal?: string; title?: string; text?: string; cta?: string }
-interface Plan { intro?: string; posts?: Post[]; newsletter?: { body?: string; subject?: string; cta?: string }; campaigns?: unknown[] }
+interface Campaign { title?: string; produkt?: string }
+interface Plan { intro?: string; posts?: Post[]; newsletter?: { body?: string; subject?: string; cta?: string }; campaigns?: Campaign[] }
 
 type Kontroll = { namn: string; ok: boolean; detalj: string };
 
@@ -249,6 +253,90 @@ function kontrollera(plan: Plan): Kontroll[] {
     detalj: okandaLankar.length ? okandaLankar.join(" ") : "inga",
   });
 
+  // 1. Sakerhetsrad. Kontrollen faller pa RAD - utrustning plus en
+  // uppmaning att gora nagot med den. Att bara NAMNA en slang som
+  // produkt ar ingen bugg; det blir en granskningsflagga i
+  // granssnittet, och det ska det forbli.
+  const texter = [
+    ...posts.flatMap((p) => [p.title, p.text, p.cta]),
+    plan.newsletter?.body, plan.newsletter?.cta,
+  ].filter(Boolean) as string[];
+  const rad = texter.filter(arSakerhetsrad);
+  k.push({
+    namn: "inga säkerhetsråd i texten",
+    ok: rad.length === 0,
+    detalj: rad.length ? rad.map((t) => t.slice(0, 50)).join(" | ") : "inga",
+  });
+
+  const namnd = [...new Set(texter.flatMap(sakerhetsordIText))];
+  k.push({
+    namn: "utrustning nämnd (flaggas för granskning)",
+    ok: true,
+    detalj: namnd.length ? namnd.join(", ") : "ingen",
+  });
+
+  // 2. Differentiator i det prioriterade inlagget.
+  const prio = posts.find((p) => p.roll === "prioriterad_produkt");
+  const diffar = brain.priorityProducts[0]?.differentiators ?? [];
+  const prioText = `${prio?.title ?? ""} ${prio?.text ?? ""}`.toLowerCase();
+  // Narhet: minst tre av differentiatorns bararande ord ska finnas.
+  const narTraff = diffar.some((d) => {
+    const ord = d.toLowerCase().split(/s+/).filter((w) => w.length > 3);
+    const funna = ord.filter((w) => prioText.includes(w));
+    return funna.length >= Math.min(3, ord.length);
+  });
+  k.push({
+    namn: "prioriterat inlägg bär produktens USP",
+    ok: Boolean(prio) && narTraff,
+    detalj: narTraff ? diffar[0] ?? "" : `saknas: ${diffar[0] ?? "(ingen differentiator)"}`,
+  });
+
+  // 3. Depamalet pa det lokala inlagget, och minst tva mal totalt.
+  const lokalt = posts.find((p) => p.roll === "lokalt");
+  const depaMal = brain.marketingGoals.filter((g) => /dep[åa]|bes[öo]k|butik/i.test(g));
+  const lokaltHarDepaMal = depaMal.length === 0
+    || Boolean(lokalt?.mal && depaMal.some((g) => lokalt.mal!.toLowerCase().includes(g.toLowerCase().slice(0, 12))));
+  k.push({
+    namn: "lokalt inlägg har depåmålet",
+    ok: lokaltHarDepaMal,
+    detalj: lokalt?.mal || "(inget mål)",
+  });
+
+  const medMal = posts.filter((p) => p.mal?.trim()).length;
+  k.push({
+    namn: "minst två inlägg har mål",
+    ok: brain.marketingGoals.length === 0 || medMal >= 2,
+    detalj: `${medMal}/${posts.length}`,
+  });
+
+  // 4. Lank pa saljande och prioriterat inlagg.
+  const medLank = posts.filter((p) => lankarIText(p.text).some((l) => vardnamn(l) !== null)).length;
+  k.push({
+    namn: "minst två inlägg har länk",
+    ok: brain.websites.length === 0 || medLank >= 2,
+    detalj: `${medLank}/${posts.length}`,
+  });
+
+  // 5. Kampanjtitlar och produktkoppling.
+  const kampanjer = plan.campaigns ?? [];
+  const slappaTitlar = kampanjer.filter((c) => /^kampanj f[öo]rs|^h[öo]stkampanj$|^v[åa]rkampanj$/i.test((c.title ?? "").trim()));
+  k.push({
+    namn: "kampanjer har konkreta titlar",
+    ok: kampanjer.length > 0 && slappaTitlar.length === 0,
+    detalj: slappaTitlar.length ? slappaTitlar.map((c) => c.title).join(" | ") : (kampanjer.map((c) => c.title).join(" | ") || "(inga)"),
+  });
+
+  const produktnamn = profile.products.map((p) => p.toLowerCase());
+  const utanProdukt = kampanjer.filter((c) => {
+    const p = (c.produkt ?? "").trim().toLowerCase();
+    return !p || !produktnamn.some((n) => n.includes(p) || p.includes(n));
+  });
+  k.push({
+    namn: "kampanjer kopplade till produkt",
+    ok: kampanjer.length > 0 && utanProdukt.length === 0,
+    detalj: utanProdukt.length ? `utan: ${utanProdukt.map((c) => c.title).join(" | ")}` : kampanjer.map((c) => c.produkt).join(" | "),
+  });
+
   // 6. Nyhetsbrevets styckeindelning.
   const stycken = antalStycken(plan.newsletter?.body);
   k.push({
@@ -267,6 +355,25 @@ function kontrollera(plan: Plan): Kontroll[] {
 
   return k;
 }
+
+// ── Sjalvtest innan vi betalar for nagot ────────────────────
+// De tre meningarna nedan publicerades i en riktig plan och skulle
+// aldrig ha skrivits. De ligger har for att detektorn ska bevisa att
+// den fangar dem INNAN evalen gor ett enda API-anrop. Slutar den
+// fanga dem ar det inget att mata vidare.
+const LACKTA_SAKERHETSRAD = [
+  "Kontrollera gasolslangar för sprickor",
+  "Se över regulatorn",
+  "Rengör gasolkaminen",
+];
+
+const missade = LACKTA_SAKERHETSRAD.filter((m) => sakerhetsordIText(m).length === 0 || !arSakerhetsrad(m));
+if (missade.length > 0) {
+  console.error("SJÄLVTEST FALLERAR — detektorn missar meningar som redan publicerats:");
+  for (const m of missade) console.error(`  ✗ ${m}`);
+  process.exit(1);
+}
+console.log(`Självtest: ${LACKTA_SAKERHETSRAD.length}/${LACKTA_SAKERHETSRAD.length} kända säkerhetsråd fångas.`);
 
 // ── Körning ─────────────────────────────────────────────────
 const runs = Number(process.argv.find((a) => a.startsWith("--runs="))?.split("=")[1] ?? 1);
@@ -323,7 +430,7 @@ for (let i = 1; i <= runs; i++) {
     } catch { /* behall originalet */ }
   }
 
-  plan = valideraPlan(plan as PlanShape) as Plan;
+  plan = valideraPlan(plan as PlanShape, brain.websites) as Plan;
 
   sistaPlan = plan;
   const k = kontrollera(plan);

@@ -24,7 +24,8 @@
     "test:admin": "tsx lib/server/admin.test.mts",
     "test:factguard": "tsx lib/server/factGuard.test.mts",
     "test:locations": "tsx app/_shared/locations.test.mts",
-    "test:websites": "tsx app/_shared/websites.test.mts"
+    "test:websites": "tsx app/_shared/websites.test.mts",
+    "test:planvalidate": "tsx lib/server/planValidate.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

@@ -214,7 +214,7 @@ ${pastPlans.map((p, i) => {
     // aldrig - att gissa fram ett faktum vore precis det problem en
     // platshallare avslojar. Inlagget far i stallet med sig vad som
     // saknas, och granssnittet visar det.
-    plan = valideraPlan(plan);
+    plan = valideraPlan(plan, brain?.websites);
 
     await guard.finish({
       status: "ok",

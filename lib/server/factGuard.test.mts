@@ -101,9 +101,13 @@ test("entydigt lackage fangas", () => {
 
 test("sakerhetsrad och konkurrenter finns i blocket", () => {
   const b = factGuardBlock();
-  assert.match(b, /läcksökning/);
   assert.match(b, /tillverkarens anvisningar/);
   assert.match(b, /vedkamin/);
+  // De tre meningar som faktiskt publicerades star med som exempel.
+  // Modellen foljer konkreta forbud battre an allmanna.
+  assert.match(b, /Kontrollera gasolslangar för sprickor/);
+  assert.match(b, /Se över regulatorn/);
+  assert.match(b, /Rengör gasolkaminen/);
   assert.match(b, /Skriv aldrig \[ort\], \[namn\], \[pris\]/);
 });
 

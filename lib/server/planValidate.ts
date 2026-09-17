@@ -55,6 +55,75 @@ export function saknatIText(text: string | undefined): string[] {
   return [...new Set(hittaPlatshallare(text).map(beskrivSaknat))];
 }
 
+// ── Säkerhetsråd ────────────────────────────────────────────
+
+/**
+ * Ord som gör en mening till ett potentiellt säkerhetsråd.
+ *
+ * Delade med eval-skriptet. Listan är MEDVETET grov: den flaggar för
+ * granskning, den blockerar inte. Ett falskt larm kostar en blick, ett
+ * missat råd om en gasolslang kostar mer.
+ *
+ * Att nämna en gasolslang som produkt är alltså också en träff. Det är
+ * rätt avvägning — den som säljer slangar vill ändå läsa igenom att
+ * texten inte börjat instruera om dem.
+ */
+export const SAKERHETSORD = [
+  "slang",
+  "regulator",
+  "läcka",
+  "läck",
+  "läcksök",
+  "ventil",
+  "packning",
+  "koppling",
+  "kamin",
+] as const;
+
+/** Handlingsord som gör ett säkerhetsord till en uppmaning. */
+export const SAKERHETSHANDLINGAR = [
+  "kontrollera",
+  "kolla",
+  "se över",
+  "inspektera",
+  "rengör",
+  "byt",
+  "byta",
+  "dra åt",
+  "koppla",
+  "testa",
+  "läcksök",
+  "montera",
+  "installera",
+  "reparera",
+] as const;
+
+/**
+ * Ord i texten som bör granskas innan den publiceras.
+ *
+ * Ett säkerhetsord ensamt räcker, eftersom sammanhanget är svårt att
+ * avgöra mekaniskt och konsekvensen av att missa är en kund som följer
+ * ett råd vi aldrig haft täckning för.
+ */
+export function sakerhetsordIText(text: string | undefined): string[] {
+  if (!text) return [];
+  const l = text.toLowerCase();
+  const traffar = new Set<string>();
+  for (const ord of SAKERHETSORD) {
+    if (l.includes(ord)) traffar.add(ord);
+  }
+  return [...traffar];
+}
+
+/** Sant när texten både nämner utrustning OCH uppmanar till något. */
+export function arSakerhetsrad(text: string | undefined): boolean {
+  if (!text) return false;
+  const l = text.toLowerCase();
+  const harOrd = SAKERHETSORD.some((o) => l.includes(o));
+  const harHandling = SAKERHETSHANDLINGAR.some((h) => l.includes(h));
+  return harOrd && harHandling;
+}
+
 // ── Veckodagar ──────────────────────────────────────────────
 
 /** Kanoniska veckodagar, alltid med liten bokstav. */
@@ -124,12 +193,59 @@ export function delaIStycken(body: string | undefined, onskade = 3): string | un
   return stycken.filter(Boolean).join("\n\n");
 }
 
+// ── Länkar ──────────────────────────────────────────────────
+
+/** Roller vars inlägg ska sluta med en länk. */
+const LANKROLLER = ["saljande", "prioriterad_produkt"];
+
+/**
+ * Väljer adressen som passar ett säljande inlägg: den vars syfte talar
+ * om köp. Finns ingen sådan tas den första.
+ */
+export function kopLank(websites: Array<{ url: string; purpose: string }> | undefined): string | null {
+  const sidor = (websites ?? []).filter((w) => w.url);
+  if (sidor.length === 0) return null;
+  const kop = sidor.find((w) => /k[öo]p|shop|butik|best[äa]ll|handla/i.test(w.purpose));
+  return (kop ?? sidor[0]).url;
+}
+
+/**
+ * Sätter länken sist i säljande och prioriterade inlägg som saknar en.
+ *
+ * Prompten ber om det, men landar det bara ibland — tre mätningar gav
+ * 0, 2 och 0 av fem. Adressen kommer ur företagsdatan och inget annat
+ * ändras i texten, så det här är att fylla i ett fält, inte att skriva
+ * copy. Finns ingen adress händer ingenting.
+ */
+export function sattLank<T extends ValideradPlan>(
+  plan: T,
+  websites: Array<{ url: string; purpose: string }> | undefined,
+): T {
+  const lank = kopLank(websites);
+  if (!lank) return plan;
+
+  const posts = (plan.posts ?? []).map((p) => {
+    const roll = typeof p.roll === "string" ? p.roll : "";
+    if (!LANKROLLER.includes(roll)) return p;
+    const text = typeof p.text === "string" ? p.text : "";
+    if (!text.trim() || text.includes(lank)) return p;
+    // Redan nagon lank i texten? La modellen in en annan av foretagets
+    // adresser ar det ett medvetet val - rora inte.
+    if (/https?:\/\/\S+/.test(text)) return p;
+    return { ...p, text: `${text.trimEnd()}\n\n${lank}` };
+  });
+
+  return { ...plan, posts };
+}
+
 // ── Sammanställning ─────────────────────────────────────────
 
 export interface ValideradPost {
   dag?: string;
   /** Vad användaren behöver fylla i. Tom lista = inget saknas. */
   saknas?: string[];
+  /** Ord som bör läsas igenom innan inlägget publiceras. */
+  granskas?: string[];
   [k: string]: unknown;
 }
 
@@ -144,7 +260,12 @@ export interface ValideradPlan {
  * Ändrar aldrig själva texten — att gissa fram ett faktum vore precis
  * det problem platshållaren avslöjar.
  */
-export function valideraPlan<T extends ValideradPlan>(plan: T): T {
+export function valideraPlan<T extends ValideradPlan>(
+  plan: T,
+  websites?: Array<{ url: string; purpose: string }>,
+): T {
+  plan = sattLank(plan, websites);
+
   const posts = (plan.posts ?? []).map((p) => {
     const saknas = [
       ...saknatIText(p.title as string | undefined),
@@ -152,10 +273,16 @@ export function valideraPlan<T extends ValideradPlan>(plan: T): T {
       ...saknatIText(p.cta as string | undefined),
     ];
     const dag = normaliseraDag(p.dag);
+    const granskas = [...new Set([
+      ...sakerhetsordIText(p.title as string | undefined),
+      ...sakerhetsordIText(p.text as string | undefined),
+      ...sakerhetsordIText(p.cta as string | undefined),
+    ])];
     return {
       ...p,
       ...(dag ? { dag } : {}),
       ...(saknas.length ? { saknas: [...new Set(saknas)] } : {}),
+      ...(granskas.length ? { granskas } : {}),
     };
   });
   // Nyhetsbrevet far sin styckeindelning har om modellen slarvade.

@@ -33,9 +33,16 @@ export type MarketingPost = {
   /** Vad som behover fyllas i innan inlagget gar att publicera.
    *  Satts server-side nar texten innehaller en platshallare. */
   saknas?: string[];
+  /** Ord som bor lasas igenom innan inlagget publiceras - utrustning
+   *  som slang, regulator eller kamin. Satts server-side. */
+  granskas?: string[];
 };
 export type Newsletter = { subject: string; preview: string; body: string; cta: string };
-export type PlanCampaign = { title: string; goal: string; message: string; channels: string; cta: string };
+export type PlanCampaign = {
+  title: string; goal: string; message: string; channels: string; cta: string;
+  /** Produkten kampanjen handlar om. Saknas i planer fore innehallssprint 2. */
+  produkt?: string;
+};
 export type Opportunity = { title: string; date: string; relevance: string };
 
 export type MarketingPlan = {
