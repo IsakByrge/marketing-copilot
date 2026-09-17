@@ -26,6 +26,7 @@ import { RISKY_CTA_WORDS } from "@/lib/server/factGuard";
 import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
 import { INTERNAL_TERMS } from "@/lib/server/factGuard";
 import { hittaPlatshallare, antalStycken, normaliseraDag, valideraPlan } from "@/lib/server/planValidate";
+import { lankarIText, vardnamn } from "@/app/_shared/websites";
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
 
 // ── Miljö ───────────────────────────────────────────────────
@@ -88,6 +89,10 @@ const brain: CompanyBrainContext = {
   preferredCallsToAction: ["Kom förbi depån", "Läs mer på webbplatsen"],
   proofPoints: [],
   locations: ["Norrköping", "Linköping", "Nyköping"],
+  websites: [
+    { url: "https://shop.testgas.se", purpose: "Webbshop – köp av produkter" },
+    { url: "https://testgas.se", purpose: "Hemsida – information och depåer" },
+  ],
 };
 
 // ── Kontroller ──────────────────────────────────────────────
@@ -222,6 +227,26 @@ function kontrollera(plan: Plan): Kontroll[] {
     namn: "inga konkurrerande lösningar",
     ok: konkurrentTraffar.length === 0,
     detalj: konkurrentTraffar.length ? konkurrentTraffar.join(", ") : "inga",
+  });
+
+  // Lankar som inte finns i foretagsdatan.
+  const kandaVardnamn = new Set(
+    brain.websites.map((w) => vardnamn(w.url)).filter(Boolean) as string[],
+  );
+  const alla = [
+    ...posts.flatMap((p) => [p.title, p.text, p.cta]),
+    plan.newsletter?.body, plan.newsletter?.cta,
+  ].filter(Boolean) as string[];
+  const okandaLankar = alla.flatMap(lankarIText).filter((l) => {
+    const v = vardnamn(l);
+    // Utan igenkannbart vardnamn ar det ingen lank, bara en mening med punkt.
+    if (!v) return false;
+    return ![...kandaVardnamn].some((k) => v === k || v.endsWith(`.${k}`));
+  });
+  k.push({
+    namn: "inga påhittade länkar",
+    ok: okandaLankar.length === 0,
+    detalj: okandaLankar.length ? okandaLankar.join(" ") : "inga",
   });
 
   // 6. Nyhetsbrevets styckeindelning.

@@ -11,6 +11,7 @@
 // blir ALDRIG automatiskt "user_confirmed".
 // ─────────────────────────────────────────────────────────────
 import { tillgangligaOrter } from "./locations";
+import { normaliseraUrl } from "./websites";
 
 import type { CompanyProfile } from "./useAccountData";
 
@@ -71,6 +72,19 @@ export interface CompanyLocation {
   openingHours?: string;
 }
 
+/**
+ * En webbadress med sitt syfte. Syftet ar det som gor listan anvandbar:
+ * modellen valjer lank efter vad inlagget handlar om, inte efter vilken
+ * som stod forst.
+ */
+export interface CompanyWebsite {
+  id: string;
+  /** Normaliserad, alltid http eller https. */
+  url: string;
+  /** t.ex. "Webbshop - kop av produkter". */
+  purpose: string;
+}
+
 export interface CompanyBrain {
   companySummary: string;
   primaryCustomers: string[];
@@ -90,6 +104,8 @@ export interface CompanyBrain {
   /** Depåer och andra platser kunder kan besöka. Tom lista = okänt;
    *  då läses orter ur sammanfattningen som reserv. */
   locations: CompanyLocation[];
+  /** Webbplatser med syfte. Tom lista = lank aldrig till nagot. */
+  websites: CompanyWebsite[];
   products: CompanyProduct[];
   keySeasons: string[];
   marketingGoals: string[];
@@ -144,6 +160,8 @@ export interface CompanyBrainContext {
   /** Orter kunder kan besoka. Ifyllda platser, annars last ur
    *  sammanfattningen. Tom lista = namn ingen plats alls. */
   locations: string[];
+  /** Webbadresser med syfte, sa modellen kan valja ratt lank. */
+  websites: Array<{ url: string; purpose: string }>;
 }
 
 /* ── Begränsningar (säkerhet) ────────────────────────────── */
@@ -155,6 +173,7 @@ export const BRAIN_LIMITS = {
   MAX_PRODUCTS: 40,
   MAX_COMPETITORS: 20,
   MAX_LOCATIONS: 20,
+  MAX_WEBSITES: 10,
   /** Hur många prioriterade produkter som skickas i AI-kontexten. */
   MAX_CONTEXT_PRODUCTS: 8,
 } as const;
@@ -182,7 +201,7 @@ export function emptyBrain(): CompanyBrain {
   return {
     companySummary: "", primaryCustomers: [], strengths: [], uniqueSellingPoints: [],
     tone: [], contentGuidelines: [], forbiddenClaims: [], preferredCallsToAction: [],
-    commonCustomerObjections: [], proofPoints: [], competitors: [], locations: [], products: [], keySeasons: [], marketingGoals: [],
+    commonCustomerObjections: [], proofPoints: [], competitors: [], locations: [], websites: [], products: [], keySeasons: [], marketingGoals: [],
   };
 }
 
@@ -206,6 +225,7 @@ export function sanitizeBrain(raw: unknown): CompanyBrain {
     proofPoints: clipList(o.proofPoints),
     competitors: Array.isArray(o.competitors) ? o.competitors.map(sanitizeCompetitor).slice(0, BRAIN_LIMITS.MAX_COMPETITORS) : [],
     locations: Array.isArray(o.locations) ? o.locations.map(sanitizeLocation).slice(0, BRAIN_LIMITS.MAX_LOCATIONS) : [],
+    websites: Array.isArray(o.websites) ? o.websites.map(sanitizeWebsite).filter((w) => w.url).slice(0, BRAIN_LIMITS.MAX_WEBSITES) : [],
     products: Array.isArray(o.products) ? o.products.map(sanitizeProduct).slice(0, BRAIN_LIMITS.MAX_PRODUCTS) : [],
     keySeasons: clipList(o.keySeasons),
     marketingGoals: clipList(o.marketingGoals),
@@ -246,6 +266,17 @@ export function sanitizeProduct(raw: unknown): CompanyProduct {
     confidence: sanitizeConfidence(o.confidence),
     confirmedAt: typeof o.confirmedAt === "string" ? o.confirmedAt : undefined,
     updatedAt: typeof o.updatedAt === "string" ? o.updatedAt : new Date().toISOString(),
+  };
+}
+
+/** Ogiltiga adresser blir tomma och filtreras bort av sanitizeBrain. */
+export function sanitizeWebsite(raw: unknown): CompanyWebsite {
+  const o = (raw && typeof raw === "object") ? (raw as Record<string, unknown>) : {};
+  const { ok, url } = normaliseraUrl(typeof o.url === "string" ? o.url : "");
+  return {
+    id: typeof o.id === "string" && o.id ? o.id : newBrainId(),
+    url: ok ? url : "",
+    purpose: clipText(o.purpose, 160),
   };
 }
 
@@ -337,6 +368,7 @@ export function migrateProfileToBrain(
     proofPoints: sanitized.proofPoints,
     competitors: sanitized.competitors,
     locations: sanitized.locations,
+    websites: sanitized.websites,
     products: hasAny(sanitized.products) ? sanitized.products : base.products,
     keySeasons: sanitized.keySeasons,
     marketingGoals: sanitized.marketingGoals,
@@ -488,5 +520,6 @@ export function buildCompanyBrainContext(brain: CompanyBrain): CompanyBrainConte
     preferredCallsToAction: brain.preferredCallsToAction,
     proofPoints: brain.proofPoints,
     locations: tillgangligaOrter(brain.locations, brain.companySummary),
+    websites: brain.websites.map((w) => ({ url: w.url, purpose: w.purpose })),
   };
 }

@@ -24,8 +24,10 @@ export interface FactGuardContext {
   products?: string[];
   /** Godkända uppmaningar ur Company Brain (preferredCallsToAction). */
   approvedCtas?: string[];
-  /** Företagets webbadress, om den är känd. */
+  /** En ensam webbadress. Kvar för anropare som bara har en. */
   website?: string;
+  /** Webbadresser med syfte. Modellen väljer länk efter inläggets syfte. */
+  websites?: Array<{ url: string; purpose: string }>;
   /** Fysiska platser: depåer, butiker, verkstäder. */
   locations?: string[];
   /** forbiddenClaims ur Company Brain — påståenden användaren förbjudit. */
@@ -91,6 +93,28 @@ const lista = (rubrik: string, v: string[] | undefined, tomText: string) =>
   v && v.length > 0 ? `${rubrik}\n${v.map((x) => `  - ${x}`).join("\n")}` : `${rubrik}\n  ${tomText}`;
 
 /**
+ * Webbadresserna med sina syften, plus regeln om hur man väljer.
+ * Utan syftet blir listan oanvändbar: modellen tar då den första.
+ */
+function webbBlock(ctx: FactGuardContext): string {
+  const sidor = (ctx.websites ?? []).filter((w) => w.url);
+  if (sidor.length === 0) {
+    return ctx.website ? `WEBBADRESS: ${ctx.website}\n` : "";
+  }
+  const rader = sidor
+    .map((w) => `  - ${w.url}${w.purpose ? ` — ${w.purpose}` : ""}`)
+    .join("\n");
+  return `WEBBPLATSER — VÄLJ LÄNK EFTER INLÄGGETS SYFTE:
+${rader}
+Ett säljande inlägg om en produkt länkar dit man KÖPER. Ett lokalt inlägg,
+eller ett om något man gör på plats, länkar dit man LÄSER om verksamheten
+och hittar platserna. Passar ingen av dem: länka inte alls.
+Skriv adressen exakt som den står ovan. Hitta ALDRIG på en adress, en
+undersida eller en sökväg som inte står här.
+`;
+}
+
+/**
  * Spärrblocket. Läggs i ALLA prompter som producerar kundtext.
  * Kontexten styr vad som är tillåtet att hänvisa till — utan kontext
  * blir blocket maximalt restriktivt, vilket är rätt default.
@@ -114,7 +138,7 @@ datum, säsonger och väderförhållanden. Du får ALDRIG hitta på:
 
 ${lista("PRODUKTER OCH TJÄNSTER SOM FINNS:", ctx.products, "(inga angivna — nämn då ingen specifik tjänst alls)")}
 
-${ctx.locations?.length ? lista("PLATSER SOM FINNS:", ctx.locations, "") + "\n" : ""}${ctx.website ? `WEBBADRESS: ${ctx.website}\n` : ""}
+${ctx.locations?.length ? lista("PLATSER SOM FINNS:", ctx.locations, "") + "\n" : ""}${webbBlock(ctx)}
 UPPMANINGAR (CTA) — hårdare regel:
 En uppmaning får bara hänvisa till något av detta: en produkt eller tjänst i
 listan ovan, företagets webbadress, en plats i listan, eller att höra av sig.

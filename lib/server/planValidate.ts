@@ -94,6 +94,36 @@ export function antalStycken(body: string | undefined): number {
   return body.trim().split(/\n\s*\n/).filter((s) => s.trim()).length;
 }
 
+/**
+ * Delar ett nyhetsbrev som kom tillbaka som ETT block i 2-3 stycken.
+ *
+ * Reparationsrundan ber om styckeindelning men levererar den bara
+ * ibland - tva av tre korningar racker inte for nagot sa mekaniskt.
+ * Det har ar ingen innehallsandring: inte ett ord byts, meningarna
+ * behaller sin ordning, och en tom rad satts in vid en meningsgrans
+ * nara jamna delar. Formatering far kod gora. Fakta far den inte.
+ *
+ * Texter med for fa meningar lamnas som de ar - hellre ett stycke an
+ * ett stycke pa en och en halv mening.
+ */
+export function delaIStycken(body: string | undefined, onskade = 3): string | undefined {
+  if (!body?.trim()) return body;
+  if (antalStycken(body) >= 2) return body;
+
+  const meningar = body.trim().match(/[^.!?]+[.!?]+\s*/g);
+  if (!meningar || meningar.length < 4) return body;
+
+  const delar = Math.min(onskade, Math.floor(meningar.length / 2));
+  if (delar < 2) return body;
+
+  const perDel = Math.ceil(meningar.length / delar);
+  const stycken: string[] = [];
+  for (let i = 0; i < meningar.length; i += perDel) {
+    stycken.push(meningar.slice(i, i + perDel).join("").trim());
+  }
+  return stycken.filter(Boolean).join("\n\n");
+}
+
 // ── Sammanställning ─────────────────────────────────────────
 
 export interface ValideradPost {
@@ -128,5 +158,10 @@ export function valideraPlan<T extends ValideradPlan>(plan: T): T {
       ...(saknas.length ? { saknas: [...new Set(saknas)] } : {}),
     };
   });
-  return { ...plan, posts };
+  // Nyhetsbrevet far sin styckeindelning har om modellen slarvade.
+  const newsletter = plan.newsletter
+    ? { ...plan.newsletter, body: delaIStycken(plan.newsletter.body) }
+    : plan.newsletter;
+
+  return { ...plan, posts, newsletter };
 }

@@ -20,9 +20,10 @@ import { useCompanyBrain, type SaveStatus } from "@/app/_shared/useCompanyBrain"
 import {
   computeCompleteness, topKnowledgeGaps, newManualProduct, newBrainId,
   type CompanyBrain, type CompanyProduct, type CompanyCompetitor, type KnowledgeGap,
-  type ProfitabilityLevel, type BusinessPriority, type CompanyLocation,
+  type ProfitabilityLevel, type BusinessPriority, type CompanyLocation, type CompanyWebsite,
 } from "@/app/_shared/companyBrain";
 import { ortesFranText } from "@/app/_shared/locations";
+import { normaliseraUrl } from "@/app/_shared/websites";
 
 const PROFITABILITY_LABEL: Record<ProfitabilityLevel, string> = {
   unknown: "Vet inte", low: "Låg", normal: "Normal", high: "Hög",
@@ -344,6 +345,44 @@ function ProductRow({ product, onEdit, onDelete, onConfirm, onReject }: {
   );
 }
 
+function WebsiteForm({ website, onSave, onCancel }: {
+  website: CompanyWebsite; onSave: (w: CompanyWebsite) => void; onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState<CompanyWebsite>(website);
+  const [urlFel, setUrlFel] = useState("");
+
+  function spara() {
+    const { ok, url, fel } = normaliseraUrl(draft.url);
+    if (!ok) { setUrlFel(fel); return; }
+    onSave({ ...draft, url });
+  }
+
+  return (
+    <div className="space-y-4 rounded-lg border border-border bg-surface-sunken p-5">
+      <Labeled label="Adress" hint="https:// läggs till automatiskt om du utelämnar det.">
+        <Input
+          value={draft.url}
+          invalid={Boolean(urlFel)}
+          onChange={(e) => { setDraft((d) => ({ ...d, url: e.target.value })); setUrlFel(""); }}
+          placeholder="t.ex. shop.gasolfyllarna.se"
+        />
+      </Labeled>
+      {urlFel && <p className="text-xs font-medium text-danger">{urlFel}</p>}
+      <Labeled label="Syfte" hint="Vad gör man där? Det avgör vilka inlägg som länkar dit.">
+        <Input
+          value={draft.purpose}
+          onChange={(e) => setDraft((d) => ({ ...d, purpose: e.target.value }))}
+          placeholder="t.ex. Webbshop – köp av produkter"
+        />
+      </Labeled>
+      <div className="flex gap-2">
+        <Button onClick={spara} disabled={!draft.url.trim()}>Spara</Button>
+        <Button variant="ghost" onClick={onCancel}>Avbryt</Button>
+      </div>
+    </div>
+  );
+}
+
 function LocationForm({ location, onSave, onCancel }: {
   location: CompanyLocation; onSave: (l: CompanyLocation) => void; onCancel: () => void;
 }) {
@@ -411,6 +450,14 @@ export default function CompanyPage() {
   // Vad som skulle lasas ur sammanfattningen om inga platser ar ifyllda.
   // Visas sa att anvandaren ser vad produkten redan tror sig veta.
   const reservOrter = ortesFranText(brain.companySummary);
+
+  const [editingWebsiteId, setEditingWebsiteId] = useState<string | "new" | null>(null);
+
+  function saveWebsite(w: CompanyWebsite) {
+    const exists = brain.websites.some((x) => x.id === w.id);
+    persist({ ...brain, websites: exists ? brain.websites.map((x) => x.id === w.id ? w : x) : [...brain.websites, w] });
+    setEditingWebsiteId(null);
+  }
 
   function saveLocation(l: CompanyLocation) {
     const exists = brain.locations.some((x) => x.id === l.id);
@@ -520,6 +567,45 @@ export default function CompanyPage() {
                 <Labeled label="Marknadsföringsmål" optional>
                   <TagList items={brain.marketingGoals} onChange={(v) => setBrain({ ...brain, marketingGoals: v })} placeholder="t.ex. Fler besökare till depåerna" />
                 </Labeled>
+
+                <div className="space-y-3 border-t border-border pt-4">
+                  <div>
+                    <p className="text-sm font-medium">Webbplatser och länkar</p>
+                    <p className="mt-1 text-sm leading-relaxed text-text-secondary">
+                      Skriv vad man gör på varje adress. Syftet avgör vilken länk ett inlägg får:
+                      ett säljande inlägg om en produkt leder till webbshoppen, ett lokalt inlägg
+                      till hemsidan. Finns ingen adress här länkar inläggen inte alls.
+                    </p>
+                  </div>
+
+                  {brain.websites.map((w) => (
+                    editingWebsiteId === w.id ? (
+                      <WebsiteForm key={w.id} website={w} onSave={saveWebsite} onCancel={() => setEditingWebsiteId(null)} />
+                    ) : (
+                      <div key={w.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-sunken p-4">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{w.url}</p>
+                          {w.purpose && <p className="text-xs text-text-tertiary">{w.purpose}</p>}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => setEditingWebsiteId(w.id)}>Redigera</Button>
+                          <Button size="sm" variant="ghost" onClick={() => persist({ ...brain, websites: brain.websites.filter((x) => x.id !== w.id) })}>Ta bort</Button>
+                        </div>
+                      </div>
+                    )
+                  ))}
+
+                  {editingWebsiteId === "new" ? (
+                    <WebsiteForm
+                      website={{ id: newBrainId(), url: "", purpose: "" }}
+                      onSave={saveWebsite}
+                      onCancel={() => setEditingWebsiteId(null)}
+                    />
+                  ) : (
+                    <Button variant="secondary" onClick={() => setEditingWebsiteId("new")}>Lägg till webbplats</Button>
+                  )}
+                </div>
+
                 <Button onClick={() => save(brain)}>Spara översikt</Button>
               </div>
             </Section>

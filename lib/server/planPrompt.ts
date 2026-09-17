@@ -154,6 +154,7 @@ ${factGuardBlock({
   approvedCtas: brain?.preferredCallsToAction ?? [],
   forbiddenClaims: brain?.forbiddenClaims ?? [],
   locations: brain?.locations ?? [],
+  websites: brain?.websites ?? [],
 })}
 
 ${voiceBlock({ variation: true, example: false })}

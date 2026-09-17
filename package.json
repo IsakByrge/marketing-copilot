@@ -23,7 +23,8 @@
     "test:contrast": "tsx app/_shared/contrast.test.mts",
     "test:admin": "tsx lib/server/admin.test.mts",
     "test:factguard": "tsx lib/server/factGuard.test.mts",
-    "test:locations": "tsx app/_shared/locations.test.mts"
+    "test:locations": "tsx app/_shared/locations.test.mts",
+    "test:websites": "tsx app/_shared/websites.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
