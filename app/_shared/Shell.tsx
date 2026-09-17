@@ -12,6 +12,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
+import { clearAppStorage } from "./appStorage";
 import { T, fontSans, fontSerif, transition } from "./theme";
 import {
   IconToday, IconBuilder, IconCampaigns, IconContent, IconCompany, IconHistory,
@@ -180,19 +181,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     const sb = createClient();
+    // Clear our own cached client data BEFORE ending the session so a
+    // shared machine never leaks the previous user's plan/profile. This
+    // only removes marketing-copilot-* keys; the Supabase session logout
+    // below is unchanged.
+    clearAppStorage();
     await sb.auth.signOut();
-    // Städa bort nycklar från när företagsdata låg på enheten. Appen
-    // skriver dem inte längre, men de ligger kvar hos alla som använt
-    // en tidigare version — och de innehåller ett företags uppgifter.
-    try {
-      for (const key of Object.keys(localStorage)) {
-        if (key.startsWith("marketing-copilot-") || key.startsWith("mc-innehall-edits-")) {
-          localStorage.removeItem(key);
-        }
-      }
-    } catch {
-      // Blockerad lagring är inget skäl att stoppa utloggningen.
-    }
     router.push("/login");
   }
 
