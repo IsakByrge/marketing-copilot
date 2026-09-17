@@ -135,6 +135,48 @@ test("varje promptbyggande fil importerar faktaspärren", () => {
   }
 });
 
+test("spärren förbjuder påståenden om enkel installation", () => {
+  const b = factGuardBlock();
+  for (const ord of ["installera", "ansluta", "montera", "koppla in"]) {
+    assert.ok(b.includes(ord), `installationsregeln nämner inte "${ord}"`);
+  }
+  // Skillnaden mot tjänsten ar hela poangen: paafyllning FAR vara enkel,
+  // en inkoppling far inte det. Star bara forbudet skriver modellen
+  // ingenting om att kopet ar smidigt heller.
+  assert.ok(b.includes("påfyllning"), "undantaget för vårt eget arbete saknas");
+});
+
+test("spärren binder användningsplatser till produktens egna fält", () => {
+  const b = factGuardBlock();
+  assert.ok(b.includes("ANVÄNDNINGSPLATSER"));
+  assert.ok(b.includes("Skiljer sig genom"), "regeln pekar inte ut var stödet ska stå");
+  // Utan konkreta exempel blir regeln en allman uppmaning, och den
+  // sortens regel har redan visat sig drunkna i mallen.
+  assert.ok(b.includes("balkong") && b.includes("båt"));
+});
+
+test("spärren kräver underlag för miljöpåståenden", () => {
+  const b = factGuardBlock();
+  for (const ord of ["miljövänlig", "klimatsmart", "hållbar", "utsläpp"]) {
+    assert.ok(b.includes(ord), `miljöregeln nämner inte "${ord}"`);
+  }
+  // Mindre spill ar en ekonomisk fordel. Vaxlas den upp till en
+  // miljofordel ar det ett obelagt pastaende om ett fossilt bransle.
+  assert.ok(b.includes("SPILL"), "undantaget för ekonomiska fördelar saknas");
+});
+
+test("sociala inlägg ber aldrig om tips om gasolen", () => {
+  const src = read("lib/server/planPrompt.ts");
+  const socialt = src.slice(src.indexOf('5. "socialt"'), src.indexOf("LÄNGD OCH SUBSTANS"));
+  assert.ok(socialt.includes("Fråga ALDRIG"), "förbudet mot tipsfrågor saknas i rollen");
+  for (const ord of ["användning", "hantering", "förvaring", "besparing"]) {
+    assert.ok(socialt.includes(ord), `tipsförbudet nämner inte "${ord}"`);
+  }
+  // Rollen ska inte bli tom. Utan de tillatna amnena skriver modellen
+  // ett inlagg utan fraga alls, och da ar det inte langre socialt.
+  assert.ok(/matlagning/i.test(socialt) && /resm[åa]l/i.test(socialt));
+});
+
 test("varje promptbyggande fil väver faktiskt in blocket", () => {
   for (const f of PROMPT_FILES) {
     const src = read(f);
