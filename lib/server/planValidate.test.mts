@@ -8,7 +8,7 @@ import {
   hittaPlatshallare, beskrivSaknat, saknatIText,
   normaliseraDag, antalStycken, delaIStycken,
   sakerhetsordIText, arSakerhetsrad, valideraPlan,
-  kopLank, infoLank, valjLank, arBesoksuppmaning, sattLank,
+  kopLank, infoLank, valjLank, arBesoksuppmaning, sattLank, utanUtropstecken,
 } from "./planValidate";
 
 let passed = 0;
@@ -216,6 +216,52 @@ test("utan webbplatser händer ingenting", () => {
     posts: [{ roll: "saljande", text: "Köp gasol hos oss." }],
   }, []);
   assert.equal(plan.posts[0].text, "Köp gasol hos oss.");
+});
+
+// ── Utropstecken ────────────────────────────────────────────
+
+test("utropstecken blir punkt", () => {
+  assert.equal(
+    utanUtropstecken("Du kan vara tillbaka på vägen snabbt!"),
+    "Du kan vara tillbaka på vägen snabbt.",
+  );
+  assert.equal(utanUtropstecken("Kom förbi! Vi hjälper dig!"), "Kom förbi. Vi hjälper dig.");
+});
+
+test("en serie utropstecken blir EN punkt", () => {
+  assert.equal(utanUtropstecken("Wow!!!"), "Wow.");
+});
+
+test("dubbel interpunktion undviks", () => {
+  // "Va?." vore sämre än originalet.
+  assert.equal(utanUtropstecken("Va?!"), "Va?");
+  assert.equal(utanUtropstecken("Klart.!"), "Klart.");
+});
+
+test("text utan utropstecken rörs inte", () => {
+  const t = "Ingen förändring här. Inte heller här?";
+  assert.equal(utanUtropstecken(t), t);
+  assert.equal(utanUtropstecken(undefined), undefined);
+  assert.equal(utanUtropstecken(""), "");
+});
+
+test("valideraPlan städar inlägg, nyhetsbrev och kampanjer", () => {
+  const plan = valideraPlan<{
+    posts: Array<Record<string, unknown>>;
+    newsletter: Record<string, unknown>;
+    campaigns: Array<Record<string, unknown>>;
+  }>({
+    posts: [{ roll: "tips", title: "Snabbt!", text: "Kom förbi!", cta: "Gör det!" }],
+    newsletter: { subject: "Nyhet!", body: "Hej!", cta: "Kom!" },
+    campaigns: [{ title: "Kampanj!", message: "Nu kör vi!", cta: "Boka!" }],
+  });
+  assert.equal(plan.posts[0].title, "Snabbt.");
+  assert.equal(plan.posts[0].text, "Kom förbi.");
+  assert.equal(plan.posts[0].cta, "Gör det.");
+  assert.equal(plan.newsletter.subject, "Nyhet.");
+  assert.equal(plan.newsletter.cta, "Kom.");
+  assert.equal(plan.campaigns[0].title, "Kampanj.");
+  assert.equal(plan.campaigns[0].message, "Nu kör vi.");
 });
 
 console.log(`${passed} test ok`);

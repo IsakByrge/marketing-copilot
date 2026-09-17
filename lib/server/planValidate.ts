@@ -144,6 +144,29 @@ export function arSakerhetsrad(text: string | undefined): boolean {
   return harOrd && harHandling;
 }
 
+// ── Utropstecken ────────────────────────────────────────────
+
+/**
+ * Byter utropstecken mot punkt.
+ *
+ * voiceBlock forbjuder utropstecken, och modellen foljer det for det
+ * mesta - men slapper igenom ett "snabbt!" har och dar. Det ar samma
+ * sorts fel som veckodagarnas versaler: mekaniskt, entydigt och inte
+ * vart ett extra AI-anrop. Kod far stada interpunktion. Fakta far den
+ * inte rora.
+ *
+ * En serie utropstecken blir en enda punkt. Star det redan ett punkt-
+ * eller fragetecken fore forsvinner utropstecknen helt, sa "Va?!" blir
+ * "Va?" och inte "Va?.".
+ */
+export function utanUtropstecken(text: string | undefined): string | undefined {
+  if (!text) return text;
+  return text.replace(/([.?!]*)!+/g, (_hela, fore: string) => {
+    const rensat = fore.replace(/!+/g, "");
+    return rensat ? rensat : ".";
+  });
+}
+
 // ── Veckodagar ──────────────────────────────────────────────
 
 /** Kanoniska veckodagar, alltid med liten bokstav. */
@@ -313,7 +336,8 @@ export interface ValideradPost {
 
 export interface ValideradPlan {
   posts?: ValideradPost[];
-  newsletter?: { body?: string; [k: string]: unknown };
+  newsletter?: { body?: string; subject?: string; preview?: string; cta?: string; [k: string]: unknown };
+  campaigns?: unknown;
   [k: string]: unknown;
 }
 
@@ -329,28 +353,50 @@ export function valideraPlan<T extends ValideradPlan>(
   plan = sattLank(plan, websites);
 
   const posts = (plan.posts ?? []).map((p) => {
-    const saknas = [
-      ...saknatIText(p.title as string | undefined),
-      ...saknatIText(p.text as string | undefined),
-      ...saknatIText(p.cta as string | undefined),
-    ];
+    // Interpunktionen städas FÖRST, så allt som mäts nedan mäts på den
+    // text användaren faktiskt får se.
+    const title = utanUtropstecken(p.title as string | undefined);
+    const text = utanUtropstecken(p.text as string | undefined);
+    const cta = utanUtropstecken(p.cta as string | undefined);
+
+    const saknas = [...saknatIText(title), ...saknatIText(text), ...saknatIText(cta)];
     const dag = normaliseraDag(p.dag);
     const granskas = [...new Set([
-      ...sakerhetsordIText(p.title as string | undefined),
-      ...sakerhetsordIText(p.text as string | undefined),
-      ...sakerhetsordIText(p.cta as string | undefined),
+      ...sakerhetsordIText(title),
+      ...sakerhetsordIText(text),
+      ...sakerhetsordIText(cta),
     ])];
     return {
       ...p,
+      ...(title !== undefined ? { title } : {}),
+      ...(text !== undefined ? { text } : {}),
+      ...(cta !== undefined ? { cta } : {}),
       ...(dag ? { dag } : {}),
       ...(saknas.length ? { saknas: [...new Set(saknas)] } : {}),
       ...(granskas.length ? { granskas } : {}),
     };
   });
-  // Nyhetsbrevet far sin styckeindelning har om modellen slarvade.
+
+  // Nyhetsbrevet får sin styckeindelning här om modellen slarvade.
   const newsletter = plan.newsletter
-    ? { ...plan.newsletter, body: delaIStycken(plan.newsletter.body) }
+    ? {
+        ...plan.newsletter,
+        subject: utanUtropstecken(plan.newsletter.subject as string | undefined),
+        preview: utanUtropstecken(plan.newsletter.preview as string | undefined),
+        body: delaIStycken(utanUtropstecken(plan.newsletter.body)),
+        cta: utanUtropstecken(plan.newsletter.cta as string | undefined),
+      }
     : plan.newsletter;
 
-  return { ...plan, posts, newsletter };
+  // Kampanjförslagen är också kundtext så fort de kopieras vidare.
+  const campaigns = Array.isArray(plan.campaigns)
+    ? (plan.campaigns as Array<Record<string, unknown>>).map((c) => ({
+        ...c,
+        ...(typeof c.title === "string" ? { title: utanUtropstecken(c.title) } : {}),
+        ...(typeof c.message === "string" ? { message: utanUtropstecken(c.message) } : {}),
+        ...(typeof c.cta === "string" ? { cta: utanUtropstecken(c.cta) } : {}),
+      }))
+    : plan.campaigns;
+
+  return { ...plan, posts, newsletter, campaigns };
 }
