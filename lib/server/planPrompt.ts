@@ -14,6 +14,7 @@ import { voiceBlock, isoWeek } from "./voice";
 import { factGuardBlock } from "./factGuard";
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
 import { veckansOrt } from "@/app/_shared/locations";
+import { sasongsBlock } from "./season";
 
 export type PlanCompanyProfile = {
   companyName?: string; industry?: string; summary?: string;
@@ -51,6 +52,27 @@ Svara ALLTID med exakt giltig JSON — ingen förtext, inga backticks. Svara på
  * Saknades helt tidigare: prompten fick produkterna som en kommaseparerad
  * sträng utan struktur, och målen nådde den aldrig.
  */
+/**
+ * Den hogst prioriterade produktens differentiator, citerad ordagrant.
+ *
+ * Att skriva "anvand produktens Skiljer sig genom" racker inte - modellen
+ * skrev "sparar tid" i stallet for "du betalar bara for det som gar i".
+ * Citatet star darfor har, som ett krav pa just den meningen.
+ */
+function topDiffRad(brain: CompanyBrainContext): string {
+  const topp = brain.priorityProducts[0];
+  const diff = topp?.differentiators?.[0];
+  if (!topp || !diff) return "";
+  return `
+OBLIGATORISKT I DET PRIORITERADE INLÄGGET:
+Texten om ${topp.name} MÅSTE bygga på den här formuleringen, ordagrant
+eller mycket nära:
+  "${diff}"
+Skriv ut vad det innebär för kunden. En generisk fördel som "sparar
+tid" eller "smidigt" i stället för den här är ett underkänt inlägg.
+`;
+}
+
 export function brainBlock(brain: CompanyBrainContext | null): string {
   if (!brain) return "";
 
@@ -85,6 +107,7 @@ ${brain.usps.length ? `\nDET SOM SKILJER FÖRETAGET: ${brain.usps.join("; ")}` :
 ${brain.proofPoints.length ? `\nVERIFIERADE BEVIS SOM FÅR ÅBEROPAS: ${brain.proofPoints.join("; ")}` : ""}
 ${brain.locations.length ? `\nPLATSER KUNDER KAN BESÖKA: ${brain.locations.join(", ")}` : ""}
 
+${topDiffRad(brain)}
 STYRREGLER FÖR URVALET:
 - Produkter med prioritet "high" ELLER lönsamhet "high" som är i säsong just
   nu MÅSTE förekomma i minst ett inlägg den här veckan.
@@ -96,7 +119,11 @@ STYRREGLER FÖR URVALET:
 - Mål som handlar om återförsäljare, grossister, partners eller andra
   företag får BARA sättas på inlägg som är skrivna till företag. Sätt dem
   aldrig på ett inlägg riktat till privatpersoner; en husbilsägare bryr
-  sig inte om er återförsäljarrekrytering.`;
+  sig inte om er återförsäljarrekrytering.
+- Finns ett mål om besök, besökare, depåer eller butik ska DET LOKALA
+  INLÄGGET ha det målet. Det är hela poängen med ett lokalt inlägg.
+- Minst två av de fem inläggen ska ha ett mål när det finns mål att
+  välja bland. Att lämna alla tomma är inte ett giltigt svar.`;
 }
 
 export interface PlanPromptInput {
@@ -157,6 +184,8 @@ ${factGuardBlock({
   websites: brain?.websites ?? [],
 })}
 
+${sasongsBlock(now)}
+
 ${voiceBlock({ variation: true, example: false })}
 
 ${editMemory}
@@ -172,10 +201,30 @@ FEM INLÄGG MED FEM OLIKA ROLLER — inte fem varianter av samma budskap.
 Exakt ett inlägg per roll, i den här ordningen:
 1. "saljande" — lyfter en produkt eller tjänst ur listan och varför den löser
    något just nu. Får sälja, men bara på det som finns.
-2. "tips" — praktisk kunskap läsaren kan använda direkt, utan att köpa något.
+2. "tips" — hjälper läsaren VÄLJA RÄTT eller FÖRSTÅ HUR DET GÅR TILL.
+   Två sorters tips är tillåtna, och inga andra:
+   a) Välja rätt produkt: vilken storlek eller variant som passar vilket
+      behov, vad som skiljer alternativen i sortimentet åt, vad man tittar
+      på när man väljer.
+   b) Använda tjänsten: hur det går till hos oss, vad man tar med sig,
+      vad som händer på plats, hur lång tid det tar.
+   ALDRIG hantering, förvaring, underhåll, installation eller felsökning
+   av utrustning. Inte ens allmänt hållet, inte ens som "tänk på att".
+   Den sortens råd hör till personalen och tillverkarens anvisningar, och
+   vi har inget underlag för dem.
+   Exempel på rätt: "Vilken flaskstorlek passar husbilen, grillen och
+   kaminen?" eller "Så går påfyllning i lösvikt till hos oss".
+   Exempel på fel: "Så förvarar du flaskan över vintern".
 3. "prioriterad_produkt" — handlar om den högst prioriterade produkten i
    säsong. Skriv produktens namn i fältet "produkt".
-4. "lokalt" — knyter an till orten där kunderna finns.${veckansLokalaOrt(brain, now)}
+   DET HÄR INLÄGGET MÅSTE SÄGA VAD SOM SKILJER PRODUKTEN FRÅN
+   ALTERNATIVEN. Använd produktens "Skiljer sig genom" ordagrant eller
+   nästan ordagrant, och skriv ut vad det innebär för kunden.
+   Skriv inte om en generisk fördel när en konkret finns. "Sparar tid"
+   är en generisk fördel. "Du betalar bara för det som faktiskt går i
+   flaskan" är den konkreta, och det är den som ska stå.
+4. "lokalt" — knyter an till orten där kunderna finns. Ska ha depåmålet
+   om ett sådant finns bland målen.${veckansLokalaOrt(brain, now)}
    Hitta ALDRIG på en plats. Finns ingen ort i företagsdatan: skriv
    inlägget allmänt om närområdet utan att nämna någon ort alls.
 5. "socialt" — ställer en fråga eller bjuder in till ett samtal. Inga
@@ -198,6 +247,11 @@ säga, inte genom att skriva mindre.
 - Nyhetsbrevet har EN uppmaning, i fältet "cta". Upprepa den inte inne i
   brödtexten.
 - Varje inlägg har exakt en tydlig uppmaning i "cta".
+- Inläggen med rollen "saljande" och "prioriterad_produkt" ska AVSLUTAS
+  med en länk, vald efter webbplatsernas syfte enligt faktaspärren. Ett
+  säljande inlägg om en produkt leder till den adress där man köper.
+  Skriv adressen sist i "text", efter uppmaningen. Finns ingen adress i
+  företagsdatan: hoppa över länken, hitta aldrig på en.
 - Sprid inläggen över veckan i fältet "dag" — inte alla på samma dag.
   Skriv dagen med liten bokstav och svensk stavning: ${POST_DAYS.join(", ")}.
 
@@ -228,9 +282,9 @@ Returnera exakt denna JSON:
   "intro": "En eller två naturliga meningar till företagaren om varför du valt veckans tema. Löpande text, inte en uppräkning. Räkna INTE upp teman och skriv inte ordet teman.",
   "tags": ["3-5 konkreta teman för veckan, ej enkla ord utan fraser som 'Midsommarförberedelser' eller 'Campingsäsongen startar'"],
   "posts": [
-    { "roll": "saljande", "dag": "en av ${POST_DAYS.join("/")}", "produkt": "produktens namn ur listan, eller tom sträng", "mal": "vilket marknadsföringsmål inlägget tjänar", "title": "Rubrik som fångar ett konkret problem", "text": "MINST 60 ord, högst 150. Konkret scenario + vad man gör + varför nu.", "cta": "Uppmaning som bara hänvisar till något som finns", "image": "Realistisk bildidé" },
+    { "roll": "saljande", "dag": "en av ${POST_DAYS.join("/")}", "produkt": "produktens namn ur listan", "mal": "vilket marknadsföringsmål inlägget tjänar", "title": "Rubrik som fångar ett konkret problem", "text": "MINST 60 ord, högst 150. Konkret scenario + vad man gör + varför nu. SISTA RADEN ska vara adressen dit man köper, skriven som den står i faktaspärren.", "cta": "Uppmaning som bara hänvisar till något som finns", "image": "Realistisk bildidé" },
     { "roll": "tips", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "text": "MINST 60 ord praktisk kunskap. Lovar rubriken en lista ska listan stå här.", "title": "Rubrik", "cta": "Uppmaning", "image": "Bildidé" },
-    { "roll": "prioriterad_produkt", "dag": "annan dag", "produkt": "den högst prioriterade produkten i säsong", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord om just den produkten", "cta": "Uppmaning", "image": "Bildidé" },
+    { "roll": "prioriterad_produkt", "dag": "annan dag", "produkt": "den högst prioriterade produkten i säsong", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord om just den produkten. MÅSTE innehålla produktens Skiljer sig genom, ordagrant eller nästan ordagrant — inte en generisk fördel. SISTA RADEN ska vara adressen dit man köper.", "cta": "Uppmaning", "image": "Bildidé" },
     { "roll": "lokalt", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord med lokal förankring", "cta": "Uppmaning", "image": "Bildidé" },
     { "roll": "socialt", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord som bjuder in till samtal", "cta": "Uppmaning", "image": "Bildidé" }
   ],
@@ -241,8 +295,8 @@ Returnera exakt denna JSON:
     "cta": "Uppmaning som bara hänvisar till något som finns"
   },
   "campaigns": [
-    { "title": "Kampanj för ${month} ${year}", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" },
-    { "title": "Kampanj för ${profile.products?.[0] ?? "huvudtjänst"}", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" }
+    { "title": "Konkret kampanjnamn som säger vad kampanjen gör — ALDRIG \\"Kampanj för ${month}\\" eller \\"Höstkampanj\\"", "produkt": "produkten kampanjen handlar om, ur listan", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" },
+    { "title": "Konkret kampanjnamn för en ANNAN produkt", "produkt": "en annan produkt ur listan", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" }
   ],
   "opportunities": [
     {

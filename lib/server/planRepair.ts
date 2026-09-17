@@ -71,7 +71,7 @@ export function buildRepairPrompt(plan: PlanShape, forKorta: ForKort[]): string 
       ? plan.newsletter?.body ?? ""
       : plan.posts?.[f.index]?.text ?? "";
     const nyckel = f.index === -1 ? "newsletter" : String(f.index);
-    return `── ${nyckel} — "${f.titel}" (${f.ordNu} ord, behöver minst ${f.minst})
+    return `── ${nyckel} — "${f.titel}" (${f.ordNu} ord, sikta på ${f.minst + 25}, absolut minst ${f.minst})
 ${text}`;
   }).join("\n\n");
 

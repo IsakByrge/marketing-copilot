@@ -15,6 +15,10 @@ import OpenAI from "openai";
 export const AI = {
   /** Textmodell för alla JSON-genererande routes. */
   CHAT_MODEL: process.env.AI_CHAT_MODEL || "gpt-4o-mini",
+  /** Modell for veckoplanen specifikt. Planen ar det langsta och mest
+   *  regelstyrda anropet i produkten. Faller tillbaka pa CHAT_MODEL,
+   *  sa beteendet ar oforandrat tills variabeln satts. */
+  PLAN_MODEL: process.env.PLAN_MODEL || process.env.AI_CHAT_MODEL || "gpt-4o-mini",
   /** Bildmodell. */
   IMAGE_MODEL: process.env.AI_IMAGE_MODEL || "gpt-image-1",
   /** Hård timeout på ett enskilt modellanrop. */
@@ -50,12 +54,12 @@ export interface ChatJsonResult {
 export async function callChatJson(
   system: string,
   user: string,
-  opts: { temperature?: number; maxTokens?: number; signal?: AbortSignal } = {},
+  opts: { temperature?: number; maxTokens?: number; signal?: AbortSignal; model?: string } = {},
 ): Promise<ChatJsonResult> {
   const maxTokens = Math.min(opts.maxTokens ?? AI.MAX_OUTPUT_TOKENS, AI.MAX_OUTPUT_TOKENS);
   const completion = await getOpenAI().chat.completions.create(
     {
-      model: AI.CHAT_MODEL,
+      model: opts.model ?? AI.CHAT_MODEL,
       temperature: opts.temperature ?? 0.5,
       max_tokens: maxTokens,
       response_format: { type: "json_object" },

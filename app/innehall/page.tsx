@@ -463,6 +463,7 @@ export default function ContentPage() {
                             <span className="flex flex-wrap items-center gap-2">
                               <span className="font-medium">{p.title}</span>
                               {p.saknas?.length ? <Chip tone="warning">Behöver komplettering</Chip> : null}
+                              {p.granskas?.length ? <Chip tone="warning">Behöver granskning</Chip> : null}
                               {rating === "up" && <Chip tone="success">Gillad</Chip>}
                               {rating === "down" && <Chip tone="neutral">Ogillad</Chip>}
                             </span>
@@ -499,6 +500,16 @@ export default function ContentPage() {
                                 <ul className="list-disc space-y-1 pl-4">
                                   {p.saknas.map((s) => <li key={s}>{s}</li>)}
                                 </ul>
+                              </Alert>
+                            ) : null}
+                            {/* Utrustning namnd i texten. Las igenom att den inte
+                                borjat instruera lasaren om nagot vi inte har
+                                tackning for. */}
+                            {p.granskas?.length ? (
+                              <Alert tone="warning" title="Läs igenom innan du publicerar" className="mb-3">
+                                Texten nämner {p.granskas.join(", ")}. Kontrollera att den inte ger
+                                råd om hur utrustningen ska hanteras — det ska personalen eller
+                                tillverkarens anvisningar svara på.
                               </Alert>
                             ) : null}
                             <Textarea

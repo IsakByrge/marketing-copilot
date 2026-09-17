@@ -187,7 +187,10 @@ ${pastPlans.map((p, i) => {
       historyContext, feedbackContext, fileContext, editMemory,
     });
 
-    const result = await callChatJson(systemPrompt, userPrompt, { maxTokens: AI.MAX_OUTPUT_TOKENS });
+    const result = await callChatJson(systemPrompt, userPrompt, {
+      maxTokens: AI.MAX_OUTPUT_TOKENS,
+      model: AI.PLAN_MODEL,
+    });
     let plan = result.parsed as PlanShape;
 
     // Reparationsrunda: modellen skriver konsekvent for korta texter pa
@@ -201,7 +204,7 @@ ${pastPlans.map((p, i) => {
         const repair = await callChatJson(
           PLAN_SYSTEM_PROMPT,
           buildRepairPrompt(plan, forKorta),
-          { maxTokens: AI.MAX_OUTPUT_TOKENS },
+          { maxTokens: AI.MAX_OUTPUT_TOKENS, model: AI.PLAN_MODEL },
         );
         const texts = (repair.parsed as { texts?: Record<string, string> })?.texts;
         if (texts) plan = applyRepair(plan, texts);
@@ -214,7 +217,7 @@ ${pastPlans.map((p, i) => {
     // aldrig - att gissa fram ett faktum vore precis det problem en
     // platshallare avslojar. Inlagget far i stallet med sig vad som
     // saknas, och granssnittet visar det.
-    plan = valideraPlan(plan);
+    plan = valideraPlan(plan, brain?.websites);
 
     await guard.finish({
       status: "ok",

@@ -55,6 +55,118 @@ export function saknatIText(text: string | undefined): string[] {
   return [...new Set(hittaPlatshallare(text).map(beskrivSaknat))];
 }
 
+// ── Säkerhetsråd ────────────────────────────────────────────
+
+/**
+ * Ord som gör en mening till ett potentiellt säkerhetsråd.
+ *
+ * Delade med eval-skriptet. Listan är MEDVETET grov: den flaggar för
+ * granskning, den blockerar inte. Ett falskt larm kostar en blick, ett
+ * missat råd om en gasolslang kostar mer.
+ *
+ * Att nämna en gasolslang som produkt är alltså också en träff. Det är
+ * rätt avvägning — den som säljer slangar vill ändå läsa igenom att
+ * texten inte börjat instruera om dem.
+ */
+export const SAKERHETSORD = [
+  // Sjalva flaskan hor hit. Ett forvaringsrad handlar om den, inte om
+  // en slang - det missades i en riktig plan: "placera din gasolflaska
+  // i ett ventilerat forrad" gick igenom eftersom bara "ventil"
+  // trafffade, och da som substantiv utan handling.
+  "gasolflask",
+  "gasoltub",
+  "gastub",
+  "slang",
+  "regulator",
+  "läcka",
+  "läck",
+  "läcksök",
+  "ventil",
+  "packning",
+  "koppling",
+  "kamin",
+] as const;
+
+/** Handlingsord som gör ett säkerhetsord till en uppmaning. */
+export const SAKERHETSHANDLINGAR = [
+  // Forvaring och hantering, inte bara felsokning. Listan sag tidigare
+  // bara efter "kontrollera"-artade verb och slapp igenom ett helt
+  // forvaringsrad.
+  "placera",
+  "placering",
+  "förvara",
+  "förvaring",
+  "skydda",
+  "täck över",
+  "överdrag",
+  "ställ",
+  "ventilerat",
+  "ventilerad",
+  "kontrollera",
+  "kolla",
+  "se över",
+  "inspektera",
+  "rengör",
+  "byt",
+  "byta",
+  "dra åt",
+  "koppla",
+  "testa",
+  "läcksök",
+  "montera",
+  "installera",
+  "reparera",
+] as const;
+
+/**
+ * Ord i texten som bör granskas innan den publiceras.
+ *
+ * Ett säkerhetsord ensamt räcker, eftersom sammanhanget är svårt att
+ * avgöra mekaniskt och konsekvensen av att missa är en kund som följer
+ * ett råd vi aldrig haft täckning för.
+ */
+export function sakerhetsordIText(text: string | undefined): string[] {
+  if (!text) return [];
+  const l = text.toLowerCase();
+  const traffar = new Set<string>();
+  for (const ord of SAKERHETSORD) {
+    if (l.includes(ord)) traffar.add(ord);
+  }
+  return [...traffar];
+}
+
+/** Sant när texten både nämner utrustning OCH uppmanar till något. */
+export function arSakerhetsrad(text: string | undefined): boolean {
+  if (!text) return false;
+  const l = text.toLowerCase();
+  const harOrd = SAKERHETSORD.some((o) => l.includes(o));
+  const harHandling = SAKERHETSHANDLINGAR.some((h) => l.includes(h));
+  return harOrd && harHandling;
+}
+
+// ── Utropstecken ────────────────────────────────────────────
+
+/**
+ * Byter utropstecken mot punkt.
+ *
+ * voiceBlock forbjuder utropstecken, och modellen foljer det for det
+ * mesta - men slapper igenom ett "snabbt!" har och dar. Det ar samma
+ * sorts fel som veckodagarnas versaler: mekaniskt, entydigt och inte
+ * vart ett extra AI-anrop. Kod far stada interpunktion. Fakta far den
+ * inte rora.
+ *
+ * En serie utropstecken blir en enda punkt. Star det redan ett punkt-
+ * eller fragetecken fore forsvinner utropstecknen helt, sa "Va?!" blir
+ * "Va?" och inte "Va?.".
+ */
+export function utanUtropstecken(text: string | undefined): string | undefined {
+  if (!text) return text;
+  return text.replace(/([.?!]*)!+/g, (_hela, fore: string) => {
+    const rensat = fore.replace(/!+/g, "");
+    return rensat ? rensat : ".";
+  });
+}
+
 // ── Veckodagar ──────────────────────────────────────────────
 
 /** Kanoniska veckodagar, alltid med liten bokstav. */
@@ -124,18 +236,108 @@ export function delaIStycken(body: string | undefined, onskade = 3): string | un
   return stycken.filter(Boolean).join("\n\n");
 }
 
+// ── Länkar ──────────────────────────────────────────────────
+
+/** Roller vars inlägg ska sluta med en länk. */
+const LANKROLLER = ["saljande", "prioriterad_produkt"];
+
+/**
+ * Uppmaningar som handlar om att komma till en fysisk plats.
+ * Ett sådant inlägg ska leda till sidan som berättar VAR vi finns, inte
+ * till kassan — det prioriterade inlägget bad om depåbesök och länkade
+ * till webbshoppen, vilket skickar läsaren fel.
+ */
+const BESOKSORD = [
+  "besök", "kom förbi", "kom in", "kom till", "depå", "butiken",
+  "på plats", "träffa", "svänga förbi", "hitta oss", "öppettider",
+];
+
+/** Sant när uppmaningen ber läsaren komma någonstans. */
+export function arBesoksuppmaning(cta: string | undefined, text?: string): boolean {
+  const l = `${cta ?? ""} ${text ?? ""}`.toLowerCase();
+  return BESOKSORD.some((o) => l.includes(o));
+}
+
+/** Adressen där man köper. */
+export function kopLank(websites: Array<{ url: string; purpose: string }> | undefined): string | null {
+  const sidor = (websites ?? []).filter((w) => w.url);
+  if (sidor.length === 0) return null;
+  const kop = sidor.find((w) => /k[öo]p|shop|butik|best[äa]ll|handla/i.test(w.purpose));
+  return (kop ?? sidor[0]).url;
+}
+
+/** Adressen som berättar om verksamheten och var den finns. */
+export function infoLank(websites: Array<{ url: string; purpose: string }> | undefined): string | null {
+  const sidor = (websites ?? []).filter((w) => w.url);
+  if (sidor.length === 0) return null;
+  const info = sidor.find((w) => /hemsida|information|om oss|dep[åa]|kontakt|hitta/i.test(w.purpose));
+  // Ingen informationssida angiven: hellre den som INTE är shoppen.
+  const ickeShop = sidor.find((w) => !/k[öo]p|shop|best[äa]ll|handla/i.test(w.purpose));
+  return (info ?? ickeShop ?? sidor[0]).url;
+}
+
+/**
+ * Länken som hör till inläggets uppmaning.
+ * Ber uppmaningen om ett besök leder den till informationssidan,
+ * annars till köpsidan.
+ */
+export function valjLank(
+  websites: Array<{ url: string; purpose: string }> | undefined,
+  cta: string | undefined,
+  text?: string,
+): string | null {
+  return arBesoksuppmaning(cta, text) ? infoLank(websites) : kopLank(websites);
+}
+
+/**
+ * Sätter länken sist i säljande och prioriterade inlägg som saknar en.
+ *
+ * Prompten ber om det, men landar det bara ibland — tre mätningar gav
+ * 0, 2 och 0 av fem. Adressen kommer ur företagsdatan och inget annat
+ * ändras i texten, så det här är att fylla i ett fält, inte att skriva
+ * copy. Finns ingen adress händer ingenting.
+ */
+export function sattLank<T extends ValideradPlan>(
+  plan: T,
+  websites: Array<{ url: string; purpose: string }> | undefined,
+): T {
+  if (!(websites ?? []).some((w) => w.url)) return plan;
+
+  const posts = (plan.posts ?? []).map((p) => {
+    const roll = typeof p.roll === "string" ? p.roll : "";
+    if (!LANKROLLER.includes(roll)) return p;
+    const text = typeof p.text === "string" ? p.text : "";
+    if (!text.trim()) return p;
+
+    // Länken väljs efter uppmaningen, inte efter rollen. Ett inlägg som
+    // ber om ett depåbesök ska leda dit man ser var depåerna ligger.
+    const lank = valjLank(websites, p.cta as string | undefined, text);
+    if (!lank || text.includes(lank)) return p;
+
+    // Redan någon länk i texten? La modellen in en annan av företagets
+    // adresser är det ett medvetet val — rör inte.
+    if (/https?:\/\/\S+/.test(text)) return p;
+    return { ...p, text: `${text.trimEnd()}\n\n${lank}` };
+  });
+
+  return { ...plan, posts };
+}
+
 // ── Sammanställning ─────────────────────────────────────────
 
 export interface ValideradPost {
   dag?: string;
   /** Vad användaren behöver fylla i. Tom lista = inget saknas. */
   saknas?: string[];
+  /** Ord som bör läsas igenom innan inlägget publiceras. */
+  granskas?: string[];
   [k: string]: unknown;
 }
 
 export interface ValideradPlan {
   posts?: ValideradPost[];
-  newsletter?: { body?: string; [k: string]: unknown };
+  newsletter?: { body?: string; subject?: string; preview?: string; cta?: string; [k: string]: unknown };
+  campaigns?: unknown;
   [k: string]: unknown;
 }
 
@@ -144,24 +346,57 @@ export interface ValideradPlan {
  * Ändrar aldrig själva texten — att gissa fram ett faktum vore precis
  * det problem platshållaren avslöjar.
  */
-export function valideraPlan<T extends ValideradPlan>(plan: T): T {
+export function valideraPlan<T extends ValideradPlan>(
+  plan: T,
+  websites?: Array<{ url: string; purpose: string }>,
+): T {
+  plan = sattLank(plan, websites);
+
   const posts = (plan.posts ?? []).map((p) => {
-    const saknas = [
-      ...saknatIText(p.title as string | undefined),
-      ...saknatIText(p.text as string | undefined),
-      ...saknatIText(p.cta as string | undefined),
-    ];
+    // Interpunktionen städas FÖRST, så allt som mäts nedan mäts på den
+    // text användaren faktiskt får se.
+    const title = utanUtropstecken(p.title as string | undefined);
+    const text = utanUtropstecken(p.text as string | undefined);
+    const cta = utanUtropstecken(p.cta as string | undefined);
+
+    const saknas = [...saknatIText(title), ...saknatIText(text), ...saknatIText(cta)];
     const dag = normaliseraDag(p.dag);
+    const granskas = [...new Set([
+      ...sakerhetsordIText(title),
+      ...sakerhetsordIText(text),
+      ...sakerhetsordIText(cta),
+    ])];
     return {
       ...p,
+      ...(title !== undefined ? { title } : {}),
+      ...(text !== undefined ? { text } : {}),
+      ...(cta !== undefined ? { cta } : {}),
       ...(dag ? { dag } : {}),
       ...(saknas.length ? { saknas: [...new Set(saknas)] } : {}),
+      ...(granskas.length ? { granskas } : {}),
     };
   });
-  // Nyhetsbrevet far sin styckeindelning har om modellen slarvade.
+
+  // Nyhetsbrevet får sin styckeindelning här om modellen slarvade.
   const newsletter = plan.newsletter
-    ? { ...plan.newsletter, body: delaIStycken(plan.newsletter.body) }
+    ? {
+        ...plan.newsletter,
+        subject: utanUtropstecken(plan.newsletter.subject as string | undefined),
+        preview: utanUtropstecken(plan.newsletter.preview as string | undefined),
+        body: delaIStycken(utanUtropstecken(plan.newsletter.body)),
+        cta: utanUtropstecken(plan.newsletter.cta as string | undefined),
+      }
     : plan.newsletter;
 
-  return { ...plan, posts, newsletter };
+  // Kampanjförslagen är också kundtext så fort de kopieras vidare.
+  const campaigns = Array.isArray(plan.campaigns)
+    ? (plan.campaigns as Array<Record<string, unknown>>).map((c) => ({
+        ...c,
+        ...(typeof c.title === "string" ? { title: utanUtropstecken(c.title) } : {}),
+        ...(typeof c.message === "string" ? { message: utanUtropstecken(c.message) } : {}),
+        ...(typeof c.cta === "string" ? { cta: utanUtropstecken(c.cta) } : {}),
+      }))
+    : plan.campaigns;
+
+  return { ...plan, posts, newsletter, campaigns };
 }
