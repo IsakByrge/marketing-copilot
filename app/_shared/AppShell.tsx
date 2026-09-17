@@ -9,14 +9,20 @@
 // Mobil är huvudfallet: sidomenyn är dold under lg och ersätts av en
 // fast tabbrad i botten med 44px träffyta.
 //
-// Fem ytor, inte nio. Fler läggs till när det finns ett verkligt behov.
+// Desktop visar alla åtta ytor. Mobilens bottenrad visar de fem du är
+// i varje vecka — Campaign Builder, Kampanjer och Historik hör till
+// desktop, där sidomenyn har plats och ändå scrollar internt. Att
+// klämma in åtta träffytor på 400px skulle göra alla åtta sämre.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { cx } from "./primitives";
-import { IconToday, IconContent, IconCompany, IconPencil, IconSparkle } from "./icons";
+import {
+  IconToday, IconContent, IconCompany, IconPencil, IconSparkle,
+  IconBuilder, IconCampaigns, IconHistory,
+} from "./icons";
 
 interface Item {
   href: string;
@@ -24,13 +30,23 @@ interface Item {
   icon: (p: { size?: number }) => React.ReactElement;
 }
 
+/** Hela menyn, i den ordning desktop visar den. */
 const ITEMS: Item[] = [
   { href: "/dashboard", label: "Idag", icon: IconToday },
-  { href: "/produkttexter", label: "Produkttexter", icon: IconPencil },
   { href: "/innehall", label: "Innehåll", icon: IconContent },
+  { href: "/produkttexter", label: "Produkttexter", icon: IconPencil },
   { href: "/content/facebook", label: "Facebook", icon: IconSparkle },
+  { href: "/campaign-builder", label: "Campaign Builder", icon: IconBuilder },
+  { href: "/campaigns", label: "Kampanjer", icon: IconCampaigns },
+  { href: "/history", label: "Historik", icon: IconHistory },
   { href: "/company", label: "Vad jag vet", icon: IconCompany },
 ];
+
+/** De fem som får plats i mobilens bottenrad. Resten nås från Idag. */
+const MOBILE_HREFS = ["/dashboard", "/innehall", "/produkttexter", "/content/facebook", "/company"];
+const MOBILE_ITEMS: Item[] = MOBILE_HREFS.map(
+  (href) => ITEMS.find((i) => i.href === href)!,
+);
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
@@ -103,7 +119,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main className="pb-20 lg:ml-56 lg:pb-0">{children}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-surface-sunken lg:hidden">
-        {ITEMS.map(({ href, label, icon: Icon }) => {
+        {MOBILE_ITEMS.map(({ href, label, icon: Icon }) => {
           const on = isActive(pathname, href);
           return (
             <Link

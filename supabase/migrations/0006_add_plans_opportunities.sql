@@ -1,0 +1,34 @@
+-- ─────────────────────────────────────────────────────────────
+-- plans.opportunities — kolumnen appen redan skriver
+--
+-- Lägger till EN kolumn på en befintlig tabell (plans). INGA rader
+-- ändras, inga policyer rörs, ingen RLS påverkas. Idempotent och
+-- säker att köra flera gånger (ADD COLUMN IF NOT EXISTS).
+--
+-- VARFÖR: /api/generate-plan returnerar opportunities, och både
+-- dashboarden och onboardingen skickar fältet i sin insert mot plans.
+-- Kolumnen har aldrig funnits i prod, så PostgREST avvisar HELA
+-- satsen med 42703 — inte bara fältet. Följden är att ingen plan
+-- någonsin sparats. Det syntes inte tidigare, eftersom planen också
+-- låg i webbläsarens lagring; när den kopian togs bort blev felet
+-- synligt i stället för dolt.
+--
+-- 0000_baseline.sql deklarerar kolumnen, men den använder CREATE TABLE
+-- IF NOT EXISTS och blir en no-op mot en plans som redan finns. Den
+-- lagar alltså inte en befintlig databas — det gör den här filen.
+--
+-- Default '[]' gör att gamla rader får en tom lista i stället för
+-- null, vilket är vad koden redan förväntar sig (opportunities ?? []).
+-- Ingen backfill behövs.
+--
+-- HUR DEN KÖRS (manuellt, körs INTE automatiskt av appen):
+-- 1. Supabase-projektets SQL Editor.
+-- 2. Klistra in hela filen och kör.
+-- 3. Ingen nedtid. Postgres 11+ skriver inte om tabellen för en
+--    kolumn med konstant default, så det går på millisekunder.
+--
+-- Inga hemligheter, projekt-ID:n eller anslutningssträngar i filen.
+-- ─────────────────────────────────────────────────────────────
+
+alter table public.plans
+  add column if not exists opportunities jsonb not null default '[]'::jsonb;
