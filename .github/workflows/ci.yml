@@ -88,6 +88,12 @@ jobs:
       - name: Test — usage report
         run: npm run test:usage
 
+      - name: Test — färgkontrast
+        run: npm run test:contrast
+
+      - name: Test — administratörsgrind
+        run: npm run test:admin
+
       # Smoke-test needs the built app running. Start it in the background,
       # wait until it answers, run the black-box route checks, then stop it.
       - name: Start production server

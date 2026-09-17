@@ -11,6 +11,7 @@
 import { safeError } from "@/lib/server/guard";
 import { createClient } from "@/lib/supabase-server";
 import { getUsage } from "@/lib/server/usageReport";
+import { isAdminEmail } from "@/lib/server/admin";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,11 @@ export async function GET(request: Request) {
     const sb = await createClient();
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return safeError("Du måste vara inloggad.", 401);
+
+    // Kostnadsvyn är driftsdata, inte kundinnehåll. Grinden sitter HÄR,
+    // på servern — en dold ruta i klienten hade fortfarande lämnat ut
+    // siffrorna till den som öppnar nätverksfliken.
+    if (!isAdminEmail(user.email)) return safeError("Inte behörig.", 403);
 
     const raw = new URL(request.url).searchParams.get("days");
     const parsed = Number(raw);

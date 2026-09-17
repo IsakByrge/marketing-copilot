@@ -25,6 +25,8 @@ export type PlanCampaign = { title: string; goal: string; message: string; chann
 export type Opportunity = { title: string; date: string; relevance: string };
 
 export type MarketingPlan = {
+  /** Modellens egen inledning till veckans tema. Saknas i aldre planer. */
+  intro?: string;
   /** Nar raden skapades i plans. Behovs for att kunna saga att ett
    *  forslag ar fran en tidigare vecka, och for dubblettskyddet. */
   createdAt?: string;

@@ -24,13 +24,13 @@ function IdagExempel() {
     >
       <header className="mb-7">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-          Vecka 24 · God förmiddag
+          Veckans förslag
         </p>
         <h3 className="mt-3 max-w-lg text-[clamp(1.15rem,2.4vw,1.4rem)] font-semibold leading-[1.3] tracking-tight">
-          Den här veckan lyfter vi vinterförvaring, innan kunderna hinner tänka på det själva.
+          Den här veckan lyfter vi det ni är bäst på, innan kunderna hinner fråga efter det.
         </h3>
         <p className="mt-3 max-w-md text-[15px] leading-relaxed text-text-secondary">
-          Jag lutar åt säsong, service och trygghet den här veckan, utifrån det du fyllt i.
+          Jag utgår från det du berättat om företaget, era kunder och vad de brukar undra över.
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           <Button size="sm" disabled>Se innehållet</Button>
@@ -89,7 +89,7 @@ export default function Home() {
           skrivna utifrån vad ditt företag gör och vilka kunderna är.
         </p>
         <div className="mt-8">
-          <ButtonLink href="/login">Kom igång</ButtonLink>
+          <ButtonLink href="/login?mode=signup">Kom igång</ButtonLink>
         </div>
 
         <section className="mt-20 lg:mt-28">
@@ -101,7 +101,7 @@ export default function Home() {
           </div>
           <IdagExempel />
           <p className="mt-3 text-sm text-text-tertiary">
-            Påhittat innehåll för ett verkstadsföretag. Ditt eget bygger på dina svar.
+            Påhittat innehåll. Ditt eget bygger på dina svar.
           </p>
         </section>
       </main>

@@ -3,6 +3,12 @@
 // ─────────────────────────────────────────────────────────────
 // Användning — gör en osynlig risk synlig.
 //
+// ENDAST FÖR ADMINISTRATÖRER. Dollarbelopp, interna funktionsnamn och
+// antal fel är driftsdata för den som betalar fakturan. /api/usage
+// svarar 403 för alla andra, och då renderar panelen ingenting alls.
+// Grinden sitter på servern; det här är bara att inte rita ut en ruta
+// som ändå skulle vara tom.
+//
 // Saldot hos OpenAI är ett hårt tak: tar det slut stannar allt, mitt i
 // arbetet. Den här panelen visar hur snabbt det förbrukas.
 //
@@ -11,7 +17,7 @@
 // hårdkodad prislista, och det står det.
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useState } from "react";
-import { Card, Skeleton } from "./primitives";
+import { Card } from "./primitives";
 
 interface FeatureUsage {
   feature: string;
@@ -51,6 +57,14 @@ function usd(n: number): string {
   return `${n.toFixed(2).replace(".", ",")} $`;
 }
 
+function Rubrik() {
+  return (
+    <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+      AI-användning · endast för dig
+    </h2>
+  );
+}
+
 export default function UsagePanel() {
   const [data, setData] = useState<UsageData | null>(null);
   const [failed, setFailed] = useState(false);
@@ -64,25 +78,28 @@ export default function UsagePanel() {
     return () => { cancelled = true; };
   }, []);
 
-  // Panelen är en upplysning, inte en funktion — misslyckas den, visa inget.
-  if (failed) return null;
-
-  if (!data) {
-    return <Skeleton shape="block" className="h-24" />;
-  }
+  // 403 for den som inte ar administrator, eller ett verkligt fel.
+  // Bada ska ge exakt ingenting - inte ens ett skelett, som annars
+  // hade blinkat forbi for varje kund.
+  if (failed || !data) return null;
 
   if (data.calls === 0) {
     return (
-      <Card padding="sm">
-        <p className="text-sm text-text-secondary">
-          Ingen AI-användning registrerad de senaste {data.days} dagarna.
-        </p>
-      </Card>
+      <section>
+        <Rubrik />
+        <Card padding="sm">
+          <p className="text-sm text-text-secondary">
+            Ingen AI-användning registrerad de senaste {data.days} dagarna.
+          </p>
+        </Card>
+      </section>
     );
   }
 
   return (
-    <Card padding="sm">
+    <section>
+      <Rubrik />
+      <Card padding="sm">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <p className="text-2xl font-medium tracking-tight">{usd(data.estimatedUsd)}</p>
@@ -111,6 +128,7 @@ export default function UsagePanel() {
         {data.hasUnknownModel && " Någon modell saknar känt pris och räknas som noll."}
         {" "}Ditt verkliga saldo finns hos OpenAI.
       </p>
-    </Card>
+      </Card>
+    </section>
   );
 }

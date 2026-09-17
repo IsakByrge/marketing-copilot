@@ -118,15 +118,76 @@ export function isoWeek(date: Date): number {
 }
 
 /**
+ * Kalenderdagen i Europe/Stockholm, som UTC-midnatt.
+ *
+ * Utan den här räknas veckan på maskinens tidszon: en server i UTC tror
+ * att söndag 23:30 svensk tid fortfarande är söndag, medan användaren
+ * redan har måndag. Just den timmen är skillnaden mellan "Denna vecka"
+ * och "Nästa vecka".
+ */
+export function stockholmDate(date = new Date()): Date {
+  const [y, m, d] = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Stockholm", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(date).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+/** Måndagen som inleder ISO-veckan för en UTC-normaliserad dag. */
+function veckansMandag(utcDag: Date): Date {
+  const d = new Date(utcDag.getTime());
+  const veckodag = d.getUTCDay() || 7; // söndag (0) räknas som 7
+  d.setUTCDate(d.getUTCDate() - (veckodag - 1));
+  return d;
+}
+
+/**
  * Nyckel för den ISO-vecka ett datum tillhör, t.ex. "2026-v38".
  * Veckonumret ensamt räcker inte: vecka 1 återkommer varje år, och ett
  * förslag från förra januari skulle annars se ut som veckans.
+ * Räknas i Europe/Stockholm.
  */
 export function isoWeekKey(date: Date): string {
+  const dag = stockholmDate(date);
   // Torsdagen i samma vecka avgör vilket år veckan tillhör (ISO 8601).
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  return d.getUTCFullYear() + "-v" + isoWeek(date);
+  const torsdag = new Date(dag.getTime());
+  torsdag.setUTCDate(torsdag.getUTCDate() + 4 - (torsdag.getUTCDay() || 7));
+  return torsdag.getUTCFullYear() + "-v" + isoWeek(dag);
+}
+
+/** Antal hela ISO-veckor från nu till målet. 0 = samma vecka, negativt = passerat. */
+export function weeksAhead(target: Date, now = new Date()): number {
+  const a = veckansMandag(stockholmDate(now)).getTime();
+  const b = veckansMandag(stockholmDate(target)).getTime();
+  return Math.round((b - a) / (7 * 86_400_000));
+}
+
+/**
+ * "Denna vecka", "Nästa vecka", "Om 3 veckor" — en enda skala i hela
+ * gränssnittet. Tidigare blandades "Denna vecka" med "Vecka 39", som
+ * inte går att jämföra med blotta ögat.
+ */
+export function weekLabel(target: Date, now = new Date()): string {
+  const n = weeksAhead(target, now);
+  if (n < -1) return `För ${Math.abs(n)} veckor sedan`;
+  if (n === -1) return "Förra veckan";
+  if (n === 0) return "Denna vecka";
+  if (n === 1) return "Nästa vecka";
+  return `Om ${n} veckor`;
+}
+
+/**
+ * Etikett för en möjlighets datumfält. Nyare planer skickar YYYY-MM-DD
+ * och får en räknad etikett; äldre rader innehåller fri text som
+ * "Vecka 39" och visas då oförändrad hellre än att gissas bort.
+ */
+export function opportunityWhen(raw: string | undefined, now = new Date()): string | null {
+  if (!raw) return null;
+  const trimmad = raw.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmad)) return trimmad || null;
+  const [y, m, d] = trimmad.split("-").map(Number);
+  const datum = new Date(Date.UTC(y, m - 1, d));
+  if (Number.isNaN(datum.getTime())) return trimmad;
+  return weekLabel(datum, now);
 }
 
 /**

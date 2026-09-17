@@ -17,7 +17,7 @@
 const BASE_URL = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 // Public routes — must answer 2xx without an authenticated session.
-const PUBLIC_ROUTES = ["/", "/login", "/auth/callback"];
+const PUBLIC_ROUTES = ["/", "/login", "/login?mode=signup", "/auth/callback", "/auth/reset"];
 
 // Protected routes (see proxy.ts). Unauthenticated → redirect to /login.
 const PROTECTED_ROUTES = [

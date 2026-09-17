@@ -180,10 +180,24 @@ DESSUTOM:
 4. Upprepa INTE teman, fokus eller inläggstitlar från tidigare planer
 5. Om användaren gett feedback ovan: luta tydligt mot de gillade inläggens stil och ton, och undvik mönstren i de ogillade
 
+OM "opportunities" — SAMMA SPÄRR SOM RESTEN AV PLANEN:
+En möjlighet får BARA bygga på det som står i företagsprofilen ovan, plus
+allmänt kända datum och säsonger. Du får ALDRIG hitta på:
+- produkter eller tjänster som inte står under "Produkter och tjänster"
+- erbjudanden, kampanjer, rabatter, paket, priser eller garantier
+- egenskaper, certifieringar, öppettider, kapacitet eller samarbeten
+- lokala evenemang du inte vet äger rum
+Är du osäker: skriv möjligheten allmänt i stället för specifikt.
+"Höstmörket gör att folk börjar tänka på säkerhet" är användbart.
+"Erbjud en gratis säkerhetskontroll" är påhittat om ingen sådan tjänst
+står i profilen. Hellre allmänt än påhittat.
+Har du färre än tre möjligheter som klarar det här: lämna färre.
+
 Returnera exakt denna JSON:
 {
   "company": "${profile.companyName ?? ""}",
   "focus": "En mening om veckans tema — specifik och säsongsanpassad för ${month} ${year}",
+  "intro": "En eller två naturliga meningar till företagaren om varför du valt veckans tema. Löpande text, inte en uppräkning. Räkna INTE upp teman och skriv inte ordet teman.",
   "tags": ["3-5 konkreta teman för veckan, ej enkla ord utan fraser som 'Midsommarförberedelser' eller 'Campingsäsongen startar'"],
   "posts": [
     { "title": "Rubrik som fångar ett konkret problem", "text": "Max 3 meningar. Konkret scenario.", "cta": "Specifik uppmaning", "image": "Realistisk bildidé" },
@@ -204,22 +218,27 @@ Returnera exakt denna JSON:
   ],
   "opportunities": [
     {
-      "title": "Konkret händelse, temadag eller säsongstillfälle inom 2 veckor",
-      "date": "Datum eller tidsperiod t.ex. '21 juni' eller 'Denna vecka'",
-      "relevance": "Exakt hur ${profile.companyName ?? "företaget"} kan använda detta — konkret innehållsidé kopplad till deras tjänster"
+      "title": "Allmänt känt datum, temadag eller säsongsskifte inom 2 veckor",
+      "date": "ISO-datum YYYY-MM-DD när tillfället har ett bestämt datum, annars veckans måndag som YYYY-MM-DD",
+      "relevance": "Vad tillfället gör med ${profile.companyName ?? "företagets"} kunder, och vilket ämne det ger att skriva om. Bara tjänster som står i profilen. Inga erbjudanden."
     },
     {
       "title": "Säsongsbeteende hos målgruppen just nu",
-      "date": "Denna vecka eller nästa vecka",
-      "relevance": "Konkret marknadsföringsidé kopplad till vad målgruppen gör just nu"
+      "date": "YYYY-MM-DD, måndagen i den vecka det gäller",
+      "relevance": "Vad målgruppen gör den här tiden på året och vilket ämne det ger. Inga påhittade tjänster eller erbjudanden."
     },
     {
-      "title": "Branschspecifikt tillfälle eller lokal händelse",
-      "date": "Tidsangivelse",
-      "relevance": "Hur företaget kan agera på detta med specifikt innehåll eller erbjudande"
+      "title": "Branschmönster som återkommer den här tiden på året",
+      "date": "YYYY-MM-DD, måndagen i den vecka det gäller",
+      "relevance": "Vad mönstret innebär för kunderna och vad det ger att skriva om. Bara det som stöds av profilen."
     }
   ]
-}`;
+}
+
+Fältet "date" ska ALLTID vara ett giltigt datum i formen YYYY-MM-DD och
+ligga inom de närmaste 14 dagarna från ${day} ${month} ${year}. Skriv
+aldrig "Denna vecka", "Vecka 39" eller liknande där — gränssnittet
+räknar själv ut hur långt bort det är.`;
 
     const result = await callChatJson(systemPrompt, userPrompt, { maxTokens: AI.MAX_OUTPUT_TOKENS });
     const plan = result.parsed;

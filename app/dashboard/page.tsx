@@ -17,7 +17,7 @@ import { Button, ButtonLink, Card, Alert, EmptyState, Skeleton } from "@/app/_sh
 import { useAccountData } from "@/app/_shared/useAccountData";
 import UsagePanel from "@/app/_shared/UsagePanel";
 import { firstNameFromEmail } from "@/app/_shared/user";
-import { isoWeek, greeting, isPlanStale } from "@/lib/server/voice";
+import { isoWeek, greeting, isPlanStale, opportunityWhen } from "@/lib/server/voice";
 import { createClient } from "@/lib/supabase-browser";
 
 /** Dubbelklick, ett andra fönster eller otålighet ska inte kosta en
@@ -168,12 +168,15 @@ export default function DashboardPage() {
                       som utgår från var ni är nu.
                     </Alert>
                   )}
-                  {plan.tags?.length > 0 && (
-                    <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
-                      Jag lutar åt {plan.tags.slice(0, 3).join(", ").toLowerCase()} den här veckan,
-                      utifrån det du fyllt i under Vad jag vet.
-                    </p>
-                  )}
+                  {/* Modellen skriver ingressen sjalv som del av planen.
+                      Tidigare byggdes den i koden av plan.tags, vilket gav
+                      en inklistrad lista i en mall. Saknas faltet - alla
+                      planer skapade fore andringen - visas reservtexten. */}
+                  <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
+                    {plan.intro?.trim()
+                      ? plan.intro
+                      : "Förslaget bygger på det du fyllt i under Vad jag vet."}
+                  </p>
                   <div className="mt-6 flex flex-wrap gap-2">
                     <ButtonLink href="/innehall">Se innehållet</ButtonLink>
                     <Button variant="secondary" onClick={generatePlan} loading={generating}>
@@ -246,7 +249,9 @@ export default function DashboardPage() {
                       <Card key={i} padding="sm">
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
                           <p className="font-medium">{o.title}</p>
-                          {o.date && <span className="text-xs text-text-tertiary">{o.date}</span>}
+                          {opportunityWhen(o.date) && (
+                            <span className="text-xs text-text-tertiary">{opportunityWhen(o.date)}</span>
+                          )}
                         </div>
                         <p className="mt-1 text-sm leading-relaxed text-text-secondary">
                           {o.relevance}
@@ -257,21 +262,10 @@ export default function DashboardPage() {
                 </section>
               )}
 
-              <section>
-                <Label>Din AI-användning</Label>
-                <UsagePanel />
-              </section>
-
-              <section>
-                <Label>Inte kopplat ännu</Label>
-                <Card padding="sm">
-                  <p className="text-sm leading-relaxed text-text-secondary">
-                    Webbshop, Google Analytics och nyhetsbrevsverktyg är inte anslutna. Först när
-                    de är det kan jag visa vad innehållet faktiskt gav — fram till dess visar jag
-                    inga siffror jag inte kan belägga.
-                  </p>
-                </Card>
-              </section>
+              {/* Renderar ingenting for den som inte ar administrator.
+                  Rubriken sitter inuti panelen, sa den inte blir kvar
+                  ensam ovanfor ett tomrum. */}
+              <UsagePanel />
             </div>
           </>
         )}

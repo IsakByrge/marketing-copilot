@@ -90,41 +90,49 @@
   --mc-border-strong: rgba(255, 255, 255, 0.18);
 }
 
-/* ─── BASE ───────────────────────────────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+/* ─── BASE ───────────────────────────────────────────────
+   Ligger i @layer base MED FLIT. Olagrade regler vinner över allt
+   som ligger i ett lager, oavsett specificitet — så länge `a { color:
+   inherit }` stod utanför ett lager slog den Tailwinds `text-white`
+   och gjorde varje länkknapp mörk på emerald (kontrast 2,3:1).
+   I base-lagret avgör vanlig specificitet igen, och utilities vinner
+   som de ska. Lägg aldrig tillbaka de här reglerna utanför lagret. */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
 
-html, body {
-  min-height: 100%;
-  background: var(--mc-bg);
-  color: var(--mc-text);
-  font-family: var(--font-outfit), "Outfit", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-}
+  html, body {
+    min-height: 100%;
+    background: var(--mc-bg);
+    color: var(--mc-text);
+    font-family: var(--font-outfit), "Outfit", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
 
-h1, h2, h3, .mc-serif {
-  font-family: var(--font-cormorant), "Cormorant Garamond", serif;
-  font-weight: 300;
-}
+  h1, h2, h3, .mc-serif {
+    font-family: var(--font-cormorant), "Cormorant Garamond", serif;
+    font-weight: 300;
+  }
 
-button, input, textarea, select {
-  font-family: inherit;
-}
+  button, input, textarea, select {
+    font-family: inherit;
+  }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 
-::selection {
-  background: var(--mc-gold);
-  color: var(--mc-bg);
-}
+  ::selection {
+    background: var(--mc-gold);
+    color: var(--mc-bg);
+  }
 
-::placeholder {
-  color: var(--mc-subtle);
+  ::placeholder {
+    color: var(--mc-subtle);
+  }
 }
 
 ::-webkit-scrollbar       { width: 4px; }

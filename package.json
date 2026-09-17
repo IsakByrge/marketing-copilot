@@ -18,7 +18,9 @@
     "test:editmemory": "tsx lib/server/editMemory.test.mts",
     "test:imageprompt": "tsx lib/server/imagePrompt.test.mts",
     "test:usage": "tsx lib/server/usageReport.test.mts",
-    "test:storage": "tsx app/_shared/appStorage.test.mts"
+    "test:storage": "tsx app/_shared/appStorage.test.mts",
+    "test:contrast": "tsx app/_shared/contrast.test.mts",
+    "test:admin": "tsx lib/server/admin.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
