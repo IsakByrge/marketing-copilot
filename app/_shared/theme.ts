@@ -1,12 +1,10 @@
 // ─────────────────────────────────────────────────────────────
-// Delat designspråk för "Mission Control"-upplevelsen: Idag-
-// dashboarden, huvudnavigationen och Campaign Builder.
+// Delat designspråk för "Mission Control"-upplevelsen. Används nu av
+// Kampanjer, Historik och Facebook Specialist.
 //
-// Detta är AVSIKTLIGT frikopplat från de befintliga guld/grafit-
-// paletterna som varje äldre sida (create/newsletter/campaign/
-// profile/onboarding/post/login) fortfarande definierar lokalt.
-// Att byta denna fil påverkar inte de sidorna — de förblir orörda
-// tills de eventuellt tas in i en senare sprint.
+// De äldre guld/grafit-sidorna som definierade sin palett lokalt är
+// parkerade — se docs/product/PARKERADE_FUNKTIONER.md. Kvar med egen
+// lokal palett är /onboarding och /login.
 // ─────────────────────────────────────────────────────────────
 
 export const T = {

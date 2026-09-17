@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────
 import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { getCompanyBrainContext } from "@/lib/companyBrainServer";
+import { editMemoryBlock } from "@/lib/server/editMemory";
 import { callChatJson, AI } from "@/lib/server/ai";
 import {
   isContentType,
@@ -63,8 +64,12 @@ export async function POST(request: Request) {
     }
 
     // Företagskontext härleds ALLTID server-side ur sessionen.
-    const ctx = await getCompanyBrainContext();
-    const system = buildContentSystemPrompt(ctx);
+    // Nyhetsbrev och inlägg har olika röst — hämta minnet för rätt format.
+    const [ctx, editMemory] = await Promise.all([
+      getCompanyBrainContext(),
+      editMemoryBlock(o.contentType === "newsletter" ? "newsletter" : "plan_post"),
+    ]);
+    const system = buildContentSystemPrompt(ctx, editMemory);
     const user = buildContentUserPrompt(o.contentType, requestText);
 
     // Ett enskilt innehållsstycke — tightare budget än det globala taket.

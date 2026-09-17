@@ -10,6 +10,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { callChatJson, AI } from "@/lib/server/ai";
+import { voiceBlock, isoWeek } from "@/lib/server/voice";
+import { editMemoryBlock } from "@/lib/server/editMemory";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -106,12 +108,12 @@ export async function POST(request: Request) {
     const year = now.getFullYear();
     const month = now.toLocaleString("sv-SE", { month: "long" });
     const day = now.getDate();
-    const jan1 = new Date(now.getFullYear(), 0, 1);
-    const week = Math.ceil(
-      ((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7
-    );
+    // ISO 8601 — den tidigare approximationen gav fel vecka stora delar av året.
+    const week = isoWeek(now);
 
     const upcomingDates = getUpcomingDates(now);
+    // Lär av hur användaren brukar skriva om planens inlägg.
+    const editMemory = await editMemoryBlock("plan_post");
 
     // Hämta historik från Supabase (RLS-scopat till den inloggade användaren)
     const pastPlans = await getPastPlans(guard.supabase, profile.companyName ?? "", userId);
@@ -167,27 +169,35 @@ Ska undvikas: ${(profile.avoid ?? []).join(", ")}
 Innehållsriktlinjer: ${(profile.contentGuidelines ?? []).join(", ")}
 ${fileContext}
 
-KRITISKA REGLER:
-1. Använd ALLTID företagets faktiska namn och specifika tjänster
-2. Anpassa till ${day} ${month} ${year} — rätt år är ${year}
-3. Matcha branschens verkliga språk
-4. CTA:er ska vara konkreta handlingar, inte "Kontakta oss"
-5. Hitta INTE på fakta som inte framgår av profilen
-6. Variera innehållet — upprepa INTE teman, fokus eller inläggstitlar från tidigare planer
-7. Om användaren gett feedback ovan: luta tydligt mot de gillade inläggens stil och ton, och undvik mönstren i de ogillade
+${voiceBlock({ variation: true })}
 
-FÖRBJUDNA FRASER:
-- "Vi strävar efter att leverera kvalitet"
-- "Nöjda kunder är vår prioritet"
-- "Med lång erfarenhet inom branschen"
-- "Tveka inte att höra av dig"
-- "I dagens digitala värld"
-- Alla generiska fraser som kan gälla vilket företag som helst
+${editMemory}
+
+DESSUTOM:
+1. Använd ALLTID företagets faktiska namn och specifika tjänster
+2. Anpassa till ${day} ${month} ${year} — rätt år är ${year}, inte något tidigare år
+3. Matcha branschens verkliga språk
+4. Upprepa INTE teman, fokus eller inläggstitlar från tidigare planer
+5. Om användaren gett feedback ovan: luta tydligt mot de gillade inläggens stil och ton, och undvik mönstren i de ogillade
+
+OM "opportunities" — SAMMA SPÄRR SOM RESTEN AV PLANEN:
+En möjlighet får BARA bygga på det som står i företagsprofilen ovan, plus
+allmänt kända datum och säsonger. Du får ALDRIG hitta på:
+- produkter eller tjänster som inte står under "Produkter och tjänster"
+- erbjudanden, kampanjer, rabatter, paket, priser eller garantier
+- egenskaper, certifieringar, öppettider, kapacitet eller samarbeten
+- lokala evenemang du inte vet äger rum
+Är du osäker: skriv möjligheten allmänt i stället för specifikt.
+"Höstmörket gör att folk börjar tänka på säkerhet" är användbart.
+"Erbjud en gratis säkerhetskontroll" är påhittat om ingen sådan tjänst
+står i profilen. Hellre allmänt än påhittat.
+Har du färre än tre möjligheter som klarar det här: lämna färre.
 
 Returnera exakt denna JSON:
 {
   "company": "${profile.companyName ?? ""}",
   "focus": "En mening om veckans tema — specifik och säsongsanpassad för ${month} ${year}",
+  "intro": "En eller två naturliga meningar till företagaren om varför du valt veckans tema. Löpande text, inte en uppräkning. Räkna INTE upp teman och skriv inte ordet teman.",
   "tags": ["3-5 konkreta teman för veckan, ej enkla ord utan fraser som 'Midsommarförberedelser' eller 'Campingsäsongen startar'"],
   "posts": [
     { "title": "Rubrik som fångar ett konkret problem", "text": "Max 3 meningar. Konkret scenario.", "cta": "Specifik uppmaning", "image": "Realistisk bildidé" },
@@ -208,22 +218,27 @@ Returnera exakt denna JSON:
   ],
   "opportunities": [
     {
-      "title": "Konkret händelse, temadag eller säsongstillfälle inom 2 veckor",
-      "date": "Datum eller tidsperiod t.ex. '21 juni' eller 'Denna vecka'",
-      "relevance": "Exakt hur ${profile.companyName ?? "företaget"} kan använda detta — konkret innehållsidé kopplad till deras tjänster"
+      "title": "Allmänt känt datum, temadag eller säsongsskifte inom 2 veckor",
+      "date": "ISO-datum YYYY-MM-DD när tillfället har ett bestämt datum, annars veckans måndag som YYYY-MM-DD",
+      "relevance": "Vad tillfället gör med ${profile.companyName ?? "företagets"} kunder, och vilket ämne det ger att skriva om. Bara tjänster som står i profilen. Inga erbjudanden."
     },
     {
       "title": "Säsongsbeteende hos målgruppen just nu",
-      "date": "Denna vecka eller nästa vecka",
-      "relevance": "Konkret marknadsföringsidé kopplad till vad målgruppen gör just nu"
+      "date": "YYYY-MM-DD, måndagen i den vecka det gäller",
+      "relevance": "Vad målgruppen gör den här tiden på året och vilket ämne det ger. Inga påhittade tjänster eller erbjudanden."
     },
     {
-      "title": "Branschspecifikt tillfälle eller lokal händelse",
-      "date": "Tidsangivelse",
-      "relevance": "Hur företaget kan agera på detta med specifikt innehåll eller erbjudande"
+      "title": "Branschmönster som återkommer den här tiden på året",
+      "date": "YYYY-MM-DD, måndagen i den vecka det gäller",
+      "relevance": "Vad mönstret innebär för kunderna och vad det ger att skriva om. Bara det som stöds av profilen."
     }
   ]
-}`;
+}
+
+Fältet "date" ska ALLTID vara ett giltigt datum i formen YYYY-MM-DD och
+ligga inom de närmaste 14 dagarna från ${day} ${month} ${year}. Skriv
+aldrig "Denna vecka", "Vecka 39" eller liknande där — gränssnittet
+räknar själv ut hur långt bort det är.`;
 
     const result = await callChatJson(systemPrompt, userPrompt, { maxTokens: AI.MAX_OUTPUT_TOKENS });
     const plan = result.parsed;

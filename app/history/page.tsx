@@ -7,9 +7,10 @@
 // visats i UI:t förrän nu. Ingen ny affärslogik, bara en lista
 // i stället för limit(1).
 // ─────────────────────────────────────────────────────────────
-import Shell from "@/app/_shared/Shell";
-import { T, fontSerif, fontSans } from "@/app/_shared/theme";
-import { PageHeader, PrimaryButton, EmptyState } from "@/app/_shared/ui";
+import Link from "next/link";
+import AppShell from "@/app/_shared/AppShell";
+import { T, fontSans } from "@/app/_shared/themeLight";
+import { PageHeader, PrimaryButton, EmptyState } from "@/app/_shared/uiLight";
 import { IconHistory } from "@/app/_shared/icons";
 import { useAccountData } from "@/app/_shared/useAccountData";
 
@@ -21,9 +22,16 @@ export default function HistoryPage() {
   const { history, loaded } = useAccountData();
 
   return (
-    <Shell>
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "56px 40px 80px" }}>
-        <PageHeader eyebrow="Historik" title="Tidigare marknadsplaner." subtitle="Varje plan din marknadschef har skapat, i tidsordning." />
+    <AppShell>
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
+        <PageHeader eyebrow="Historik" title="Tidigare förslag." subtitle="Varje veckoförslag som skapats, i tidsordning." />
+
+        {/* /campaigns har ingen egen menypost langre. Det har ar vagen dit. */}
+        <p style={{ fontFamily: fontSans, fontSize: "0.85rem", color: T.text3, marginTop: -24, marginBottom: 32 }}>
+          <Link href="/campaigns" style={{ color: T.text2, textDecoration: "underline", textUnderlineOffset: 3 }}>
+            Se kampanjförslagen samlade
+          </Link>
+        </p>
 
         {!loaded ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -45,7 +53,7 @@ export default function HistoryPage() {
                   {formatDate(entry.createdAt)}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <h3 style={{ fontFamily: fontSerif, fontWeight: 400, fontSize: "1.05rem", color: T.text, marginBottom: 6 }}>{entry.focus || "Marknadsplan"}</h3>
+                  <h3 style={{ fontFamily: fontSans, fontWeight: 400, fontSize: "1.05rem", color: T.text, marginBottom: 6 }}>{entry.focus || "Marknadsplan"}</h3>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {entry.tags.slice(0, 4).map((tag, i) => (
                       <span key={i} style={{
@@ -65,6 +73,6 @@ export default function HistoryPage() {
           </div>
         )}
       </div>
-    </Shell>
+    </AppShell>
   );
 }

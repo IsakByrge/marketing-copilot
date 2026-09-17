@@ -1,0 +1,173 @@
+"use client";
+
+// ─────────────────────────────────────────────────────────────
+// Ljus AppShell på det godkända emerald-systemet.
+//
+// Första ytan som faktiskt renderar designsystemet. Den gamla mörka
+// Shell.tsx lämnas orörd — sidor migreras en i taget, inte i ett svep.
+//
+// Mobil är huvudfallet: sidomenyn är dold under lg och ersätts av en
+// fast tabbrad i botten med 44px träffyta.
+//
+// Desktop visar alla åtta ytor. Mobilens bottenrad visar de fem du är
+// i varje vecka — Campaign Builder, Kampanjer och Historik hör till
+// desktop, där sidomenyn har plats och ändå scrollar internt. Att
+// klämma in åtta träffytor på 400px skulle göra alla åtta sämre.
+// ─────────────────────────────────────────────────────────────
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase-browser";
+import { clearAppStorage } from "./appStorage";
+import { cx } from "./primitives";
+import {
+  IconToday, IconContent, IconCompany, IconPencil, IconSparkle,
+  IconBuilder, IconHistory, IconLogout,
+} from "./icons";
+
+interface Item {
+  href: string;
+  label: string;
+  icon: (p: { size?: number }) => React.ReactElement;
+}
+
+/** Hela menyn, i den ordning desktop visar den. */
+const ITEMS: Item[] = [
+  { href: "/dashboard", label: "Idag", icon: IconToday },
+  { href: "/innehall", label: "Innehåll", icon: IconContent },
+  { href: "/produkttexter", label: "Produkttexter", icon: IconPencil },
+  { href: "/content/facebook", label: "Facebook", icon: IconSparkle },
+  { href: "/campaign-builder", label: "Kampanjbyggaren", icon: IconBuilder },
+  // /campaigns har ingen egen post: dess kampanjforslag visas redan under
+  // Innehall, och resten av sidan ar ett tomläge for en funktion som inte
+  // finns. Sidan ligger kvar och nas fran Historik.
+  { href: "/history", label: "Historik", icon: IconHistory },
+  { href: "/company", label: "Vad jag vet", icon: IconCompany },
+];
+
+/** De fem som får plats i mobilens bottenrad. Resten nås från Idag. */
+const MOBILE_HREFS = ["/dashboard", "/innehall", "/produkttexter", "/content/facebook", "/company"];
+const MOBILE_ITEMS: Item[] = MOBILE_HREFS.map(
+  (href) => ITEMS.find((i) => i.href === href)!,
+);
+
+function isActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() ?? "";
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+
+  // Utloggningen satt i gamla Shell.tsx. Den flyttade hit med den, inte
+  // bort: appstadningen fore auth.signOut() sa en delad dator aldrig
+  // behaller foregaende anvandares plan eller profil.
+  async function signOut() {
+    clearAppStorage();
+    await createClient().auth.signOut();
+    router.push("/login");
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    createClient().auth.getUser()
+      .then(({ data }) => { if (!cancelled) setEmail(data.user?.email ?? null); })
+      .catch(() => { /* namnet är kosmetiskt — visa inget hellre än ett fel */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <div className="app-light min-h-svh bg-background font-sans text-text-primary">
+      {/* Sidomenyn ligger på den nedsänkta papperstonen, innehållsytan på
+          bakgrunden och korten i vitt — tre steg som ger djup utan skuggor.
+
+          Fast i vänsterkanten över hela skärmhöjden: menyn står still när
+          innehållet scrollar. Bara nav-listan scrollar, och bara om den
+          blir längre än skärmen — logotyp och konto ligger alltid kvar. */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col overflow-hidden border-r border-border bg-surface-sunken lg:flex">
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5 px-5 py-5">
+          <span className="flex h-7 w-7 items-center justify-center rounded bg-primary text-sm font-medium text-white">
+            M
+          </span>
+          <span className="text-sm font-medium">Marketing Copilot</span>
+        </Link>
+
+        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+          {ITEMS.map(({ href, label, icon: Icon }) => {
+            const on = isActive(pathname, href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={on ? "page" : undefined}
+                className={cx(
+                  "mb-0.5 flex items-center gap-3 rounded px-3 py-2.5 text-sm transition-colors",
+                  on
+                    ? "bg-surface font-medium text-primary"
+                    : "text-text-secondary hover:bg-surface hover:text-text-primary",
+                )}
+              >
+                <Icon size={17} />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="shrink-0 border-t border-border px-3 py-3">
+          {email && (
+            <p className="truncate px-2 pb-2 text-xs text-text-tertiary">{email}</p>
+          )}
+          <button
+            type="button"
+            onClick={signOut}
+            className="flex w-full items-center gap-3 rounded px-3 py-2.5 text-sm text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+          >
+            <IconLogout size={17} />
+            Logga ut
+          </button>
+        </div>
+      </aside>
+
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-2.5 border-b border-border bg-surface-sunken px-4 lg:hidden">
+        <span className="flex h-7 w-7 items-center justify-center rounded bg-primary text-sm font-medium text-white">
+          M
+        </span>
+        <span className="text-sm font-medium">Marketing Copilot</span>
+        {/* Mobilens bottenrad ar full av navigering, sa utloggningen far
+            plats har i stallet. Den maste finnas nagonstans pa mobil. */}
+        <button
+          type="button"
+          onClick={signOut}
+          aria-label="Logga ut"
+          className="ml-auto flex h-10 w-10 items-center justify-center rounded text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+        >
+          <IconLogout size={18} />
+        </button>
+      </header>
+
+      <main className="pb-20 lg:ml-56 lg:pb-0">{children}</main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-surface-sunken lg:hidden">
+        {MOBILE_ITEMS.map(({ href, label, icon: Icon }) => {
+          const on = isActive(pathname, href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={on ? "page" : undefined}
+              className={cx(
+                "flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 text-[11px] transition-colors",
+                on ? "font-medium text-primary" : "text-text-tertiary",
+              )}
+            >
+              <Icon size={19} />
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}

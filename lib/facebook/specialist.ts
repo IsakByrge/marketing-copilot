@@ -11,13 +11,15 @@
 // aldrig, lagras aldrig, visas aldrig — granskaren returnerar bara
 // kriterier, problem och en revisionsinstruktion.
 //
-// SJÄLVFÖRSÖRJANDE MED FLIT: enda runtime-importen är `openai`.
+// SJÄLVFÖRSÖRJANDE MED FLIT: runtime-importerna är `openai` och
+// `../server/voice` (ren logik, inga beroenden — de delade skrivreglerna).
 // Alla typ-importer är `import type` (raderas vid körning) så att
 // motorn kan köras direkt av en fristående testharness utan Next-
 // eller Supabase-kontext. Prompt-byggande sker här; validering av
 // briefen och de delade typerna ligger i app/content/facebook/types.ts.
 // ─────────────────────────────────────────────────────────────
 import OpenAI from "openai";
+import { voiceBlock, BANNED_PHRASES } from "../server/voice";
 import type {
   FacebookBrief,
   FacebookSpecialistContext,
@@ -74,6 +76,12 @@ interface RunOptions {
   emit?: (phase: FacebookPhase) => void;
   signal?: AbortSignal;
   requestId?: string;
+  /**
+   * Formaterade par av tidigare AI-förslag och användarens publicerade
+   * version (lib/server/editMemory.ts). Tom sträng = ingen historik ännu,
+   * och då ser prompten ut exakt som förut.
+   */
+  editMemory?: string;
 }
 
 /* ── Deterministisk gate: avgörande information saknas ───────
@@ -129,7 +137,7 @@ const LENGTH_GUIDANCE: Record<FacebookLength, string> = {
 };
 
 /* ── Systemprompt: utkast ────────────────────────────────── */
-const DRAFT_SYSTEM = `Du är en erfaren svensk marknadsförare som skriver organiska Facebook-inlägg åt riktiga svenska företag — inlägg företaget kan publicera direkt eller efter en liten justering. Du skriver som en skicklig människa som känner företaget, inte som en generell AI och inte som en amerikansk reklambyrå översatt till svenska.
+const draftSystem = (editMemory = "") => `Du är en erfaren svensk marknadsförare som skriver organiska Facebook-inlägg åt riktiga svenska företag — inlägg företaget kan publicera direkt eller efter en liten justering. Du skriver som en skicklig människa som känner företaget, inte som en generell AI och inte som en amerikansk reklambyrå översatt till svenska.
 
 COPYPRINCIPER (följ dem, lista dem aldrig):
 1. Börja konkret — i en situation, en observation eller en rak fördel, inte i en lång ingress.
@@ -146,6 +154,16 @@ COPYPRINCIPER (följ dem, lista dem aldrig):
 HOOK: En stark hook är inte alltid en fråga. Välj den hooktyp som passar: konkret situation, observation, ett relevant problem, en tydlig nyhet, en rak produktfördel, en säsongsanknytning, en kontrast — eller en fråga när frågan faktiskt passar. Undvik clickbait och konstlad dramatik. De två alternativen bör helst inte alla ha samma hooktyp.
 
 UNDVIK dessa och liknande AI/reklamklichéer helt: "inte bara X – utan Y", "mer än bara", "ta nästa steg", "till nästa nivå", "upptäck/upplev skillnaden", "en investering i kvalitet", "oavsett om", "i dagens snabba/digitala värld", "skräddarsydda lösningar", "vi brinner för", "möter dina behov", "perfekt för dig som", "låt oss hjälpa dig", "vi strävar efter", "sömlös", "när det kommer till". Undvik också överdrivet många adjektiv, generiska superlativ, onödig upprepning av produkt- eller företagsnamnet och långa ingressliknande öppningar.
+
+${voiceBlock({ example: false })}
+
+${editMemory}
+
+AVSLUT OCH INTERPUNKTION
+- Inga utropstecken. Ett lugnt påstående bär längre än ett utrop.
+- Sista meningen ska innehålla något konkret — en plats, en tidsangivelse, ett
+  pris­löfte som finns i underlaget, eller en handling. Aldrig "vi ser fram emot
+  att hjälpa dig", "upplev skillnaden" eller liknande tomma avslut.
 
 SOCIALT BEVIS — STRIKT REGEL: Du får ENDAST åberopa kunder, kundcitat, recensioner, omdömen, betyg, försäljningssiffror, antal kunder, popularitet, tester eller utmärkelser om det finns uttryckligt underlag i fältet VERIFIERAT SOCIALT BEVIS. Saknas det fältet eller är det tomt: skriv INGENTING om att kunder tycker/säger/återkommer, inga "många kunder", inga "nöjda kunder", inga siffror om kunder, inga omdömen. Hitta då aldrig på en kundberättelse och döp aldrig ett alternativ till "Kundberättelse". Välj i stället en annan vinkel: användningssituation, problem/lösning, produktfokus, expertråd, bakom produkten, säsong eller praktisk nytta.
 
@@ -201,6 +219,8 @@ Bedöm primärversionen mot:
 - readableFormatting: radbrytningar, rimlig emoji-/hashtagnivå.
 - noForbiddenClaims: bryter inte mot företagets forbiddenClaims.
 - naturalSwedish: låter som en skicklig svensk marknadsförare, INTE som generell AI. Sätt false om texten innehåller AI/reklamklichéer ("inte bara X utan Y", "ta nästa steg", "i dagens snabba värld", "skräddarsydda lösningar", "vi brinner för" osv.), uppstyltade meningar, för många superlativ eller en lång ingressliknande öppning.
+- noEmptyClosing: sätt false om sista meningen är ett tomt avslut utan konkret innehåll, eller om texten innehåller utropstecken.
+- noBannedPhrases: sätt false om texten innehåller någon av dessa formuleringar eller en nära variant: ${BANNED_PHRASES.join(", ")}.
 - honestSocialProof: sätt false om texten påstår något om kunder, kundcitat, recensioner, omdömen, betyg, siffror, popularitet eller utmärkelser UTAN att det finns täckning i VERIFIERAT SOCIALT BEVIS. Fabricerat eller obestyrkt social proof är ett ALLVARLIGT fel.
 
 status:
@@ -212,7 +232,7 @@ Svara med ENDAST giltig JSON. Skriv aldrig ut ditt resonemang.
 {
   "status": "ready" | "needs_revision" | "blocked",
   "overallScore": 0-100,
-  "checks": { "companySpecific": bool, "audienceSpecific": bool, "clearHook": bool, "clearCustomerValue": bool, "credibleClaims": bool, "correctTone": bool, "clearCTA": bool, "appropriateLength": bool, "readableFormatting": bool, "noForbiddenClaims": bool, "naturalSwedish": bool, "honestSocialProof": bool },
+  "checks": { "companySpecific": bool, "audienceSpecific": bool, "clearHook": bool, "clearCustomerValue": bool, "credibleClaims": bool, "correctTone": bool, "clearCTA": bool, "appropriateLength": bool, "noEmptyClosing": bool, "noBannedPhrases": bool, "readableFormatting": bool, "noForbiddenClaims": bool, "naturalSwedish": bool, "honestSocialProof": bool },
   "issues": ["kort konkret problem", "..."],
   "revisionSummary": "konkret instruktion om status = needs_revision, annars utelämnad"
 }`;
@@ -371,6 +391,7 @@ function allChecksTrue(): FacebookQualityChecks {
     companySpecific: true, audienceSpecific: true, clearHook: true, clearCustomerValue: true,
     credibleClaims: true, correctTone: true, clearCTA: true, appropriateLength: true,
     readableFormatting: true, noForbiddenClaims: true, naturalSwedish: true, honestSocialProof: true,
+    noEmptyClosing: true, noBannedPhrases: true,
   };
 }
 
@@ -379,6 +400,7 @@ function allChecksFalse(): FacebookQualityChecks {
     companySpecific: false, audienceSpecific: false, clearHook: false, clearCustomerValue: false,
     credibleClaims: false, correctTone: false, clearCTA: false, appropriateLength: false,
     readableFormatting: false, noForbiddenClaims: false, naturalSwedish: false, honestSocialProof: false,
+    noEmptyClosing: false, noBannedPhrases: false,
   };
 }
 
@@ -402,6 +424,8 @@ function coerceReview(raw: unknown): FacebookQualityReview | null {
     // att de deterministiska lagren, inte en utebliven flagga, avgör.
     naturalSwedish: cRaw.naturalSwedish === false ? false : true,
     honestSocialProof: cRaw.honestSocialProof === false ? false : true,
+    noEmptyClosing: cRaw.noEmptyClosing === false ? false : true,
+    noBannedPhrases: cRaw.noBannedPhrases === false ? false : true,
   };
   let score = typeof o.overallScore === "number" ? Math.round(o.overallScore) : 0;
   score = Math.max(0, Math.min(100, score));
@@ -552,6 +576,7 @@ export async function runFacebookSpecialist(
   const started = Date.now();
   const client = makeClient();
   const emit = options.emit ?? (() => {});
+  const DRAFT_SYSTEM = draftSystem(options.editMemory ?? "");
   const forbidden = ctx.company.forbiddenClaims ?? [];
   const verifiedProofCount = ctx.company.verifiedSocialProof?.length ?? 0;
   let calls = 0;

@@ -11,13 +11,15 @@
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
-import Shell from "@/app/_shared/Shell";
-import { T, fontSans, fontSerif, transition } from "@/app/_shared/theme";
+import AppShell from "@/app/_shared/AppShell";
+import { T, fontSans, transition } from "@/app/_shared/themeLight";
 import {
   PageHeader, PrimaryButton, GhostButton, Field, TextInput, TextArea,
   LoadingPanel, ErrorNote, EmptyState, CopyButton, SectionLabel,
-} from "@/app/_shared/ui";
+} from "@/app/_shared/uiLight";
 import { IconContent, IconSparkle, IconCheck, IconX } from "@/app/_shared/icons";
+import ImageMaker from "@/app/_shared/ImageMaker";
+import { briefToSubject } from "@/lib/server/imagePrompt";
 import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
 import {
   GOAL_OPTIONS, ANGLE_OPTIONS, LENGTH_OPTIONS, TONE_SUGGESTIONS,
@@ -190,6 +192,19 @@ export default function FacebookSpecialistPage() {
   // Direktnavigering från Campaign Builder (/content/facebook?strategy=<id>)
   // hanteras här: när strategin finns i användarens lista förväljs och förifylls
   // den direkt (setState sker i en async-callback, inte synkront i effektkroppen).
+  // Direktlänk från Innehåll: /content/facebook?amne=<text> förifyller
+  // ämnesfältet så ett grovt veckoplansutkast kan tas vidare till den
+  // riktiga motorn utan att skrivas in på nytt.
+  useEffect(() => {
+    const topic = new URLSearchParams(window.location.search).get("amne");
+    if (!topic) return;
+    // Sätts utanför den synkrona effektkroppen — samma skäl som i
+    // strategi-effekten nedan: undviker kaskad-render. useSearchParams
+    // vore alternativet, men den här sidan förrenderas statiskt och
+    // skulle då behöva en Suspense-gräns runt hela klientträdet.
+    queueMicrotask(() => setProductOrTopic(topic.slice(0, 500)));
+  }, []);
+
   useEffect(() => {
     const wanted = new URLSearchParams(window.location.search).get("strategy");
     (async () => {
@@ -312,26 +327,26 @@ export default function FacebookSpecialistPage() {
 
   if (loaded && !hasCompany) {
     return (
-      <Shell>
-        <div style={{ maxWidth: 720, margin: "0 auto", padding: "56px 40px 100px" }}>
-          <PageHeader eyebrow="Facebook Specialist" title="Skapa Facebook-inlägg som passar ditt företag."
-            subtitle="Skapa Facebook-inlägg som är anpassade efter ditt företag, ditt mål och din målgrupp." />
+      <AppShell>
+        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
+          <PageHeader eyebrow="Facebook" title="Skriv ett Facebook-inlägg."
+            subtitle="Anpassat efter ditt företag, ditt mål och vilka du vill nå." />
           <EmptyState icon={<IconContent size={19} />} title="Ingen företagskunskap ännu."
-            body="Facebook-specialisten skriver utifrån ditt företag. Skapa en företagsprofil först."
+            body="Jag skriver utifrån det du berättat om företaget. Fyll i det först."
             action={<PrimaryButton href="/onboarding">Starta onboarding</PrimaryButton>} />
         </div>
-      </Shell>
+      </AppShell>
     );
   }
 
   return (
-    <Shell>
-      <div style={{ maxWidth: 880, margin: "0 auto", padding: "48px 40px 110px" }}>
+    <AppShell>
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
         {phase !== "result" && (
           <PageHeader
-            eyebrow={companyName ? `${companyName} · Facebook Specialist` : "Facebook Specialist"}
-            title="Facebook Specialist"
-            subtitle="Skapa Facebook-inlägg som är anpassade efter ditt företag, ditt mål och din målgrupp."
+            eyebrow={companyName ? `${companyName} · Facebook` : "Facebook"}
+            title="Skriv ett Facebook-inlägg."
+            subtitle="Anpassat efter ditt företag, ditt mål och vilka du vill nå."
           />
         )}
 
@@ -377,7 +392,7 @@ export default function FacebookSpecialistPage() {
                 <Segmented value={underlag} onChange={setUnderlag}
                   options={[
                     ...(strategies.length ? [{ value: "strategy" as const, label: "Kampanjstrategi" }] : []),
-                    { value: "product" as const, label: "Produkt ur Company Brain" },
+                    { value: "product" as const, label: "En av era produkter" },
                     { value: "other" as const, label: "Något annat" },
                   ]} />
               </div>
@@ -391,7 +406,7 @@ export default function FacebookSpecialistPage() {
                         background: strategyId === s.id ? T.purpleDim : T.surface,
                         border: `1px solid ${strategyId === s.id ? T.purpleBorder : T.line}`,
                       }}>
-                      <div style={{ fontFamily: fontSerif, fontSize: "1rem", color: T.text }}>{s.title}</div>
+                      <div style={{ fontFamily: fontSans, fontSize: "1rem", color: T.text }}>{s.title}</div>
                       <div style={{ fontFamily: fontSans, fontSize: "0.76rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{s.goal}</div>
                     </button>
                   ))}
@@ -412,7 +427,7 @@ export default function FacebookSpecialistPage() {
                 <div>
                   {brain.products.length === 0 ? (
                     <p style={{ fontFamily: fontSans, fontSize: "0.85rem", fontWeight: 300, color: T.text3 }}>
-                      Inga produkter i Company Brain ännu. Välj “Något annat” och beskriv fritt, eller lägg till produkter under Företagskunskap.
+                      Inga produkter tillagda ännu. Välj “Något annat” och beskriv fritt, eller lägg till produkter under Vad jag vet.
                     </p>
                   ) : (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -431,7 +446,7 @@ export default function FacebookSpecialistPage() {
                       <KnownChips label="Vanliga invändningar" items={selectedProduct.commonObjections} />
                       {selectedProduct.seasonality && <KnownChips label="Säsong" items={[selectedProduct.seasonality]} />}
                       <p style={{ fontFamily: fontSans, fontSize: "0.73rem", fontWeight: 300, color: T.text4, marginTop: 6 }}>
-                        Specialisten använder detta automatiskt. Justeringar nedan gäller bara det här inlägget — Company Brain ändras inte.
+                        Det här används automatiskt. Justeringar nedan gäller bara det här inlägget — företagskunskapen ändras inte.
                       </p>
                     </div>
                   )}
@@ -478,7 +493,7 @@ export default function FacebookSpecialistPage() {
             <section>
               <SectionLabel>5 · Ton</SectionLabel>
               <p style={{ fontFamily: fontSans, fontSize: "0.78rem", fontWeight: 300, color: T.text3, margin: "8px 0 12px" }}>
-                {toneDefault ? <>Förvald från Company Brain: <span style={{ color: T.text2 }}>{toneDefault}</span>. Välj en tillfällig justering nedan om du vill.</> : "Välj en ton för det här inlägget."}
+                {toneDefault ? <>Hämtad från företagskunskapen: <span style={{ color: T.text2 }}>{toneDefault}</span>. Välj en tillfällig justering nedan om du vill.</> : "Välj en ton för det här inlägget."}
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {TONE_SUGGESTIONS.map((tOpt) => <Chip key={tOpt} label={tOpt} active={tone === tOpt} onClick={() => { touch(); setTone(tone === tOpt ? "" : tOpt); }} />)}
@@ -520,7 +535,7 @@ export default function FacebookSpecialistPage() {
 
         {phase === "generating" && (
           <div style={{ paddingTop: 20 }}>
-            <LoadingPanel title="Facebook Specialist arbetar" steps={loadingSteps} activeStep={activeStep} />
+            <LoadingPanel title="Jag skriver inlägget" steps={loadingSteps} activeStep={activeStep} />
           </div>
         )}
 
@@ -536,7 +551,7 @@ export default function FacebookSpecialistPage() {
           />
         )}
       </div>
-    </Shell>
+    </AppShell>
   );
 }
 
@@ -546,7 +561,8 @@ const CHECK_LABELS: Record<keyof FacebookQualityChecks, string> = {
   clearCustomerValue: "Kundnytta", credibleClaims: "Trovärdiga påståenden", correctTone: "Rätt ton",
   clearCTA: "Tydlig CTA", appropriateLength: "Rimlig längd", readableFormatting: "Läsbar formatering",
   noForbiddenClaims: "Inga förbjudna påståenden", naturalSwedish: "Naturlig svenska",
-  honestSocialProof: "Ärligt socialt bevis",
+  honestSocialProof: "Ärligt socialt bevis", noEmptyClosing: "Konkret avslut",
+  noBannedPhrases: "Inga tomma fraser",
 };
 
 /** Användarvänlig huvudstatus — den primära signalen (poängtalet är sekundärt). */
@@ -588,7 +604,7 @@ function FacebookPreview({ companyName, text, imageBrief, edited }: {
     <div style={{ background: T.surface, borderRadius: 14, overflow: "hidden", border: `1px solid ${T.line2}`, boxShadow: "0 24px 60px -34px rgba(0,0,0,0.65)", maxWidth: 560 }}>
       {/* Huvud: avatar, företagsnamn, neutral tidsindikator (organiskt, ingen "Sponsrad") */}
       <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "13px 15px" }}>
-        <span style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#8b6bf2,#5b8def)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: fontSerif, fontWeight: 600, fontSize: "1.05rem" }}>
+        <span style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#8b6bf2,#5b8def)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: fontSans, fontWeight: 600, fontSize: "1.05rem" }}>
           {initial}
         </span>
         <div style={{ minWidth: 0 }}>
@@ -677,6 +693,26 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
     onRegenerate(buildBrief(overrides));
   }
 
+  /** Sparar paret AI-original → din version, så framtida inlägg låter som du. */
+  async function rememberEdit() {
+    if (!edited || editedText === primary.postText) return;
+    try {
+      await fetch("/api/text-edits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "facebook_post",
+          original: primary.postText,
+          edited: editedText,
+          label: primary.label,
+          companyId,
+        }),
+      });
+    } catch {
+      // Tyst med flit — minnet får aldrig stå i vägen för arbetet.
+    }
+  }
+
   async function saveDraft() {
     setSaveState("saving");
     try {
@@ -693,6 +729,7 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
         edited_text: edited ? editedText : null,
       });
       if (error) throw error;
+      void rememberEdit();
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2500);
     } catch {
@@ -748,7 +785,7 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
 
       {/* Actions */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-        <CopyButton getText={() => fullCopy} label="Kopiera" />
+        <CopyButton getText={() => { void rememberEdit(); return fullCopy; }} label="Kopiera" />
         <GhostButton onClick={() => setEditing((e) => !e)}>{editing ? "Stäng redigering" : "Redigera"}</GhostButton>
         <GhostButton onClick={() => regen({})}>Skapa ny variant</GhostButton>
         <GhostButton onClick={() => regen({ length: "short" })}>Förkorta</GhostButton>
@@ -792,6 +829,15 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
           <BriefRow label="Komposition" value={primary.imageBrief.composition} />
           {primary.imageBrief.textOverlay && <BriefRow label="Text i bild" value={primary.imageBrief.textOverlay} />}
           {primary.imageBrief.avoid.length > 0 && <BriefRow label="Undvik" value={primary.imageBrief.avoid.join(", ")} />}
+        </div>
+
+        {/* Briefen är redan skriven — bilden skapas bara om du väljer det.
+            Aldrig automatiskt: en bild kostar hundra gånger mer än texten. */}
+        <div style={{ marginTop: 12 }}>
+          <ImageMaker
+            initialPrompt={briefToSubject(primary.imageBrief)}
+            avoid={primary.imageBrief.avoid}
+          />
         </div>
       </section>
 

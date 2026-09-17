@@ -1,0 +1,124 @@
+name: CI
+
+# Full quality gate: lint, typecheck, build, route smoke-test and every
+# deterministic test harness. Runs on PRs and on pushes to the main and
+# foundation branches.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "chore/**"
+      - "feat/**"
+      - "fix/**"
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+
+    # Placeholder, secret-free values so `next build`, `next start` and the
+    # smoke-test can run without real credentials. The smoke-test is a
+    # black-box reachability check (no DB), and no real keys ever belong in
+    # CI. Real secrets, if ever needed, come from GitHub Actions Secrets —
+    # never hard-coded here.
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      OPENAI_API_KEY: sk-ci-placeholder
+      BASE_URL: http://localhost:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # Deterministic harnesses — no network, no DB, no server needed.
+      - name: Test — strategy prefill
+        run: npm run test:prefill
+
+      - name: Test — strategist
+        run: npm run test:strategist
+
+      - name: Test — security
+        run: npm run test:security
+
+      - name: Test — app storage (logout clear)
+        run: npm run test:storage
+
+      - name: Test — overview logic
+        run: npm run test:overview
+
+      - name: Test — product text CSV
+        run: npm run test:producttext
+
+      - name: Test — voice
+        run: npm run test:voice
+
+      - name: Test — edit memory
+        run: npm run test:editmemory
+
+      - name: Test — image prompt
+        run: npm run test:imageprompt
+
+      - name: Test — usage report
+        run: npm run test:usage
+
+      - name: Test — färgkontrast
+        run: npm run test:contrast
+
+      - name: Test — administratörsgrind
+        run: npm run test:admin
+
+      # Smoke-test needs the built app running. Start it in the background,
+      # wait until it answers, run the black-box route checks, then stop it.
+      - name: Start production server
+        run: |
+          npm run start &
+          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null "$BASE_URL/"; then
+              echo "Server is up."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not become ready in time." >&2
+          exit 1
+
+      - name: Route smoke-test
+        run: npm run smoke
+
+      - name: Stop production server
+        if: always()
+        run: |
+          if [ -n "${SERVER_PID:-}" ]; then
+            kill "$SERVER_PID" 2>/dev/null || true
+          fi

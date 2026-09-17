@@ -1,0 +1,33 @@
+-- ─────────────────────────────────────────────────────────────
+-- plans.intro — modellens egen inledning till veckans tema
+--
+-- Lägger till EN kolumn på en befintlig tabell (plans). INGA rader
+-- ändras, inga policyer rörs, ingen RLS påverkas. Idempotent och
+-- säker att köra flera gånger (ADD COLUMN IF NOT EXISTS).
+--
+-- INTE KÖRD ÄNNU. Körs manuellt före merge till main.
+--
+-- VARFÖR: ingressen på Idag byggdes tidigare i koden av plan.tags och
+-- blev en inklistrad lista i en mall — "Jag lutar åt gasolutrustning
+-- för vintern, säkerhetstips för gasol, underhåll av gasolkaminer den
+-- här veckan". Nu skriver modellen en eller två naturliga meningar som
+-- ett eget fält i planen. Utan den här kolumnen finns fältet bara kvar
+-- till nästa omladdning, eftersom det inte går att spara.
+--
+-- Nullbar med flit: varje plan som skapats före den här kolumnen har
+-- ingen inledning, och det är sant. Appen visar en reservtext när
+-- fältet är null eller tomt — ingen bakåtfyllnad, inget påhittat.
+--
+-- Ingen default: en tom sträng vore en inledning som inte finns.
+--
+-- HUR DEN KÖRS (manuellt, körs INTE automatiskt av appen):
+-- 1. Supabase-projektets SQL Editor.
+-- 2. Klistra in hela filen och kör.
+-- 3. Ingen nedtid. En nullbar kolumn utan default skriver inte om
+--    tabellen, så det går på millisekunder.
+--
+-- Inga hemligheter, projekt-ID:n eller anslutningssträngar i filen.
+-- ─────────────────────────────────────────────────────────────
+
+alter table public.plans
+  add column if not exists intro text;

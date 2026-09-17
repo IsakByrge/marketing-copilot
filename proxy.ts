@@ -22,10 +22,12 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
+  // "/content" star kvar som prefix: sidan /content finns inte langre,
+  // men den skyddar /content/facebook. "/campaign" skyddar bade
+  // /campaign-builder och /campaigns.
   const protectedRoutes = [
-    "/dashboard", "/onboarding", "/profile", "/create", "/post", "/newsletter",
-    "/campaign", "/plan", "/generating", "/campaign-builder",
-    "/content", "/company", "/campaigns", "/history",
+    "/dashboard", "/onboarding", "/campaign-builder", "/campaigns",
+    "/content", "/company", "/history", "/produkttexter", "/innehall",
   ];
   const isProtected = protectedRoutes.some(r => request.nextUrl.pathname.startsWith(r));
 

@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Shell from "@/app/_shared/Shell";
+import AppShell from "@/app/_shared/AppShell";
 import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
 import { STRATEGIST_GOALS } from "@/lib/strategist/goals";
 import { saveStrategyV2 } from "@/lib/campaignStrategyStore";
@@ -21,16 +21,25 @@ import type {
 } from "@/lib/strategist/types";
 import type { CampaignGoal } from "@/app/campaign-builder/types";
 
+// Variant B: samma nycklar som förut, ljus papperspalett. "gold" heter
+// fortfarande gold i koden men är den gröna accenten — nyckelnamnen
+// behålls för att hålla ändringen liten och risken låg.
+// Pekare till designtokens i globals.css, inte egna färgvärden. Samma
+// princip som themeLight.ts: en källa till sanning för paletten.
 const T = {
-  bg: "#0a0a10", surface: "#131319", surface2: "#191921", surfaceHover: "#1e1e27",
-  line: "rgba(255,255,255,0.07)", line2: "rgba(255,255,255,0.13)",
-  text: "#f5f5f8", text2: "#aeb2c2", text3: "#6f7386", text4: "#4b4e5c",
-  gold: "#8b6bf2", goldBright: "#a78bfa", goldDim: "rgba(139,107,242,0.14)", goldBorder: "rgba(139,107,242,0.35)",
-  green: "#3ecf8e", greenDim: "rgba(62,207,142,0.13)", orange: "#f0a058", orangeDim: "rgba(240,160,88,0.13)",
-  red: "#f0616b", redDim: "rgba(240,97,107,0.13)",
+  bg: "var(--color-background)", surface: "var(--color-surface)",
+  surface2: "var(--color-surface-sunken)", surfaceHover: "var(--color-surface-sunken)",
+  line: "var(--color-border)", line2: "var(--color-border-strong)",
+  text: "var(--color-text-primary)", text2: "var(--color-text-secondary)",
+  text3: "var(--color-text-tertiary)", text4: "var(--color-text-tertiary)",
+  gold: "var(--color-primary)", goldBright: "var(--color-primary)",
+  goldDim: "var(--color-success-surface)", goldBorder: "var(--color-border-strong)",
+  green: "var(--color-success)", greenDim: "var(--color-success-surface)",
+  orange: "var(--color-warning)", orangeDim: "var(--color-warning-surface)",
+  red: "var(--color-danger)", redDim: "var(--color-danger-surface)",
 };
-const sans = "var(--font-outfit), sans-serif";
-const serif = "var(--font-cormorant), serif";
+const sans = "var(--font-geist), ui-sans-serif, system-ui, sans-serif";
+const serif = "var(--font-geist), ui-sans-serif, system-ui, sans-serif";
 
 type Phase = "brief" | "analyzing" | "questions" | "recommending" | "result";
 
@@ -207,8 +216,8 @@ export default function MarketingStrategistPage() {
   /* ── Tomläge: ingen företagsprofil ─────────────────────────── */
   if (loaded && !hasCompany) {
     return (
-      <Shell>
-        <div style={{ maxWidth: 720, margin: "0 auto", padding: "56px 24px 100px" }}>
+      <AppShell>
+        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
           <Header companyName="" />
           <div style={{ padding: "36px 28px", borderRadius: 16, background: T.surface, border: `1px dashed ${T.line2}` }}>
             <p style={{ fontFamily: sans, fontSize: "0.98rem", fontWeight: 500, color: T.text, marginBottom: 8 }}>Ingen företagskunskap ännu.</p>
@@ -216,12 +225,12 @@ export default function MarketingStrategistPage() {
             <PrimaryButton href="/onboarding">Starta onboarding →</PrimaryButton>
           </div>
         </div>
-      </Shell>
+      </AppShell>
     );
   }
 
   return (
-    <Shell>
+    <AppShell>
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "44px 24px 120px" }}>
         <Header companyName={companyName} />
         <PhaseIndicator phase={phase} />
@@ -257,7 +266,7 @@ export default function MarketingStrategistPage() {
           <ResultView strategy={strategy} savedStrategyId={savedStrategyId} onAdjust={() => setPhase(questions.length ? "questions" : "brief")} onRestart={reset} />
         )}
       </div>
-    </Shell>
+    </AppShell>
   );
 }
 
@@ -294,7 +303,7 @@ function BriefForm(p: {
         <TextInput value={p.product} onChange={(e) => p.setProduct(e.target.value)} placeholder="t.ex. Gasolbyte inför grillsäsongen" />
         {products.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-            <span style={{ fontFamily: sans, fontSize: "0.7rem", color: T.text4, alignSelf: "center" }}>Ur Company Brain:</span>
+            <span style={{ fontFamily: sans, fontSize: "0.7rem", color: T.text4, alignSelf: "center" }}>Ur företagskunskapen:</span>
             {products.slice(0, 6).map((pr) => <Chip key={pr.id} label={pr.name} onClick={() => p.setProduct(pr.name)} />)}
           </div>
         )}

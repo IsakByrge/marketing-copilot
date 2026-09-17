@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marketing Copilot — designförslag</title>
+<style>
+:root{
+  --g900:#0a3d2c; --g800:#0f5c43; --g700:#146c4f; --g100:#dcefe7; --g50:#f0f8f4;
+  --ink:#12211c; --ink2:#4a5a54; --ink3:#7b8a84;
+  --line:#e3e8e6; --line2:#cfd8d4;
+  --bg:#f6f8f7; --card:#ffffff;
+  --amber:#8a6a12; --amber-bg:#fdf4e0;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:48px 24px 96px}
+.note{max-width:640px;margin:0 0 40px}
+.note h1{font-size:26px;font-weight:600;letter-spacing:-.02em;margin-bottom:10px}
+.note p{color:var(--ink2);font-size:15px;line-height:1.7}
+.seclabel{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin:56px 0 14px;font-weight:600}
+.seclabel:first-of-type{margin-top:0}
+.cap{font-size:13px;color:var(--ink3);margin-top:10px;max-width:620px;line-height:1.6}
+
+.frame{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.phone{width:360px;background:var(--card);border:1px solid var(--line2);border-radius:26px;overflow:hidden}
+
+.app{display:grid;grid-template-columns:210px 1fr}
+.nav{background:#fbfcfc;border-right:1px solid var(--line);padding:18px 12px;min-height:640px}
+.logo{display:flex;align-items:center;gap:9px;padding:4px 8px 20px}
+.mark{width:26px;height:26px;border-radius:7px;background:var(--g800);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.logo span{font-size:14px;font-weight:600;letter-spacing:-.01em}
+.navitem{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:14px;color:var(--ink2);cursor:pointer;margin-bottom:2px}
+.navitem.on{background:var(--g50);color:var(--g900);font-weight:500}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--line2)}
+.navitem.on .dot{background:var(--g700)}
+.navfoot{margin-top:auto;padding:14px 10px 0;border-top:1px solid var(--line);font-size:12px;color:var(--ink3)}
+
+.main{padding:32px 40px 48px}
+h2.page{font-size:22px;font-weight:600;letter-spacing:-.02em;margin-bottom:4px}
+.sub{font-size:14px;color:var(--ink3);margin-bottom:26px}
+
+.hero{border:1px solid var(--line);border-radius:14px;padding:28px 30px;background:var(--card)}
+.eyebrow{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink3);font-weight:600;margin-bottom:12px}
+.hero h3{font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.3;margin-bottom:16px;max-width:520px}
+.why{background:var(--g50);border-radius:10px;padding:14px 16px;font-size:14px;color:var(--g900);line-height:1.65;max-width:560px;margin-bottom:20px}
+.why b{font-weight:600}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{background:var(--g800);color:#fff;border:none;border-radius:8px;padding:11px 18px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit}
+.btn.ghost{background:transparent;color:var(--ink2);border:1px solid var(--line2)}
+.btn.sm{padding:8px 13px;font-size:13px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+.card h4{font-size:14px;font-weight:600;margin-bottom:14px}
+.stat{font-size:28px;font-weight:600;letter-spacing:-.02em}
+.statlabel{font-size:13px;color:var(--ink3);margin-top:2px}
+.list{list-style:none}
+.list li{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.list li:last-child{border-bottom:none}
+.muted{color:var(--ink3);font-size:13px}
+.pill{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--g100);color:var(--g900)}
+.pill.todo{background:var(--amber-bg);color:var(--amber)}
+
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--g700)}
+
+.editor{display:grid;grid-template-columns:1fr 330px;gap:20px;margin-top:22px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px}
+.input{width:100%;border:1px solid var(--line2);border-radius:8px;padding:11px 13px;font-size:14px;font-family:inherit;color:var(--ink);background:#fff;line-height:1.65}
+textarea.input{min-height:132px;resize:vertical}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.chip{border:1px solid var(--line2);background:#fff;border-radius:7px;padding:7px 12px;font-size:13px;color:var(--ink2);cursor:pointer}
+
+.fbprev{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.fbhead{display:flex;gap:9px;align-items:center;padding:12px 14px}
+.av{width:34px;height:34px;border-radius:50%;background:var(--g100);color:var(--g900);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+.fbimg{height:150px;background:var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink3);font-size:12px}
+.fbbody{padding:12px 14px;font-size:13px;line-height:1.6;color:var(--ink)}
+
+.brain{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:22px}
+.kv{padding:12px 0;border-bottom:1px solid var(--line)}
+.kv:last-child{border-bottom:none}
+.kv dt{font-size:12px;color:var(--ink3);margin-bottom:3px}
+.kv dd{font-size:14px;line-height:1.6}
+.src{font-size:11px;color:var(--ink3);margin-top:4px;display:flex;align-items:center;gap:5px}
+
+/* mobil */
+.mtop{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+.mbody{padding:20px 18px}
+.mrow{padding:14px 18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:14px}
+
+.login{display:grid;grid-template-columns:1fr 380px;gap:0;min-height:520px}
+.loginleft{padding:48px 44px;background:var(--g50)}
+.loginleft h3{font-size:30px;font-weight:600;letter-spacing:-.025em;line-height:1.2;margin-bottom:14px;max-width:340px}
+.loginleft p{color:var(--ink2);font-size:14px;line-height:1.7;max-width:330px}
+.loginright{padding:48px 40px;display:flex;flex-direction:column;justify-content:center}
+.err{background:#fdeceb;border:1px solid #f2c4c0;color:#8a2a22;border-radius:8px;padding:11px 13px;font-size:13px;line-height:1.55;margin-bottom:16px}
+.two{display:flex;gap:10px;flex-wrap:wrap}
+@media(max-width:900px){.app{grid-template-columns:1fr}.nav{display:none}.grid2,.editor,.brain,.login{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="note">
+<h1>Designförslag</h1>
+<p>Fem skärmar istället för nio. Samma gröna språk som dina mockuper, men ingen siffra som produkten inte kan belägga idag. Allt här går att bygga på nuvarande kodbas utan en enda integration.</p>
+</div>
+
+<div class="seclabel">1 — Idag, mobil</div>
+<div class="phone">
+  <div class="mtop">
+    <p class="muted">Tisdag 4 augusti</p>
+    <p style="font-size:17px;font-weight:600;margin-top:2px">Isaks Bygg &amp; Interiör</p>
+  </div>
+  <div class="mbody">
+    <p class="eyebrow">Den här veckan</p>
+    <p style="font-size:20px;font-weight:600;line-height:1.35;letter-spacing:-.015em;margin-bottom:14px">Skriv om ett badrum ni precis blev klara med.</p>
+    <div class="why">Du sa att era bästa kunder är husägare som planerar renovering, och att de oftast frågar om tidsplan. Ett färdigt jobb svarar på båda.</div>
+    <div class="two">
+      <button class="btn" style="flex:1">Skriv det</button>
+      <button class="btn ghost">Annat förslag</button>
+    </div>
+  </div>
+  <div class="mrow"><span>Publicerat i juli</span><b>3 inlägg</b></div>
+  <div class="mrow"><span>Vad jag vet om er</span><span class="pill todo">4 saknas</span></div>
+</div>
+<p class="cap">Ett beslut per skärm. Motiveringen citerar hans egna svar — det är det en generisk AI-chatt inte kan göra. Ingen förtroendeprocent.</p>
+
+<div class="seclabel">2 — Idag, desktop</div>
+<div class="frame">
+<div class="app">
+  <div class="nav">
+    <div class="logo"><div class="mark">M</div><span>Marketing Copilot</span></div>
+    <div class="navitem on"><span class="dot"></span>Idag</div>
+    <div class="navitem"><span class="dot"></span>Innehåll</div>
+    <div class="navitem"><span class="dot"></span>Vad jag vet</div>
+    <div class="navitem"><span class="dot"></span>Inställningar</div>
+    <div class="navfoot">Isaks Bygg &amp; Interiör<br>isak@isaksbygg.se</div>
+  </div>
+  <div class="main">
+    <h2 class="page">Tisdag 4 augusti</h2>
+    <p class="sub">Ett förslag i veckan. Du bestämmer om det blir av.</p>
+
+    <div class="hero">
+      <p class="eyebrow">Den här veckan</p>
+      <h3>Skriv om ett badrum ni precis blev klara med.</h3>
+      <div class="why">Du sa att era bästa kunder är <b>husägare som planerar renovering</b>, och att de oftast frågar om <b>tidsplan</b>. Ett färdigt jobb svarar på båda.</div>
+      <div class="row">
+        <button class="btn">Skriv det</button>
+        <button class="btn ghost">Ge mig ett annat förslag</button>
+        <button class="btn ghost">Inte den här veckan</button>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>Det du publicerat</h4>
+        <div class="stat">7</div>
+        <div class="statlabel">inlägg sedan i maj</div>
+        <ul class="list" style="margin-top:14px">
+          <li><span>Juli</span><span class="muted">3 inlägg</span></li>
+          <li><span>Juni</span><span class="muted">2 inlägg</span></li>
+          <li><span>Maj</span><span class="muted">2 inlägg</span></li>
+        </ul>
+        <p class="muted" style="margin-top:12px">När du kopplar Google Analytics visar jag också vad de gav.</p>
+      </div>
+      <div class="card">
+        <h4>Vad jag vet om er</h4>
+        <div class="stat">12 av 16</div>
+        <div class="statlabel">saker ifyllda</div>
+        <div class="bar"><i style="width:75%"></i></div>
+        <ul class="list" style="margin-top:14px">
+          <li><span>Era priser</span><span class="pill todo">saknas</span></li>
+          <li><span>Områden ni jobbar i</span><span class="pill todo">saknas</span></li>
+          <li><span>Bästa kund</span><span class="pill">klar</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<p class="cap">Fyra menyposter. "Det du publicerat" räknar bara sådant produkten faktiskt vet idag — och raden om Analytics är ett löfte, inte en påhittad siffra.</p>
+
+<div class="seclabel">3 — Skriv inlägget</div>
+<div class="frame">
+<div class="app">
+  <div class="nav">
+    <div class="logo"><div class="mark">M</div><span>Marketing Copilot</span></div>
+    <div class="navitem"><span class="dot"></span>Idag</div>
+    <div class="navitem on"><span class="dot"></span>Innehåll</div>
+    <div class="navitem"><span class="dot"></span>Vad jag vet</div>
+    <div class="navitem"><span class="dot"></span>Inställningar</div>
+  </div>
+  <div class="main">
+    <h2 class="page">Facebook-inlägg</h2>
+    <p class="sub">Badrumsrenovering · utkast sparat 09:42</p>
+    <div class="editor">
+      <div>
+        <div class="field">
+          <label>Rubrik</label>
+          <input class="input" value="Ett badrum som blev klart i tid — och som höll budgeten">
+        </div>
+        <div class="field">
+          <label>Text</label>
+          <textarea class="input">Vi blev precis klara med ett badrum i Linköping. Kunden ville ha besked om tidsplanen innan de bestämde sig — så vi gav en slutdatum redan vid offerten, och vi höll det.
+
+Funderar du på att renovera badrummet i höst? Hör av dig så tittar vi på tidsplanen tillsammans.</textarea>
+        </div>
+        <div class="field">
+          <label>Uppmaning</label>
+          <input class="input" value="Boka ett kostnadsfritt besök">
+        </div>
+        <div class="tools">
+          <span class="chip">Kortare</span>
+          <span class="chip">Mindre säljigt</span>
+          <span class="chip">Skriv om</span>
+          <span class="chip">Föreslå bild</span>
+        </div>
+        <div class="row" style="margin-top:20px">
+          <button class="btn">Kopiera texten</button>
+          <button class="btn ghost">Markera som publicerad</button>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="padding:16px 18px;margin-bottom:16px">
+          <h4 style="margin-bottom:10px">Varför det här</h4>
+          <p style="font-size:13px;line-height:1.7;color:var(--ink2)">Tidsplan är det era kunder frågar mest om — det står i er företagskunskap. Inlägget svarar på frågan med ett konkret jobb istället för ett löfte.</p>
+        </div>
+        <p class="eyebrow">Så här ser det ut</p>
+        <div class="fbprev">
+          <div class="fbhead"><div class="av">IB</div><div><p style="font-size:13px;font-weight:600">Isaks Bygg &amp; Interiör</p><p class="muted" style="font-size:11px">Sponsrad</p></div></div>
+          <div class="fbbody">Vi blev precis klara med ett badrum i Linköping. Kunden ville ha besked om tidsplanen innan de bestämde sig…</div>
+          <div class="fbimg">Bild läggs till av dig</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<p class="cap">Inga poäng för läsbarhet, känsloton eller varumärkesmatchning. Istället en ruta som säger varför förslaget ser ut som det gör. Inga påhittade kommentarer i förhandsvisningen.</p>
+
+<div class="seclabel">4 — Vad jag vet om er</div>
+<div class="frame">
+<div class="app">
+  <div class="nav">
+    <div class="logo"><div class="mark">M</div><span>Marketing Copilot</span></div>
+    <div class="navitem"><span class="dot"></span>Idag</div>
+    <div class="navitem"><span class="dot"></span>Innehåll</div>
+    <div class="navitem on"><span class="dot"></span>Vad jag vet</div>
+    <div class="navitem"><span class="dot"></span>Inställningar</div>
+  </div>
+  <div class="main">
+    <h2 class="page">Vad jag vet om er</h2>
+    <p class="sub">Allt jag skriver bygger på det här. Rätta mig när jag har fel.</p>
+
+    <div class="card" style="display:flex;align-items:center;gap:20px;padding:18px 22px">
+      <div><div class="stat">12 av 16</div><div class="statlabel">ifyllda</div></div>
+      <div style="flex:1"><div class="bar"><i style="width:75%"></i></div><p class="muted" style="margin-top:8px">Fyra saker kvar. Var och en gör förslagen mer träffsäkra.</p></div>
+      <button class="btn sm">Fyll i nästa</button>
+    </div>
+
+    <div class="brain">
+      <div class="card">
+        <h4>Om företaget</h4>
+        <dl>
+          <div class="kv"><dt>Bästa kund</dt><dd>Husägare 35–60 i Östergötland som planerar en renovering inom ett år.</dd><div class="src">Du skrev det här 12 juni</div></div>
+          <div class="kv"><dt>Vanligaste frågan</dt><dd>Hur lång tid tar det, och håller ni tiden?</dd><div class="src">Du skrev det här 12 juni</div></div>
+          <div class="kv"><dt>Det som skiljer er</dt><dd>Fast slutdatum redan i offerten.</dd><div class="src">Du skrev det här 12 juni</div></div>
+        </dl>
+      </div>
+      <div class="card">
+        <h4>Det jag saknar</h4>
+        <ul class="list">
+          <li><div><div>Ungefärliga priser</div><div class="muted">Låter mig skriva om kostnad utan att gissa</div></div><button class="btn ghost sm">Fyll i</button></li>
+          <li><div><div>Områden ni jobbar i</div><div class="muted">Ger lokala inlägg</div></div><button class="btn ghost sm">Fyll i</button></li>
+          <li><div><div>Bilder på färdiga jobb</div><div class="muted">Ditt starkaste material</div></div><button class="btn ghost sm">Ladda upp</button></li>
+          <li><div><div>Vad ni inte vill skriva om</div><div class="muted">Så jag håller mig borta</div></div><button class="btn ghost sm">Fyll i</button></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<p class="cap">Company Brain som en pågående relation, inte en inställningssida. Varje rad visar var uppgiften kom ifrån — det är grunden för att kunna motivera varje förslag.</p>
+
+<div class="seclabel">5 — Inloggning, med felet synligt</div>
+<div class="frame">
+<div class="login">
+  <div class="loginleft">
+    <div class="logo" style="padding-left:0"><div class="mark">M</div><span>Marketing Copilot</span></div>
+    <h3 style="margin-top:28px">Ett marknadsföringsförslag i veckan. Skrivet för ert företag.</h3>
+    <p>Du berättar hur företaget fungerar. Jag föreslår vad ni ska säga, och skriver det åt er.</p>
+  </div>
+  <div class="loginright">
+    <p style="font-size:19px;font-weight:600;margin-bottom:20px">Logga in</p>
+    <div class="err">Vi kunde inte läsa er hemsida just nu. Du kan fylla i uppgifterna själv istället — det tar ett par minuter.</div>
+    <div class="field"><label>E-post</label><input class="input" value="isak@isaksbygg.se"></div>
+    <div class="field"><label>Lösenord</label><input class="input" type="password" value="xxxxxxxxxx"></div>
+    <button class="btn" style="width:100%">Logga in</button>
+    <div class="row" style="margin-top:16px;justify-content:space-between">
+      <span class="muted">Inget konto? <b style="color:var(--g800)">Skapa ett</b></span>
+      <span class="muted" style="color:var(--g800)">Glömt lösenord?</span>
+    </div>
+  </div>
+</div>
+</div>
+<p class="cap">Felrutan är med med flit. Den är den enskilt viktigaste komponenten i hela systemet — och den saknas helt i dagens produkt. Designa den innan du designar dashboarden.</p>
+
+</div>
+</body>
+</html>

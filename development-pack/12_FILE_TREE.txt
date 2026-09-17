@@ -1,0 +1,146 @@
+Marketing Copilot — repository tree (git-tracked files; node_modules and gitignored build artifacts excluded)
+Generated for the Development Pack. Total tracked files (excl. node_modules): 100
+
+marketing-copilot/
+├── app/
+│   ├── _shared/
+│   │   ├── Shell.tsx
+│   │   ├── companyBrain.ts
+│   │   ├── icons.tsx
+│   │   ├── primitives.tsx
+│   │   ├── theme.ts
+│   │   ├── ui.tsx
+│   │   ├── useAccountData.ts
+│   │   └── useCompanyBrain.ts
+│   ├── api/
+│   │   ├── analyze-company/
+│   │   │   └── route.ts
+│   │   ├── campaign-analysis/
+│   │   │   └── route.ts
+│   │   ├── campaign-interview/
+│   │   │   └── route.ts
+│   │   ├── content/
+│   │   │   └── facebook/
+│   │   │       └── route.ts
+│   │   ├── create-content/
+│   │   │   └── route.ts
+│   │   ├── edit-image/
+│   │   │   └── route.ts
+│   │   ├── generate-image/
+│   │   │   └── route.ts
+│   │   ├── generate-plan/
+│   │   │   └── route.ts
+│   │   └── strategist/
+│   │       ├── analyze/
+│   │       │   └── route.ts
+│   │       └── recommend/
+│   │           └── route.ts
+│   ├── auth/
+│   │   └── callback/
+│   │       └── page.tsx
+│   ├── campaign/
+│   │   └── page.tsx
+│   ├── campaign-builder/
+│   │   ├── analysis.ts
+│   │   ├── config.tsx
+│   │   ├── goal-profiles.ts
+│   │   ├── page.tsx
+│   │   ├── reasoning.ts
+│   │   └── types.ts
+│   ├── campaigns/
+│   │   └── page.tsx
+│   ├── company/
+│   │   └── page.tsx
+│   ├── content/
+│   │   ├── facebook/
+│   │   │   ├── page.tsx
+│   │   │   └── types.ts
+│   │   └── page.tsx
+│   ├── create/
+│   │   └── page.tsx
+│   ├── dashboard/
+│   │   └── page.tsx
+│   ├── generating/
+│   │   └── page.tsx
+│   ├── history/
+│   │   └── page.tsx
+│   ├── login/
+│   │   └── page.tsx
+│   ├── newsletter/
+│   │   └── page.tsx
+│   ├── onboarding/
+│   │   └── page.tsx
+│   ├── plan/
+│   │   └── page.tsx
+│   ├── post/
+│   │   └── [id]/
+│   │       └── page.tsx
+│   ├── profile/
+│   │   └── page.tsx
+│   ├── favicon.ico
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+├── lib/
+│   ├── facebook/
+│   │   ├── context.ts
+│   │   ├── quality.ts
+│   │   ├── specialist.ts
+│   │   └── strategyPrefill.ts
+│   ├── server/
+│   │   ├── ai.ts
+│   │   ├── auth.ts
+│   │   ├── contentPrompt.ts
+│   │   ├── guard.ts
+│   │   ├── rateLimit.ts
+│   │   ├── security.test.mts
+│   │   ├── ssrf.ts
+│   │   └── usage.ts
+│   ├── strategist/
+│   │   ├── adapter.ts
+│   │   ├── companyContext.ts
+│   │   ├── goals.ts
+│   │   ├── model.ts
+│   │   ├── prompts.ts
+│   │   ├── request.ts
+│   │   ├── strategist.test.mts
+│   │   ├── types.ts
+│   │   └── validate.ts
+│   ├── campaignStrategyStore.ts
+│   ├── companyBrainServer.ts
+│   ├── generatedPlan.ts
+│   ├── mockPlans.ts
+│   ├── planStorage.ts
+│   ├── supabase-browser.ts
+│   ├── supabase-server.ts
+│   └── supabase.ts
+├── public/
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── scripts/
+│   ├── route-smoke.mts
+│   └── strategyPrefill.integration.mts
+├── supabase/
+│   └── migrations/
+│       ├── 0001_add_company_brain.sql
+│       ├── 0002_add_content_engine.sql
+│       └── 0003_add_ai_usage_events.sql
+├── .gitignore
+├── AGENTS.md
+├── CLAUDE.md
+├── README.md
+├── RELEASE_CANDIDATE_REVIEW.md
+├── SECURITY_SPRINT_REPORT.md
+├── design-reference.png
+├── eslint.config.mjs
+├── next.config.ts
+├── node update-colors.js
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── proxy.ts
+├── tsconfig.json
+└── veckoplan-app.jsx

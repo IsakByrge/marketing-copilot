@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marketing Copilot — tre ljusa varianter</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;background:#111}
+.intro{max-width:760px;margin:0 auto;padding:56px 24px 8px;color:#e7ece9}
+.intro h1{font-size:24px;font-weight:600;margin-bottom:10px}
+.intro p{color:#9aa5a0;font-size:15px;line-height:1.7}
+.label{max-width:1240px;margin:56px auto 12px;padding:0 24px;color:#e7ece9}
+.label b{font-size:17px;font-weight:600;display:block}
+.label span{color:#8b958f;font-size:14px}
+.stage{max-width:1240px;margin:0 auto;padding:0 24px 8px}
+.app{display:grid;grid-template-columns:216px 1fr;border-radius:14px;overflow:hidden;min-height:600px}
+
+/* ── A: KORTTÄT (närmast dina mockuper) ───────────────── */
+.a{--bg:#F5FAF8;--card:#fff;--sunk:#EFF5F2;--line:#E5ECE8;--ink:#111;--ink2:#5E6763;--ink3:#6E7772;--brand:#0F6B5B;--brandbg:#E7F3EF}
+.a .nav{background:#fff;border-right:1px solid var(--line);padding:18px 12px}
+.a .main{background:var(--bg);padding:26px 30px}
+.a .grid{display:grid;grid-template-columns:1fr 300px;gap:20px}
+.a .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:16px}
+.a .sec{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px}
+
+/* ── B: VARM (papper, mjukare, mer karaktär) ──────────── */
+.b{--bg:#FAF7F1;--card:#fff;--sunk:#F3EFE6;--line:#E8E1D5;--ink:#1A1A18;--ink2:#5C574E;--ink3:#8A8377;--brand:#125E4B;--brandbg:#E6EFEA}
+.b .nav{background:#F3EFE6;border-right:1px solid var(--line);padding:18px 12px}
+.b .main{background:var(--bg);padding:30px 34px}
+.b .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin-bottom:14px}
+.b .sec{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:12px}
+
+/* ── C: KONTRAST (färgad hero, tydliga block) ─────────── */
+.c{--bg:#F4F8F6;--card:#fff;--sunk:#EAF1EE;--line:#DEE8E4;--ink:#0D1512;--ink2:#4F5A56;--ink3:#6B7671;--brand:#0B4F42;--brandbg:#0B4F42}
+.c .nav{background:#0B2F28;border-right:none;padding:18px 12px}
+.c .main{background:var(--bg);padding:0}
+.c .hero{background:#0B4F42;color:#fff;padding:32px 34px}
+.c .body{padding:24px 34px 34px}
+.c .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:14px}
+.c .sec{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px}
+
+/* delat */
+.logo{display:flex;align-items:center;gap:9px;padding:4px 8px 22px}
+.mark{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff}
+.navitem{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;font-size:14px;margin-bottom:2px}
+.h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.sub{font-size:14px;margin-top:3px}
+.post{padding:14px 0;border-bottom:1px solid var(--line)}
+.post:last-child{border-bottom:none}
+.post b{font-size:15px;font-weight:500;display:block}
+.post p{font-size:13.5px;line-height:1.6;margin-top:3px}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px}
+.btn{border:none;border-radius:8px;padding:9px 16px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;color:#fff}
+.btn2{background:transparent;border:1px solid;border-radius:8px;padding:9px 16px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media(max-width:900px){.app{grid-template-columns:1fr}.nav{display:none}.a .grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="intro">
+<h1>Tre ljusa varianter av samma skärm</h1>
+<p>Veckans innehåll för Gasolfyllarna, med riktigt innehåll i alla tre. Samma information, tre olika temperaturer. Peka på den som känns rätt — eller på delar ur olika, det går lika bra.</p>
+</div>
+
+<!-- ══ A ══ -->
+<div class="label"><b>A — Korttät</b><span>Närmast dina mockuper. Vitt, strukturerat, högerpanel, allt i kort.</span></div>
+<div class="stage"><div class="app a">
+  <div class="nav">
+    <div class="logo"><div class="mark" style="background:var(--brand)">M</div><span style="font-size:14px;font-weight:600;color:var(--ink)">Marketing Copilot</span></div>
+    <div class="navitem" style="background:var(--brandbg);color:var(--brand);font-weight:500">Idag</div>
+    <div class="navitem" style="color:var(--ink2)">Innehåll</div>
+    <div class="navitem" style="color:var(--ink2)">Produkttexter</div>
+    <div class="navitem" style="color:var(--ink2)">Vad jag vet</div>
+  </div>
+  <div class="main">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px;gap:16px;flex-wrap:wrap">
+      <div><div class="h1" style="color:var(--ink)">Vecka 34</div><div class="sub" style="color:var(--ink3)">Fem inlägg och ett nyhetsbrev, klara att granska.</div></div>
+      <button class="btn" style="background:var(--brand)">Skapa nytt</button>
+    </div>
+    <div class="grid">
+      <div>
+        <div class="sec">1. Veckans fokus</div>
+        <div class="card" style="border-left:3px solid var(--brand);border-radius:0 12px 12px 0">
+          <div style="font-size:17px;font-weight:600;color:var(--ink);line-height:1.4">Grillsäsongen tar slut om sex veckor — sälj påfyllning nu, inte flaskor.</div>
+          <p style="font-size:13.5px;color:var(--ink2);line-height:1.65;margin-top:10px">Du har markerat lösvikt som högst prioritet och hög lönsamhet. Augusti är sista månaden med grillvolym.</p>
+        </div>
+        <div class="sec" style="margin-top:22px">2. Inlägg</div>
+        <div class="card" style="padding:6px 22px">
+          <div class="post"><b style="color:var(--ink)">Sluta byta flaska — fyll den istället</b><p style="color:var(--ink2)">Du betalar bara för det som går i. Vi fyller medan du väntar.</p></div>
+          <div class="post"><b style="color:var(--ink)">Så vet du hur mycket gasol som är kvar</b><p style="color:var(--ink2)">Häll ljummet vatten längs flaskan och känn efter var den blir kall.</p></div>
+          <div class="post"><b style="color:var(--ink)">Terrassvärmare — dags att se över slangen</b><p style="color:var(--ink2)">Slangar åldras. Kolla sprickor innan höstkvällarna.</p></div>
+        </div>
+      </div>
+      <div>
+        <div class="sec">Nyhetsbrev</div>
+        <div class="card"><b style="font-size:14.5px;color:var(--ink)">Fyll inför hösten</b><p style="font-size:13px;color:var(--ink2);margin-top:6px;line-height:1.6">Utkast klart. 4 min läsning.</p><div style="margin-top:12px"><button class="btn2" style="border-color:var(--line);color:var(--ink2)">Öppna</button></div></div>
+        <div class="sec" style="margin-top:20px">Vad jag saknar</div>
+        <div class="card"><p style="font-size:13px;color:var(--ink2);line-height:1.65">Vad kostar en påfyllning jämfört med att byta flaska?</p><div style="margin-top:12px"><button class="btn2" style="border-color:var(--line);color:var(--ink2)">Svara</button></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ══ B ══ -->
+<div class="label"><b>B — Varm</b><span>Papperston istället för vitt. Mjukare, mer karaktär, mindre SaaS.</span></div>
+<div class="stage"><div class="app b">
+  <div class="nav">
+    <div class="logo"><div class="mark" style="background:var(--brand)">M</div><span style="font-size:14px;font-weight:600;color:var(--ink)">Marketing Copilot</span></div>
+    <div class="navitem" style="background:#fff;color:var(--brand);font-weight:500">Idag</div>
+    <div class="navitem" style="color:var(--ink2)">Innehåll</div>
+    <div class="navitem" style="color:var(--ink2)">Produkttexter</div>
+    <div class="navitem" style="color:var(--ink2)">Vad jag vet</div>
+  </div>
+  <div class="main">
+    <div class="sec">Vecka 34 · måndag</div>
+    <div style="font-size:26px;font-weight:600;letter-spacing:-.02em;color:var(--ink);line-height:1.25;max-width:560px">Grillsäsongen tar slut om sex veckor — sälj påfyllning nu, inte flaskor.</div>
+    <p style="font-size:14.5px;color:var(--ink2);line-height:1.7;margin-top:12px;max-width:520px">Du har markerat lösvikt som högst prioritet och hög lönsamhet. Augusti är sista månaden med grillvolym.</p>
+    <div class="row" style="margin-top:18px;margin-bottom:28px">
+      <button class="btn" style="background:var(--brand)">Se innehållet</button>
+      <button class="btn2" style="border-color:var(--line);color:var(--ink2)">Nytt förslag</button>
+    </div>
+    <div class="sec">Fem inlägg väntar</div>
+    <div class="card" style="padding:8px 24px">
+      <div class="post"><b style="color:var(--ink)">Sluta byta flaska — fyll den istället</b><p style="color:var(--ink2)">Du betalar bara för det som går i. Vi fyller medan du väntar.</p></div>
+      <div class="post"><b style="color:var(--ink)">Så vet du hur mycket gasol som är kvar</b><p style="color:var(--ink2)">Häll ljummet vatten längs flaskan och känn efter var den blir kall.</p></div>
+      <div class="post"><b style="color:var(--ink)">Terrassvärmare — dags att se över slangen</b><p style="color:var(--ink2)">Slangar åldras. Kolla sprickor innan höstkvällarna.</p></div>
+    </div>
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+      <div><b style="font-size:14.5px;color:var(--ink)">Nyhetsbrev: Fyll inför hösten</b><p style="font-size:13px;color:var(--ink3);margin-top:3px">Utkast klart</p></div>
+      <button class="btn2" style="border-color:var(--line);color:var(--ink2)">Öppna</button>
+    </div>
+  </div>
+</div></div>
+
+<!-- ══ C ══ -->
+<div class="label"><b>C — Kontrast</b><span>Mörk sidomeny och färgad hero mot ljus sida. Behåller tyngden från den mörka designen.</span></div>
+<div class="stage"><div class="app c">
+  <div class="nav">
+    <div class="logo"><div class="mark" style="background:#1D8A72">M</div><span style="font-size:14px;font-weight:600;color:#EAF3F0">Marketing Copilot</span></div>
+    <div class="navitem" style="background:rgba(255,255,255,.1);color:#fff;font-weight:500">Idag</div>
+    <div class="navitem" style="color:#A8BEB8">Innehåll</div>
+    <div class="navitem" style="color:#A8BEB8">Produkttexter</div>
+    <div class="navitem" style="color:#A8BEB8">Vad jag vet</div>
+  </div>
+  <div class="main">
+    <div class="hero">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;opacity:.7">Vecka 34 · min rekommendation</div>
+      <div style="font-size:27px;font-weight:600;letter-spacing:-.02em;line-height:1.25;margin-top:12px;max-width:600px">Grillsäsongen tar slut om sex veckor — sälj påfyllning nu, inte flaskor.</div>
+      <p style="font-size:14.5px;line-height:1.7;margin-top:12px;max-width:540px;opacity:.85">Du har markerat lösvikt som högst prioritet och hög lönsamhet. Augusti är sista månaden med grillvolym.</p>
+      <div class="row" style="margin-top:20px">
+        <button class="btn" style="background:#fff;color:#0B4F42">Se innehållet</button>
+        <button class="btn2" style="border-color:rgba(255,255,255,.35);color:#fff">Nytt förslag</button>
+      </div>
+    </div>
+    <div class="body">
+      <div class="sec">Fem inlägg väntar</div>
+      <div class="card" style="padding:8px 22px">
+        <div class="post"><b style="color:var(--ink)">Sluta byta flaska — fyll den istället</b><p style="color:var(--ink2)">Du betalar bara för det som går i. Vi fyller medan du väntar.</p></div>
+        <div class="post"><b style="color:var(--ink)">Så vet du hur mycket gasol som är kvar</b><p style="color:var(--ink2)">Häll ljummet vatten längs flaskan och känn efter var den blir kall.</p></div>
+        <div class="post"><b style="color:var(--ink)">Terrassvärmare — dags att se över slangen</b><p style="color:var(--ink2)">Slangar åldras. Kolla sprickor innan höstkvällarna.</p></div>
+      </div>
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+        <div><b style="font-size:14.5px;color:var(--ink)">Nyhetsbrev: Fyll inför hösten</b><p style="font-size:13px;color:var(--ink3);margin-top:3px">Utkast klart</p></div>
+        <button class="btn2" style="border-color:var(--line);color:var(--ink2)">Öppna</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="intro" style="padding-top:56px;padding-bottom:80px">
+<p>Säg A, B eller C — eller plocka delar. Till exempel "C:s sidomeny och hero, men A:s högerpanel". Först när du valt rör jag koden, och då bygger jag bara den här skärmen färdig innan vi går vidare.</p>
+</div>
+
+</body>
+</html>

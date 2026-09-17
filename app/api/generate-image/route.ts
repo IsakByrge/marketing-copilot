@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────
 import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { getOpenAI, AI } from "@/lib/server/ai";
+import { buildImagePrompt, qualityParam, type ImageQuality } from "@/lib/server/imagePrompt";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -30,19 +31,28 @@ export async function POST(request: Request) {
       return safeError("Ogiltig förfrågan.", 400);
     }
 
-    const prompt = clip(body.prompt, 1_000);
-    const companyName = clip(body.companyName, 200);
-    if (!prompt) {
+    const subject = clip(body.prompt, 1_000);
+    if (!subject) {
       await guard.finish({ status: "error", errorCategory: "missing_prompt" });
       return safeError("Beskrivning saknas.", 400);
     }
 
+    // Företagsnamnet används INTE i bildprompten. Modellen känner inte
+    // till företaget, och ord som "marknadsföringsbild" drar resultatet
+    // mot stockfoto. Se lib/server/imagePrompt.ts.
+    const avoid = Array.isArray(body.avoid)
+      ? body.avoid.filter((a): a is string => typeof a === "string").slice(0, 10)
+      : [];
+    const quality: ImageQuality = body.quality === "final" ? "final" : "draft";
+    const prompt = buildImagePrompt({ subject, avoid });
+
     const response = await getOpenAI().images.generate(
       {
         model: AI.IMAGE_MODEL,
-        prompt: `Professionell marknadsföringsbild för ${companyName}: ${prompt}. Fotorealistisk, ljus och inbjudande. Inga texter eller logotyper i bilden.`,
+        prompt,
         n: 1,
         size: "1024x1024",
+        quality: qualityParam(quality),
       },
       { timeout: AI.TIMEOUT_MS * 2 },
     );
