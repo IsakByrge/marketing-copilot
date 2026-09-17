@@ -78,5 +78,11 @@ Vi är i ${arstid}. Skriv aldrig något som hör till motsatt årstid, vare
 sig i inlägg, nyhetsbrev eller kampanjnamn. Förbjudna ord just nu:
 ${forbjudna.map((o) => `"${o}"`).join(", ")}.
 En kampanjtitel som "Fyll på inför hettan" i september är fel oavsett
-hur bra den låter. Kampanjnamnet ska peka mot säsongen som kommer.`;
+hur bra den låter. Kampanjnamnet ska peka mot säsongen som kommer.
+
+Orden är förbjudna ÄVEN i jämförelser och framåtblickar. Skriv inte
+"både under sommarens grillfester och höstens middagar" och inte
+"planera inför nästa sommar". Skriv "nästa säsong", "längre fram" eller
+namnge månaden i stället. Ett ord från fel årstid drar tankarna dit
+öven när meningen är korrekt.`;
 }

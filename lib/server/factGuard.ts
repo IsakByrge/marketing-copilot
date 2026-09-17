@@ -106,9 +106,14 @@ function webbBlock(ctx: FactGuardContext): string {
     .join("\n");
   return `WEBBPLATSER — VÄLJ LÄNK EFTER INLÄGGETS SYFTE:
 ${rader}
-Ett säljande inlägg om en produkt länkar dit man KÖPER. Ett lokalt inlägg,
-eller ett om något man gör på plats, länkar dit man LÄSER om verksamheten
-och hittar platserna. Passar ingen av dem: länka inte alls.
+LÄNKEN SKA MATCHA UPPMANINGEN, inte inläggets ämne:
+- Ber uppmaningen om ett BESÖK ("kom förbi", "besök depån", "träffa oss")
+  ska länken gå dit man LÄSER om verksamheten och hittar platserna. Att
+  skicka någon till kassan när du bett dem komma förbi är att peka åt
+  fel håll.
+- Ber uppmaningen om ett KÖP eller en beställning går länken till
+  webbshoppen.
+Passar ingen adress: länka inte alls.
 Skriv adressen exakt som den står ovan. Hitta ALDRIG på en adress, en
 undersida eller en sökväg som inte står här.
 `;

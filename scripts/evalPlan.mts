@@ -28,6 +28,7 @@ import { INTERNAL_TERMS } from "@/lib/server/factGuard";
 import {
   hittaPlatshallare, antalStycken, normaliseraDag, valideraPlan,
   sakerhetsordIText, arSakerhetsrad,
+  arBesoksuppmaning, kopLank, infoLank,
 } from "@/lib/server/planValidate";
 import { lankarIText, vardnamn } from "@/app/_shared/websites";
 import { sasongsfelIText, forbjudnaSasongsord } from "@/lib/server/season";
@@ -338,6 +339,24 @@ function kontrollera(plan: Plan): Kontroll[] {
     namn: "minst två inlägg har länk",
     ok: brain.websites.length === 0 || medLank >= 2,
     detalj: `${medLank}/${posts.length}`,
+  });
+
+  // 4b. Lanken ska matcha uppmaningen, inte amnet.
+  const kop = kopLank(brain.websites);
+  const info = infoLank(brain.websites);
+  const felLank = posts.filter((p) => {
+    const lankar = lankarIText(p.text).filter((l) => vardnamn(l) !== null);
+    if (lankar.length === 0) return false;
+    const vantad = arBesoksuppmaning(p.cta, p.text) ? info : kop;
+    if (!vantad) return false;
+    return !lankar.some((l) => l.includes(vardnamn(vantad) ?? " "));
+  });
+  k.push({
+    namn: "länken matchar uppmaningen",
+    ok: felLank.length === 0,
+    detalj: felLank.length
+      ? felLank.map((p) => `"${p.cta}" -> ${lankarIText(p.text)[0]}`).join(" | ")
+      : "alla rätt",
   });
 
   // 5. Kampanjtitlar och produktkoppling.

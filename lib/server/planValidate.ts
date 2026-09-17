@@ -219,14 +219,51 @@ export function delaIStycken(body: string | undefined, onskade = 3): string | un
 const LANKROLLER = ["saljande", "prioriterad_produkt"];
 
 /**
- * Väljer adressen som passar ett säljande inlägg: den vars syfte talar
- * om köp. Finns ingen sådan tas den första.
+ * Uppmaningar som handlar om att komma till en fysisk plats.
+ * Ett sådant inlägg ska leda till sidan som berättar VAR vi finns, inte
+ * till kassan — det prioriterade inlägget bad om depåbesök och länkade
+ * till webbshoppen, vilket skickar läsaren fel.
  */
+const BESOKSORD = [
+  "besök", "kom förbi", "kom in", "kom till", "depå", "butiken",
+  "på plats", "träffa", "svänga förbi", "hitta oss", "öppettider",
+];
+
+/** Sant när uppmaningen ber läsaren komma någonstans. */
+export function arBesoksuppmaning(cta: string | undefined, text?: string): boolean {
+  const l = `${cta ?? ""} ${text ?? ""}`.toLowerCase();
+  return BESOKSORD.some((o) => l.includes(o));
+}
+
+/** Adressen där man köper. */
 export function kopLank(websites: Array<{ url: string; purpose: string }> | undefined): string | null {
   const sidor = (websites ?? []).filter((w) => w.url);
   if (sidor.length === 0) return null;
   const kop = sidor.find((w) => /k[öo]p|shop|butik|best[äa]ll|handla/i.test(w.purpose));
   return (kop ?? sidor[0]).url;
+}
+
+/** Adressen som berättar om verksamheten och var den finns. */
+export function infoLank(websites: Array<{ url: string; purpose: string }> | undefined): string | null {
+  const sidor = (websites ?? []).filter((w) => w.url);
+  if (sidor.length === 0) return null;
+  const info = sidor.find((w) => /hemsida|information|om oss|dep[åa]|kontakt|hitta/i.test(w.purpose));
+  // Ingen informationssida angiven: hellre den som INTE är shoppen.
+  const ickeShop = sidor.find((w) => !/k[öo]p|shop|best[äa]ll|handla/i.test(w.purpose));
+  return (info ?? ickeShop ?? sidor[0]).url;
+}
+
+/**
+ * Länken som hör till inläggets uppmaning.
+ * Ber uppmaningen om ett besök leder den till informationssidan,
+ * annars till köpsidan.
+ */
+export function valjLank(
+  websites: Array<{ url: string; purpose: string }> | undefined,
+  cta: string | undefined,
+  text?: string,
+): string | null {
+  return arBesoksuppmaning(cta, text) ? infoLank(websites) : kopLank(websites);
 }
 
 /**
@@ -241,16 +278,21 @@ export function sattLank<T extends ValideradPlan>(
   plan: T,
   websites: Array<{ url: string; purpose: string }> | undefined,
 ): T {
-  const lank = kopLank(websites);
-  if (!lank) return plan;
+  if (!(websites ?? []).some((w) => w.url)) return plan;
 
   const posts = (plan.posts ?? []).map((p) => {
     const roll = typeof p.roll === "string" ? p.roll : "";
     if (!LANKROLLER.includes(roll)) return p;
     const text = typeof p.text === "string" ? p.text : "";
-    if (!text.trim() || text.includes(lank)) return p;
-    // Redan nagon lank i texten? La modellen in en annan av foretagets
-    // adresser ar det ett medvetet val - rora inte.
+    if (!text.trim()) return p;
+
+    // Länken väljs efter uppmaningen, inte efter rollen. Ett inlägg som
+    // ber om ett depåbesök ska leda dit man ser var depåerna ligger.
+    const lank = valjLank(websites, p.cta as string | undefined, text);
+    if (!lank || text.includes(lank)) return p;
+
+    // Redan någon länk i texten? La modellen in en annan av företagets
+    // adresser är det ett medvetet val — rör inte.
     if (/https?:\/\/\S+/.test(text)) return p;
     return { ...p, text: `${text.trimEnd()}\n\n${lank}` };
   });

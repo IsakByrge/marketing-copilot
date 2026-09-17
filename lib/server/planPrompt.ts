@@ -201,7 +201,20 @@ FEM INLÄGG MED FEM OLIKA ROLLER — inte fem varianter av samma budskap.
 Exakt ett inlägg per roll, i den här ordningen:
 1. "saljande" — lyfter en produkt eller tjänst ur listan och varför den löser
    något just nu. Får sälja, men bara på det som finns.
-2. "tips" — praktisk kunskap läsaren kan använda direkt, utan att köpa något.
+2. "tips" — hjälper läsaren VÄLJA RÄTT eller FÖRSTÅ HUR DET GÅR TILL.
+   Två sorters tips är tillåtna, och inga andra:
+   a) Välja rätt produkt: vilken storlek eller variant som passar vilket
+      behov, vad som skiljer alternativen i sortimentet åt, vad man tittar
+      på när man väljer.
+   b) Använda tjänsten: hur det går till hos oss, vad man tar med sig,
+      vad som händer på plats, hur lång tid det tar.
+   ALDRIG hantering, förvaring, underhåll, installation eller felsökning
+   av utrustning. Inte ens allmänt hållet, inte ens som "tänk på att".
+   Den sortens råd hör till personalen och tillverkarens anvisningar, och
+   vi har inget underlag för dem.
+   Exempel på rätt: "Vilken flaskstorlek passar husbilen, grillen och
+   kaminen?" eller "Så går påfyllning i lösvikt till hos oss".
+   Exempel på fel: "Så förvarar du flaskan över vintern".
 3. "prioriterad_produkt" — handlar om den högst prioriterade produkten i
    säsong. Skriv produktens namn i fältet "produkt".
    DET HÄR INLÄGGET MÅSTE SÄGA VAD SOM SKILJER PRODUKTEN FRÅN

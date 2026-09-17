@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import {
   hittaPlatshallare, beskrivSaknat, saknatIText,
   normaliseraDag, antalStycken, delaIStycken,
-  sakerhetsordIText, arSakerhetsrad, valideraPlan, kopLank, sattLank,
+  sakerhetsordIText, arSakerhetsrad, valideraPlan,
+  kopLank, infoLank, valjLank, arBesoksuppmaning, sattLank,
 } from "./planValidate";
 
 let passed = 0;
@@ -151,6 +152,43 @@ test("utan köpsyfte tas den första", () => {
   assert.equal(kopLank([{ url: "https://a.se", purpose: "Info" }]), "https://a.se");
   assert.equal(kopLank([]), null);
   assert.equal(kopLank(undefined), null);
+});
+
+test("besöksuppmaningar känns igen", () => {
+  for (const c of ["Besök våra depåer idag", "Kom förbi depån", "Träffa oss på plats", "Hitta oss"]) {
+    assert.ok(arBesoksuppmaning(c), `missade: ${c}`);
+  }
+  for (const c of ["Beställ i webbshoppen", "Läs mer på webbplatsen", "Handla online"]) {
+    assert.equal(arBesoksuppmaning(c), false, `falskt larm: ${c}`);
+  }
+});
+
+test("informationssidan valjs pa syftet", () => {
+  assert.equal(infoLank(SIDOR), "https://testgas.se");
+  // Utan uttalad informationssida tas den som inte ar shoppen.
+  assert.equal(
+    infoLank([{ url: "https://shop.a.se", purpose: "Webbshop" }, { url: "https://a.se", purpose: "Allmänt" }]),
+    "https://a.se",
+  );
+  assert.equal(infoLank([]), null);
+});
+
+test("lanken foljer uppmaningen, inte amnet", () => {
+  // Det verkliga felet: inlagget om losvikt bad om depabesok men
+  // lankade till webbshoppen.
+  assert.equal(valjLank(SIDOR, "Besök våra depåer idag"), "https://testgas.se");
+  assert.equal(valjLank(SIDOR, "Beställ i webbshoppen"), "https://shop.testgas.se");
+});
+
+test("ett inlagg med depabesok far hemsidan, inte shoppen", () => {
+  const plan = sattLank<{ posts: Array<Record<string, unknown>> }>({
+    posts: [
+      { roll: "prioriterad_produkt", text: "Gasol i lösvikt hos oss.", cta: "Besök våra depåer idag" },
+      { roll: "saljande", text: "Ny gasolgrill i sortimentet.", cta: "Beställ i webbshoppen" },
+    ],
+  }, SIDOR);
+  assert.ok(String(plan.posts[0].text).endsWith("https://testgas.se"), "depåbesök ska ge hemsidan");
+  assert.ok(String(plan.posts[1].text).endsWith("https://shop.testgas.se"), "köp ska ge shoppen");
 });
 
 test("länken sätts sist i säljande och prioriterade inlägg", () => {
