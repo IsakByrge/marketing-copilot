@@ -10,8 +10,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { callChatJson, AI } from "@/lib/server/ai";
-import { voiceBlock, isoWeek } from "@/lib/server/voice";
 import { editMemoryBlock } from "@/lib/server/editMemory";
+import { getCompanyBrainContext } from "@/lib/companyBrainServer";
+import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt } from "@/lib/server/planPrompt";
+import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
+
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -63,6 +66,16 @@ async function getPastPlans(supabase: SupabaseClient, companyName: string, userI
     return [];
   }
 }
+/**
+ * Tummarna som signal om ämne och ton.
+ *
+ * Läser ALLA rader för företaget, även de som saknar plan_id. Sedan
+ * 0008 vet gränssnittet vilken plan en tumme gäller och visar bara
+ * rätt ones — men för inlärningen spelar det ingen roll vilken plan en
+ * titel kom från. "Gillade: Så här ser du om slangen behöver bytas" är
+ * lika användbart oavsett vecka. Att kasta de gamla raderna vore att
+ * slänga den enda feedback användaren faktiskt hunnit ge.
+ */
 async function getFeedback(supabase: SupabaseClient, companyName: string, userId: string) {
   try {
     const { data } = await supabase
@@ -104,16 +117,18 @@ export async function POST(request: Request) {
       return safeError("Företagsprofil saknas.", 400);
     }
 
+    // Datum och veckonummer formas numera inne i planPrompt.
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.toLocaleString("sv-SE", { month: "long" });
-    const day = now.getDate();
-    // ISO 8601 — den tidigare approximationen gav fel vecka stora delar av året.
-    const week = isoWeek(now);
 
     const upcomingDates = getUpcomingDates(now);
     // Lär av hur användaren brukar skriva om planens inlägg.
     const editMemory = await editMemoryBlock("plan_post");
+
+    // Company Brain, hämtad server-side ur sessionen. Bär prioritet,
+    // lönsamhet, säsong och marknadsföringsmål — allt som den platta
+    // profilen i request-body saknar. Null när inget företag finns;
+    // då faller prompten tillbaka på den platta profilen ensam.
+    const brain = await getCompanyBrainContext();
 
     // Hämta historik från Supabase (RLS-scopat till den inloggade användaren)
     const pastPlans = await getPastPlans(guard.supabase, profile.companyName ?? "", userId);
@@ -146,102 +161,34 @@ ${pastPlans.map((p, i) => {
         }).join("\n")}`
       : "";
 
-    const systemPrompt = `Du är en erfaren copywriter och marknadsstrateg specialiserad på lokala svenska tjänsteföretag.
-Skapa marknadsinnehåll som känns skrivet av någon som KÄNNER företaget inifrån — inte av en AI.
-Svara ALLTID med exakt giltig JSON — ingen förtext, inga backticks. Svara på svenska.`;
-
-    const userPrompt = `NULÄGE: ${day} ${month} ${year}, vecka ${week}.
-
-KOMMANDE HÄNDELSER OCH DATUM (nästa 2 veckor):
-${upcomingDates}
-${historyContext}
-${feedbackContext}
-
-FÖRETAGSPROFIL:
-Företagsnamn: ${profile.companyName ?? ""}
-Bransch: ${profile.industry ?? ""}
-Sammanfattning: ${profile.summary ?? ""}
-Kunder: ${(profile.customers ?? []).join(", ")}
-Produkter och tjänster: ${(profile.products ?? []).join(", ")}
-Tonalitet: ${(profile.tone ?? []).join(", ")}
-Styrkor: ${(profile.strengths ?? []).join(", ")}
-Ska undvikas: ${(profile.avoid ?? []).join(", ")}
-Innehållsriktlinjer: ${(profile.contentGuidelines ?? []).join(", ")}
-${fileContext}
-
-${voiceBlock({ variation: true })}
-
-${editMemory}
-
-DESSUTOM:
-1. Använd ALLTID företagets faktiska namn och specifika tjänster
-2. Anpassa till ${day} ${month} ${year} — rätt år är ${year}, inte något tidigare år
-3. Matcha branschens verkliga språk
-4. Upprepa INTE teman, fokus eller inläggstitlar från tidigare planer
-5. Om användaren gett feedback ovan: luta tydligt mot de gillade inläggens stil och ton, och undvik mönstren i de ogillade
-
-OM "opportunities" — SAMMA SPÄRR SOM RESTEN AV PLANEN:
-En möjlighet får BARA bygga på det som står i företagsprofilen ovan, plus
-allmänt kända datum och säsonger. Du får ALDRIG hitta på:
-- produkter eller tjänster som inte står under "Produkter och tjänster"
-- erbjudanden, kampanjer, rabatter, paket, priser eller garantier
-- egenskaper, certifieringar, öppettider, kapacitet eller samarbeten
-- lokala evenemang du inte vet äger rum
-Är du osäker: skriv möjligheten allmänt i stället för specifikt.
-"Höstmörket gör att folk börjar tänka på säkerhet" är användbart.
-"Erbjud en gratis säkerhetskontroll" är påhittat om ingen sådan tjänst
-står i profilen. Hellre allmänt än påhittat.
-Har du färre än tre möjligheter som klarar det här: lämna färre.
-
-Returnera exakt denna JSON:
-{
-  "company": "${profile.companyName ?? ""}",
-  "focus": "En mening om veckans tema — specifik och säsongsanpassad för ${month} ${year}",
-  "intro": "En eller två naturliga meningar till företagaren om varför du valt veckans tema. Löpande text, inte en uppräkning. Räkna INTE upp teman och skriv inte ordet teman.",
-  "tags": ["3-5 konkreta teman för veckan, ej enkla ord utan fraser som 'Midsommarförberedelser' eller 'Campingsäsongen startar'"],
-  "posts": [
-    { "title": "Rubrik som fångar ett konkret problem", "text": "Max 3 meningar. Konkret scenario.", "cta": "Specifik uppmaning", "image": "Realistisk bildidé" },
-    { "title": "Tips-format", "text": "Praktisk insikt från branschen", "cta": "Konkret CTA", "image": "Bildidé" },
-    { "title": "Säsongsrelevant för ${month} ${year}", "text": "Kopplat till vad som händer nu", "cta": "Konkret CTA", "image": "Bildidé" },
-    { "title": "Bakom-kulisserna eller kundperspektiv", "text": "Berättande, bygger förtroende", "cta": "Konkret CTA", "image": "Bildidé" },
-    { "title": "Experttips eller vanligt misstag", "text": "Positionerar som specialist", "cta": "Konkret CTA", "image": "Bildidé" }
-  ],
-  "newsletter": {
-    "subject": "Ämnesrad max 50 tecken",
-    "preview": "Förhandsvisning max 85 tecken",
-    "body": "3 stycken: scenario → lösning → varför just nu i ${month} ${year}",
-    "cta": "Specifik uppmaning"
-  },
-  "campaigns": [
-    { "title": "Kampanj för ${month} ${year}", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" },
-    { "title": "Kampanj för ${profile.products?.[0] ?? "huvudtjänst"}", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" }
-  ],
-  "opportunities": [
-    {
-      "title": "Allmänt känt datum, temadag eller säsongsskifte inom 2 veckor",
-      "date": "ISO-datum YYYY-MM-DD när tillfället har ett bestämt datum, annars veckans måndag som YYYY-MM-DD",
-      "relevance": "Vad tillfället gör med ${profile.companyName ?? "företagets"} kunder, och vilket ämne det ger att skriva om. Bara tjänster som står i profilen. Inga erbjudanden."
-    },
-    {
-      "title": "Säsongsbeteende hos målgruppen just nu",
-      "date": "YYYY-MM-DD, måndagen i den vecka det gäller",
-      "relevance": "Vad målgruppen gör den här tiden på året och vilket ämne det ger. Inga påhittade tjänster eller erbjudanden."
-    },
-    {
-      "title": "Branschmönster som återkommer den här tiden på året",
-      "date": "YYYY-MM-DD, måndagen i den vecka det gäller",
-      "relevance": "Vad mönstret innebär för kunderna och vad det ger att skriva om. Bara det som stöds av profilen."
-    }
-  ]
-}
-
-Fältet "date" ska ALLTID vara ett giltigt datum i formen YYYY-MM-DD och
-ligga inom de närmaste 14 dagarna från ${day} ${month} ${year}. Skriv
-aldrig "Denna vecka", "Vecka 39" eller liknande där — gränssnittet
-räknar själv ut hur långt bort det är.`;
+    const systemPrompt = PLAN_SYSTEM_PROMPT;
+    const userPrompt = buildPlanUserPrompt({
+      profile, brain, now, upcomingDates,
+      historyContext, feedbackContext, fileContext, editMemory,
+    });
 
     const result = await callChatJson(systemPrompt, userPrompt, { maxTokens: AI.MAX_OUTPUT_TOKENS });
-    const plan = result.parsed;
+    let plan = result.parsed as PlanShape;
+
+    // Reparationsrunda: modellen skriver konsekvent for korta texter pa
+    // svenska oavsett hur kravet formuleras (se lib/server/planRepair.ts).
+    // Har raknas orden i stallet, och bara de texter som ligger under
+    // golvet skickas tillbaka for utokning. Ett extra anrop, bara vid
+    // behov, och misslyckas det behaller vi originalet.
+    const forKorta = hittaForKorta(plan);
+    if (forKorta.length > 0) {
+      try {
+        const repair = await callChatJson(
+          PLAN_SYSTEM_PROMPT,
+          buildRepairPrompt(plan, forKorta),
+          { maxTokens: AI.MAX_OUTPUT_TOKENS },
+        );
+        const texts = (repair.parsed as { texts?: Record<string, string> })?.texts;
+        if (texts) plan = applyRepair(plan, texts);
+      } catch (e) {
+        console.warn(`[${requestId}] Utokningen misslyckades, behaller originalet:`, e);
+      }
+    }
 
     await guard.finish({
       status: "ok",

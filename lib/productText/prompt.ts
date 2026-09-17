@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
 import { voiceBlock } from "@/lib/server/voice";
+import { factGuardBlock } from "@/lib/server/factGuard";
 import { formatFacts, type FactsLookup } from "./productFacts";
 
 export const MAX_BATCH = 10;
@@ -46,6 +47,12 @@ Säsonger: ${joinList(ctx.seasons) || "(inga angivna)"}`
   return `Du skriver produktbeskrivningar för en svensk webbshop.
 
 ${company}
+
+${factGuardBlock({
+  products: ctx?.priorityProducts.map((p) => p.name) ?? [],
+  approvedCtas: ctx?.preferredCallsToAction ?? [],
+  forbiddenClaims: ctx?.forbiddenClaims ?? [],
+})}
 
 ${voiceBlock({ variation: true })}
 

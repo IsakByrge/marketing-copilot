@@ -11,6 +11,7 @@
 // ─────────────────────────────────────────────────────────────
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
 import { voiceBlock, todayLabel } from "./voice";
+import { factGuardBlock } from "@/lib/server/factGuard";
 
 /** Tillåtna innehållstyper (samma id:n som klientens val — inga nya funktioner). */
 export const CONTENT_TYPES = ["social", "linkedin", "newsletter", "campaign", "offer", "case", "custom"] as const;
@@ -69,6 +70,12 @@ Förbjudna påståenden (får ALDRIG användas): ${joinList(ctx.forbiddenClaims,
 Skapa innehåll som känns skrivet av någon som KÄNNER företaget inifrån — inte av en AI.
 
 ${companyBlock}
+
+${factGuardBlock({
+  products: ctx?.priorityProducts.map((p) => p.name) ?? [],
+  approvedCtas: ctx?.preferredCallsToAction ?? [],
+  forbiddenClaims: ctx?.forbiddenClaims ?? [],
+})}
 
 ${voiceBlock()}
 

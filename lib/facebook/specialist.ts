@@ -20,6 +20,7 @@
 // ─────────────────────────────────────────────────────────────
 import OpenAI from "openai";
 import { voiceBlock, BANNED_PHRASES } from "../server/voice";
+import { factGuardBlock } from "@/lib/server/factGuard";
 import type {
   FacebookBrief,
   FacebookSpecialistContext,
@@ -241,6 +242,15 @@ Svara med ENDAST giltig JSON. Skriv aldrig ut ditt resonemang.
 function contextBlock(ctx: FacebookSpecialistContext): string {
   const c = ctx.company;
   const lines: string[] = [];
+  // Faktaspärren först, med den här kundens faktiska underlag. Ligger i
+  // kontextblocket och inte i systemprompten, eftersom systemprompten är
+  // en modulkonstant utan tillgång till ctx.
+  lines.push(factGuardBlock({
+    products: ctx.selectedProduct ? [ctx.selectedProduct.name] : [],
+    approvedCtas: c.preferredCallsToAction,
+    forbiddenClaims: c.forbiddenClaims,
+  }));
+  lines.push("─────────");
   lines.push(`FÖRETAG:\nÖversikt: ${c.summary || "(saknas)"}`);
   if (c.audiences.length) lines.push(`Målgrupper: ${c.audiences.join("; ")}`);
   if (c.strengths.length) lines.push(`Styrkor: ${c.strengths.join("; ")}`);

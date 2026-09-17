@@ -94,6 +94,9 @@ jobs:
       - name: Test — administratörsgrind
         run: npm run test:admin
 
+      - name: Test — faktaspärr i alla prompter
+        run: npm run test:factguard
+
       # Smoke-test needs the built app running. Start it in the background,
       # wait until it answers, run the black-box route checks, then stop it.
       - name: Start production server

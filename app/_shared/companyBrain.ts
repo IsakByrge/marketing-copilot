@@ -116,6 +116,13 @@ export interface CompanyBrainContext {
   contentGuidelines: string[];
   forbiddenClaims: string[];
   seasons: string[];
+  /** Vad marknadsforingen ska astadkomma. Foll tidigare bort ur
+   *  kontexten, sa ingen prompt fick se malen. */
+  marketingGoals: string[];
+  /** Uppmaningar anvandaren godkant. Faktasparren lutar sig mot dem. */
+  preferredCallsToAction: string[];
+  /** Verifierat socialt bevis som FAR aberopas. */
+  proofPoints: string[];
 }
 
 /* ── Begränsningar (säkerhet) ────────────────────────────── */
@@ -443,5 +450,8 @@ export function buildCompanyBrainContext(brain: CompanyBrain): CompanyBrainConte
     contentGuidelines: brain.contentGuidelines,
     forbiddenClaims: brain.forbiddenClaims,
     seasons: brain.keySeasons,
+    marketingGoals: brain.marketingGoals,
+    preferredCallsToAction: brain.preferredCallsToAction,
+    proofPoints: brain.proofPoints,
   };
 }
