@@ -217,8 +217,13 @@ export function Card({ padding = "md", className, children, ...props }: CardProp
 
 // A ring on :focus (not only :focus-visible) is the expected affordance for
 // text fields — it appears for both pointer and keyboard focus.
+//
+// 16px on phones, 14px from sm up. Safari on iOS zooms the whole page in when
+// a field smaller than 16px takes focus, and never zooms back out — so a
+// 14px field leaves the user stranded mid-form. Phones are the main case;
+// the tighter size is the exception, not the default.
 const fieldControlBase =
-  "w-full font-sans text-sm text-text-primary bg-surface border rounded px-3.5 py-2.5 " +
+  "w-full font-sans text-base sm:text-sm text-text-primary bg-surface border rounded px-3.5 py-2.5 " +
   "placeholder:text-text-tertiary transition-colors focus:outline-none " +
   "focus:ring-2 disabled:opacity-50 disabled:pointer-events-none";
 
