@@ -49,6 +49,33 @@ export const RISKY_CTA_WORDS = [
   "garanti",
 ] as const;
 
+/**
+ * Ord ur den interna styrdatan. De hör hemma i prompten, aldrig i en
+ * text en kund läser — "vår prioriterade produkt" eller "vårt mål med
+ * det här inlägget" avslöjar maskineriet och låter som en internremiss.
+ * Delas med eval-skriptet.
+ */
+// Fraserna nedan ar entydiga: de kan bara komma ur styrdatan. Bara ord
+// som "lonsam" ar det INTE - "ett lonsamt val for dig" ar kundsprak om
+// kundens ekonomi, inte ett lackage. Kontrollen i eval:plan far inte
+// falla pa den skillnaden, sa listan innehaller fraser, inte ord.
+export const INTERNAL_TERMS = [
+  "prioriterad produkt",
+  "prioriterade produkt",
+  "hög prioritet",
+  "högst prioriterad",
+  "vår lönsammaste",
+  "lönsamhet",
+  "vårt mål",
+  "våra mål",
+  "vår målsättning",
+  "målet med det här",
+  "inläggets roll",
+  "enligt företagsdatan",
+  "enligt profilen",
+  "enligt företagskunskapen",
+] as const;
+
 /** Formuleringar som kräver material produkten inte har. */
 export const UNSUPPORTED_FORMATS = [
   "bakom kulisserna",
@@ -108,6 +135,38 @@ LOVAR RUBRIKEN NÅGOT SKA TEXTEN HÅLLA DET:
 Säger rubriken "5 steg", "tre saker" eller "checklista" ska punkterna finnas i
 brödtexten. En rubrik som lovar en lista utan lista är ett trasigt inlägg.
 ${ctx.forbiddenClaims?.length ? `\nANVÄNDAREN HAR UTTRYCKLIGEN FÖRBJUDIT:\n${ctx.forbiddenClaims.map((c) => `  - ${c}`).join("\n")}` : ""}
+
+INGA PLATSHÅLLARE:
+Skriv aldrig [ort], [namn], [pris], {{något}} eller liknande. Saknar du
+ett faktum: formulera om meningen så den inte behöver faktumet, eller
+utelämna meningen. En text med en lucka i är inte färdig, och kunden
+ska inte behöva fylla i den åt dig.
+
+INTERN STYRDATA SYNS ALDRIG I TEXTEN:
+Prioritet, lönsamhet, marknadsföringsmål och inläggets roll är underlag
+FÖR DIG. De får aldrig nämnas i en text en kund läser. Skriv aldrig
+${INTERNAL_TERMS.map((t) => `"${t}"`).join(", ")} eller liknande.
+Skriv inte heller att en produkt är "prioriterad" eller "lönsam" för
+företaget. Att en produkt är lönsam är ett skäl att skriva om den, inte
+något att skriva. Att den är prisvärd FÖR KUNDEN får du däremot skriva,
+om företagsdatan stöder det.
+
+SÄKERHETSRÅD — HÅRD GRÄNS:
+Skriv INGA instruktioner om läcksökning, förvaring, installation,
+anslutning, felsökning eller reparation utöver det som ordagrant står i
+företagsdatan. Inga steg-för-steg-råd, inga kontrollmetoder, inga
+tumregler om avstånd, ventilation, temperatur eller tryck.
+Hänvisa i stället till personalen, till tillverkarens anvisningar och
+till gällande regler. Ett felaktigt råd om gasol är en säkerhetsfråga,
+inte en kvalitetsfråga.
+Det är tillåtet att skriva ATT något bör kontrolleras. Det är inte
+tillåtet att skriva HUR, om inte företagsdatan säger det.
+
+KONKURRERANDE LÖSNINGAR:
+Nämn aldrig en konkurrerande lösning positivt — inte vedkamin,
+elvärme, värmefläkt, pelletsbrännare eller motsvarande i andra
+branscher. Skriv om det företaget säljer. Jämför inte, rekommendera
+inte, och föreslå inte ett alternativ till den egna produkten.
 
 ÄR DU OSÄKER: skriv allmänt i stället för specifikt, eller skriv kortare.
 Hellre allmänt än påhittat.`;

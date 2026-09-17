@@ -43,10 +43,15 @@ const ROLLNAMN: Record<string, string> = {
   socialt: "Socialt",
 };
 
+/** Veckodag med liten bokstav. Servern normaliserar nya planer, men
+ *  aldre kan ha "Mandag", "måndag" eller "monday" om vartannat. */
 const DAGNAMN: Record<string, string> = {
-  mandag: "Måndag", tisdag: "Tisdag", onsdag: "Onsdag", torsdag: "Torsdag",
-  fredag: "Fredag", lordag: "Lördag", sondag: "Söndag",
+  mandag: "måndag", tisdag: "tisdag", onsdag: "onsdag", torsdag: "torsdag",
+  fredag: "fredag", lordag: "lördag", sondag: "söndag",
+  måndag: "måndag", lördag: "lördag", söndag: "söndag",
 };
+
+const visaDag = (d: string) => DAGNAMN[d.toLowerCase()] ?? d.toLowerCase();
 
 function postText(p: { title: string; text: string; cta: string }): string {
   return [p.title, p.text, p.cta].filter(Boolean).join("\n\n");
@@ -457,6 +462,7 @@ export default function ContentPage() {
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-center gap-2">
                               <span className="font-medium">{p.title}</span>
+                              {p.saknas?.length ? <Chip tone="warning">Behöver komplettering</Chip> : null}
                               {rating === "up" && <Chip tone="success">Gillad</Chip>}
                               {rating === "down" && <Chip tone="neutral">Ogillad</Chip>}
                             </span>
@@ -467,7 +473,7 @@ export default function ContentPage() {
                               <span className="mt-1 block text-xs text-text-tertiary">
                                 {[
                                   p.roll ? ROLLNAMN[p.roll] ?? p.roll : null,
-                                  p.dag ? DAGNAMN[p.dag] ?? p.dag : null,
+                                  p.dag ? visaDag(p.dag) : null,
                                   p.produkt || null,
                                   p.mal || null,
                                 ].filter(Boolean).join(" · ")}
@@ -486,6 +492,15 @@ export default function ContentPage() {
 
                         {isOpen && (
                           <div className="mt-4">
+                            {/* Vad som behover fyllas i. Texten innehaller en
+                                platshallare, och vi gissar inte fram svaret. */}
+                            {p.saknas?.length ? (
+                              <Alert tone="warning" title="Texten har luckor" className="mb-3">
+                                <ul className="list-disc space-y-1 pl-4">
+                                  {p.saknas.map((s) => <li key={s}>{s}</li>)}
+                                </ul>
+                              </Alert>
+                            ) : null}
                             <Textarea
                               rows={7}
                               value={value}

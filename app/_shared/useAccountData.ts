@@ -28,8 +28,11 @@ export type MarketingPost = {
   dag?: string;
   /** Produkten inlagget handlar om, tom nar det inte galler en produkt. */
   produkt?: string;
-  /** Vilket marknadsforingsmal inlagget tjanar. */
+  /** Vilket marknadsforingsmal inlagget tjanar. Tom nar inget passar. */
   mal?: string;
+  /** Vad som behover fyllas i innan inlagget gar att publicera.
+   *  Satts server-side nar texten innehaller en platshallare. */
+  saknas?: string[];
 };
 export type Newsletter = { subject: string; preview: string; body: string; cta: string };
 export type PlanCampaign = { title: string; goal: string; message: string; channels: string; cta: string };

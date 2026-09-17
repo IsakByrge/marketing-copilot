@@ -10,7 +10,7 @@
 //    spärren ska bygget säga ifrån här, inte en kund i en preview.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { factGuardBlock, RISKY_CTA_WORDS, UNSUPPORTED_FORMATS } from "./factGuard";
+import { factGuardBlock, RISKY_CTA_WORDS, UNSUPPORTED_FORMATS, INTERNAL_TERMS } from "./factGuard";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -78,6 +78,33 @@ test("de konkreta exempel som faktiskt slank igenom nämns vid namn", () => {
 test("förbjudna påståenden tas med bara när de finns", () => {
   assert.ok(!factGuardBlock().includes("UTTRYCKLIGEN FÖRBJUDIT"));
   assert.match(factGuardBlock({ forbiddenClaims: ["marknadens billigaste"] }), /marknadens billigaste/);
+});
+
+test("intern styrdata ar fraser, inte enstaka ord", () => {
+  // "ett lonsamt val for dig" ar kundsprak. Faller listan pa bara
+  // "lonsam" blir kontrollen i eval:plan obrukbar.
+  const kundsprak = "Ett lönsamt val för dig som fyller ofta.".toLowerCase();
+  const traffar = INTERNAL_TERMS.filter((t) => kundsprak.includes(t));
+  assert.deepEqual(traffar, [], `foll pa kundsprak: ${traffar.join(", ")}`);
+});
+
+test("entydigt lackage fangas", () => {
+  for (const text of [
+    "Vår prioriterade produkt just nu",
+    "Vårt mål är fler besökare",
+    "enligt företagsdatan",
+  ]) {
+    const l = text.toLowerCase();
+    assert.ok(INTERNAL_TERMS.some((t) => l.includes(t)), `missade: ${text}`);
+  }
+});
+
+test("sakerhetsrad och konkurrenter finns i blocket", () => {
+  const b = factGuardBlock();
+  assert.match(b, /läcksökning/);
+  assert.match(b, /tillverkarens anvisningar/);
+  assert.match(b, /vedkamin/);
+  assert.match(b, /Skriv aldrig \[ort\], \[namn\], \[pris\]/);
 });
 
 test("rubrik-lovar-lista-regeln finns med", () => {

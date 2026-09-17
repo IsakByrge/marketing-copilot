@@ -14,6 +14,7 @@ import { editMemoryBlock } from "@/lib/server/editMemory";
 import { getCompanyBrainContext } from "@/lib/companyBrainServer";
 import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, type PlanCompanyProfile } from "@/lib/server/planPrompt";
 import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
+import { valideraPlan } from "@/lib/server/planValidate";
 
 
 export const runtime = "nodejs";
@@ -208,6 +209,12 @@ ${pastPlans.map((p, i) => {
         console.warn(`[${requestId}] Utokningen misslyckades, behaller originalet:`, e);
       }
     }
+
+    // Markera platshallare och normalisera veckodagarna. Texten rors
+    // aldrig - att gissa fram ett faktum vore precis det problem en
+    // platshallare avslojar. Inlagget far i stallet med sig vad som
+    // saknas, och granssnittet visar det.
+    plan = valideraPlan(plan);
 
     await guard.finish({
       status: "ok",

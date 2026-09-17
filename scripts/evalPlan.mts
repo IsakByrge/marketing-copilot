@@ -24,6 +24,8 @@ import {
 } from "@/lib/server/planPrompt";
 import { RISKY_CTA_WORDS } from "@/lib/server/factGuard";
 import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
+import { INTERNAL_TERMS } from "@/lib/server/factGuard";
+import { hittaPlatshallare, antalStycken, normaliseraDag, valideraPlan } from "@/lib/server/planValidate";
 import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
 
 // ── Miljö ───────────────────────────────────────────────────
@@ -124,10 +126,15 @@ function kontrollera(plan: Plan): Kontroll[] {
     detalj: PRIORITERAD_PRODUKT,
   });
 
+  // Ett inlagg FAR sakna mal. Det som inte far hanta ar ett mal som
+  // inte finns i foretagsdatan.
+  const angivnaMal = posts.map((p) => p.mal?.trim()).filter(Boolean) as string[];
+  const kandaMal = brain.marketingGoals.map((g) => g.toLowerCase());
+  const okanda = angivnaMal.filter((m) => !kandaMal.some((g) => m.toLowerCase().includes(g) || g.includes(m.toLowerCase())));
   k.push({
-    namn: "varje inlägg kopplat till ett mål",
-    ok: posts.length > 0 && posts.every((p) => Boolean(p.mal?.trim())),
-    detalj: `${posts.filter((p) => p.mal?.trim()).length}/${posts.length} har mål`,
+    namn: "mål finns i företagsdatan",
+    ok: angivnaMal.length > 0 && okanda.length === 0,
+    detalj: okanda.length ? `okänt: ${okanda.join(" | ")}` : `${angivnaMal.length}/${posts.length} har mål, alla kända`,
   });
 
   const langder = posts.map((p) => ord(p.text ?? ""));
@@ -181,6 +188,55 @@ function kontrollera(plan: Plan): Kontroll[] {
     namn: "ingress skriven av modellen",
     ok: Boolean(plan.intro?.trim()),
     detalj: plan.intro?.slice(0, 60) ?? "(saknas)",
+  });
+
+  // ── Nya kontroller efter preview-granskningen ─────────────
+
+  // 1. Platshallare i kundtext.
+  const medPlatshallare = posts.flatMap((p) => [
+    ...hittaPlatshallare(p.title), ...hittaPlatshallare(p.text), ...hittaPlatshallare(p.cta),
+  ]).concat(hittaPlatshallare(plan.newsletter?.body), hittaPlatshallare(plan.newsletter?.cta));
+  k.push({
+    namn: "inga platshållare",
+    ok: medPlatshallare.length === 0,
+    detalj: medPlatshallare.length ? medPlatshallare.join(" ") : "inga",
+  });
+
+  // 2. Intern styrdata i kundtext.
+  const kundtext = [
+    ...posts.flatMap((p) => [p.title, p.text, p.cta]),
+    plan.newsletter?.subject, plan.newsletter?.body, plan.newsletter?.cta,
+  ].filter(Boolean).join(" ").toLowerCase();
+  const internaTraffar = INTERNAL_TERMS.filter((t) => kundtext.includes(t));
+  k.push({
+    namn: "ingen intern styrdata i texten",
+    ok: internaTraffar.length === 0,
+    detalj: internaTraffar.length ? internaTraffar.join(", ") : "ren",
+  });
+
+  // 5. Konkurrerande losningar. Konservativ: flaggar varje omnamnande.
+  const KONKURRENTER = ["vedkamin", "vedeldning", "elvärme", "elelement", "värmefläkt", "pelletsbrännare", "fjärrvärme"];
+  const konkurrentTraffar = KONKURRENTER.filter((w) => kundtext.includes(w));
+  k.push({
+    namn: "inga konkurrerande lösningar",
+    ok: konkurrentTraffar.length === 0,
+    detalj: konkurrentTraffar.length ? konkurrentTraffar.join(", ") : "inga",
+  });
+
+  // 6. Nyhetsbrevets styckeindelning.
+  const stycken = antalStycken(plan.newsletter?.body);
+  k.push({
+    namn: "nyhetsbrev 2-4 stycken",
+    ok: stycken >= 2 && stycken <= 4,
+    detalj: `${stycken} stycken`,
+  });
+
+  // 7. Veckodag med liten bokstav och svensk stavning.
+  const dagFel = posts.map((p) => p.dag ?? "").filter((d) => d && (d !== d.toLowerCase() || normaliseraDag(d) === null));
+  k.push({
+    namn: "veckodagar med liten bokstav",
+    ok: dagFel.length === 0,
+    detalj: dagFel.length ? dagFel.join(", ") : "alla rätt",
   });
 
   return k;
@@ -240,6 +296,8 @@ for (let i = 1; i <= runs; i++) {
       if (texts) plan = applyRepair(plan as PlanShape, texts) as Plan;
     } catch { /* behall originalet */ }
   }
+
+  plan = valideraPlan(plan as PlanShape) as Plan;
 
   sistaPlan = plan;
   const k = kontrollera(plan);

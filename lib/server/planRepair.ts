@@ -26,6 +26,8 @@ export const ord = (s: string): number =>
 export interface PlanPost {
   roll?: string; dag?: string; produkt?: string; mal?: string;
   title?: string; text?: string; cta?: string; image?: string;
+  /** Oppen for falt valideringen lagger till, t.ex. saknas. */
+  [k: string]: unknown;
 }
 
 export interface PlanShape {
@@ -84,6 +86,12 @@ BYGG UT, SKRIV INTE OM:
   eller egenskaper. Bygg ut med det som redan står i texten.
 - Behåll uppmaningen som den är. Den ingår inte i texten nedan.
 - Inga utropstecken, ingen emoji.
+- Skriv aldrig ut företagets interna styrdata: prioritet, lönsamhet,
+  marknadsföringsmål eller inläggets roll. De är underlag för dig.
+- Nyckeln "newsletter": svaret ska ha 2–4 stycken åtskilda med en TOM
+  RAD (\\n\\n i JSON-strängen). Lämna aldrig tillbaka ett enda block —
+  det är den vanligaste regressionen när texten byggs ut.
+- Numeriska nycklar är inlägg och ska vara ETT stycke.
 
 ${delar}
 

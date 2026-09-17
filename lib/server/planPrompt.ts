@@ -25,7 +25,7 @@ export const POST_ROLES = ["saljande", "tips", "prioriterad_produkt", "lokalt", 
 export type PostRole = (typeof POST_ROLES)[number];
 
 /** Veckodagar i JSON:en. Inläggen sprids ut, inte alla på måndag. */
-export const POST_DAYS = ["mandag", "tisdag", "onsdag", "torsdag", "fredag", "lordag", "sondag"] as const;
+export const POST_DAYS = ["måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag", "söndag"] as const;
 
 /** Ordgränser, delade av prompten, reparationsrundan och eval-skriptet
  *  så kraven inte kan glida isär.
@@ -88,8 +88,13 @@ STYRREGLER FÖR URVALET:
   nu MÅSTE förekomma i minst ett inlägg den här veckan.
 - Den högst prioriterade produkten i säsong får inlägget med rollen
   "prioriterad_produkt".
-- Varje inlägg ska gå att koppla till minst ett av målen ovan. Skriv vilket
-  i fältet "mal".`;
+- Koppla inlägget till ett av målen ovan när det passar, och skriv vilket
+  i fältet "mal". Passar inget mål: lämna "mal" tom. Ett påklistrat mål
+  är sämre än inget — det styr texten mot fel sak.
+- Mål som handlar om återförsäljare, grossister, partners eller andra
+  företag får BARA sättas på inlägg som är skrivna till företag. Sätt dem
+  aldrig på ett inlägg riktat till privatpersoner; en husbilsägare bryr
+  sig inte om er återförsäljarrekrytering.`;
 }
 
 export interface PlanPromptInput {
@@ -171,10 +176,14 @@ säga, inte genom att skriva mindre.
   Så här når du dit utan att fylla ut: (1) ett konkret scenario där
   läsaren känner igen sig, (2) vad man gör åt det, (3) varför just nu.
   Tre saker, inte tre adjektiv.
-- "body" i nyhetsbrevet: MINST ${LENGTH_LIMITS.NEWSLETTER_MIN_WORDS} ord, HÖGST ${LENGTH_LIMITS.NEWSLETTER_MAX_WORDS}, i 2–4 korta
-  stycken åtskilda med tom rad. Under ${LENGTH_LIMITS.NEWSLETTER_MIN_WORDS} ord är underkänt.
+- "body" i nyhetsbrevet: MINST ${LENGTH_LIMITS.NEWSLETTER_MIN_WORDS} ord, HÖGST ${LENGTH_LIMITS.NEWSLETTER_MAX_WORDS}. Exakt 2–4 stycken,
+  åtskilda med en tom rad. Inte ett enda block, inte fem stycken.
+  Under ${LENGTH_LIMITS.NEWSLETTER_MIN_WORDS} ord är underkänt.
+- Nyhetsbrevet har EN uppmaning, i fältet "cta". Upprepa den inte inne i
+  brödtexten.
 - Varje inlägg har exakt en tydlig uppmaning i "cta".
 - Sprid inläggen över veckan i fältet "dag" — inte alla på samma dag.
+  Skriv dagen med liten bokstav och svensk stavning: ${POST_DAYS.join(", ")}.
 
 Ett planinlägg är INTE ett kort socialt inlägg på två meningar. Det är
 en färdig text som ska kunna publiceras utan omskrivning — närmare en
