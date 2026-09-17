@@ -1,6 +1,6 @@
 // Kör: npx tsx lib/server/voice.test.mts
 import assert from "node:assert/strict";
-import { isoWeek, todayLabel, voiceBlock, BANNED_PHRASES, greeting, stockholmHour } from "./voice";
+import { isoWeek, todayLabel, voiceBlock, BANNED_PHRASES, greeting, stockholmHour, isoWeekKey, isPlanStale } from "./voice";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -59,7 +59,6 @@ test("inga dubbletter i förbjuden-listan", () => {
   assert.equal(new Set(BANNED_PHRASES).size, BANNED_PHRASES.length);
 });
 
-console.log(`${passed} test ok`);
 
 // ── Hälsning efter svensk tid ───────────────────────────────
 // UTC-tider med flit: poängen är att hälsningen ska följa Stockholm,
@@ -88,3 +87,30 @@ test("de fyra delarna av dygnet", () => {
 test("midnatt är timme 0, aldrig 24", () => {
   assert.equal(stockholmHour(new Date("2026-01-15T23:00:00Z")), 0);
 });
+
+// ── Gammalt förslag ──────────────────────────────────
+test("veckonyckeln skiljer på samma veckonummer olika år", () => {
+  assert.equal(isoWeekKey(new Date(2026, 0, 8)), "2026-v2");
+  assert.notEqual(isoWeekKey(new Date(2025, 0, 8)), isoWeekKey(new Date(2026, 0, 8)));
+});
+
+test("en plan från samma vecka är inte gammal", () => {
+  const nu = new Date(2026, 8, 16);           // onsdag
+  const mandag = new Date(2026, 8, 14);
+  const sondag = new Date(2026, 8, 20);
+  assert.equal(isPlanStale(mandag.toISOString(), nu), false);
+  assert.equal(isPlanStale(sondag.toISOString(), nu), false);
+});
+
+test("en plan från förra veckan är gammal", () => {
+  const nu = new Date(2026, 8, 16);
+  assert.equal(isPlanStale(new Date(2026, 8, 13).toISOString(), nu), true);  // söndag innan
+  assert.equal(isPlanStale(new Date(2025, 8, 16).toISOString(), nu), true);  // ett år tidigare
+});
+
+test("saknat eller trasigt datum ger ingen varning", () => {
+  assert.equal(isPlanStale(undefined), false);
+  assert.equal(isPlanStale("inte ett datum"), false);
+});
+
+console.log(`${passed} test ok`);

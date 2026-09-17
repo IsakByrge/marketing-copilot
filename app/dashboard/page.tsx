@@ -11,14 +11,19 @@
 // siffra. Se VISION.md.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
 import { Button, ButtonLink, Card, Alert, EmptyState, Skeleton } from "@/app/_shared/primitives";
 import { useAccountData } from "@/app/_shared/useAccountData";
 import UsagePanel from "@/app/_shared/UsagePanel";
 import { firstNameFromEmail } from "@/app/_shared/user";
-import { isoWeek, greeting } from "@/lib/server/voice";
+import { isoWeek, greeting, isPlanStale } from "@/lib/server/voice";
 import { createClient } from "@/lib/supabase-browser";
+
+/** Dubbelklick, ett andra fönster eller otålighet ska inte kosta en
+ *  AI-körning till. Servern har redan rate-limit; det här är för att
+ *  slippa skapa ett förslag som omedelbart ersätter det förra. */
+const NY_PLAN_KARENS_MS = 60_000;
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
@@ -35,8 +40,34 @@ export default function DashboardPage() {
 
   const name = firstNameFromEmail(email) ?? profile?.companyName?.split(" ")[0];
 
+  // Senaste körningen i den här fliken. Täcker även fallet där
+  // sparningen till Supabase misslyckades och planen saknar createdAt.
+  const senastGenererad = useRef<number | null>(null);
+
+  /** Återstående karens i sekunder, 0 när det är fritt fram. */
+  function karensKvar(): number {
+    const tider: number[] = [];
+    if (senastGenererad.current !== null) tider.push(senastGenererad.current);
+    if (plan?.createdAt) {
+      const t = new Date(plan.createdAt).getTime();
+      if (!Number.isNaN(t)) tider.push(t);
+    }
+    if (tider.length === 0) return 0;
+    const gick = Date.now() - Math.max(...tider);
+    return gick < NY_PLAN_KARENS_MS ? Math.ceil((NY_PLAN_KARENS_MS - gick) / 1000) : 0;
+  }
+
   async function generatePlan() {
-    if (!profile) return;
+    if (!profile || generating) return;
+
+    const kvar = karensKvar();
+    if (kvar > 0) {
+      setError(
+        `Du skapade ett förslag alldeles nyss. Vänta ${kvar} sekunder om du vill göra ett nytt.`,
+      );
+      return;
+    }
+
     setGenerating(true);
     setError(null);
     try {
@@ -72,7 +103,7 @@ export default function DashboardPage() {
             newsletter: newPlan.newsletter, campaigns: newPlan.campaigns,
             opportunities: newPlan.opportunities,
           }).select().single();
-          if (saved) setPlan({ ...newPlan, id: saved.id });
+          if (saved) setPlan({ ...newPlan, id: saved.id, createdAt: saved.created_at });
         }
       } catch (syncError) {
         console.warn("Supabase-synk misslyckades:", syncError);
@@ -81,9 +112,15 @@ export default function DashboardPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Något gick fel. Försök igen.");
     } finally {
+      senastGenererad.current = Date.now();
       setGenerating(false);
     }
   }
+
+  // Varnar bara när vi faktiskt vet när planen skrevs. Saknas datumet
+  // sägs ingenting alls — ingen gissning, se VISION.md.
+  const gammaltForslag = isPlanStale(plan?.createdAt);
+  const forslagetsVecka = plan?.createdAt ? isoWeek(new Date(plan.createdAt)) : null;
 
   const postCount = plan?.posts?.length ?? 0;
   const opportunities = plan?.opportunities ?? [];
@@ -118,6 +155,19 @@ export default function DashboardPage() {
                   <h1 className="mt-3 max-w-2xl text-[clamp(1.5rem,3.2vw,1.85rem)] font-semibold leading-[1.25] tracking-tight">
                     {plan.focus}
                   </h1>
+
+                  {/* Förslaget står kvar tills ett nytt skapas. Utan den här
+                      raden ser en text från i våras ut som veckans. */}
+                  {gammaltForslag && (
+                    <Alert
+                      tone="warning"
+                      title={`Det här förslaget är från vecka ${forslagetsVecka}`}
+                      className="mt-4"
+                    >
+                      Det skrevs för en annan vecka. Skapa ett nytt om du vill ha något
+                      som utgår från var ni är nu.
+                    </Alert>
+                  )}
                   {plan.tags?.length > 0 && (
                     <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
                       Jag lutar åt {plan.tags.slice(0, 3).join(", ").toLowerCase()} den här veckan,

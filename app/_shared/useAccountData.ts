@@ -25,6 +25,9 @@ export type PlanCampaign = { title: string; goal: string; message: string; chann
 export type Opportunity = { title: string; date: string; relevance: string };
 
 export type MarketingPlan = {
+  /** Nar raden skapades i plans. Behovs for att kunna saga att ett
+   *  forslag ar fran en tidigare vecka, och for dubblettskyddet. */
+  createdAt?: string;
   id?: string; company: string; focus: string; tags: string[];
   posts: MarketingPost[]; newsletter: Newsletter;
   campaigns: PlanCampaign[]; opportunities?: Opportunity[];
@@ -82,7 +85,8 @@ export function useAccountData() {
           if (!cancelled && plans && plans.length > 0) {
             const latest = plans[0];
             setPlan({
-              id: latest.id, company: company.name, focus: latest.focus, tags: latest.tags ?? [],
+              id: latest.id, createdAt: latest.created_at,
+              company: company.name, focus: latest.focus, tags: latest.tags ?? [],
               posts: latest.posts ?? [], newsletter: latest.newsletter,
               campaigns: latest.campaigns ?? [], opportunities: latest.opportunities ?? [],
             });

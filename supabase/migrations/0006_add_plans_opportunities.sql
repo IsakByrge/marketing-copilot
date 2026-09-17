@@ -5,13 +5,16 @@
 -- ändras, inga policyer rörs, ingen RLS påverkas. Idempotent och
 -- säker att köra flera gånger (ADD COLUMN IF NOT EXISTS).
 --
+-- KÖRD I PROD 2026-09-17. Nya planer sparas. Filen versionshanterar
+-- det som redan finns i databasen — kör den bara i en ny miljö.
+--
 -- VARFÖR: /api/generate-plan returnerar opportunities, och både
 -- dashboarden och onboardingen skickar fältet i sin insert mot plans.
--- Kolumnen har aldrig funnits i prod, så PostgREST avvisar HELA
--- satsen med 42703 — inte bara fältet. Följden är att ingen plan
--- någonsin sparats. Det syntes inte tidigare, eftersom planen också
--- låg i webbläsarens lagring; när den kopian togs bort blev felet
--- synligt i stället för dolt.
+-- Kolumnen saknades i prod, så PostgREST avvisade HELA satsen med
+-- 42703 — inte bara fältet. Följden var att ingen plan sparades. Det
+-- syntes inte tidigare, eftersom planen också låg i webbläsarens
+-- lagring; när den kopian togs bort blev felet synligt i stället för
+-- dolt.
 --
 -- 0000_baseline.sql deklarerar kolumnen, men den använder CREATE TABLE
 -- IF NOT EXISTS och blir en no-op mot en plans som redan finns. Den

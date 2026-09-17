@@ -118,6 +118,30 @@ export function isoWeek(date: Date): number {
 }
 
 /**
+ * Nyckel för den ISO-vecka ett datum tillhör, t.ex. "2026-v38".
+ * Veckonumret ensamt räcker inte: vecka 1 återkommer varje år, och ett
+ * förslag från förra januari skulle annars se ut som veckans.
+ */
+export function isoWeekKey(date: Date): string {
+  // Torsdagen i samma vecka avgör vilket år veckan tillhör (ISO 8601).
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  return d.getUTCFullYear() + "-v" + isoWeek(date);
+}
+
+/**
+ * Sant när planen skapades någon annan vecka än den pågående.
+ * Ogiltigt eller saknat datum räknas som färskt — hellre tyst än en
+ * varning som bygger på data vi inte har.
+ */
+export function isPlanStale(createdAt: string | undefined, now = new Date()): boolean {
+  if (!createdAt) return false;
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return false;
+  return isoWeekKey(created) !== isoWeekKey(now);
+}
+
+/**
  * Timme 0–23 i Europe/Stockholm, oavsett var koden råkar köra.
  * Serverns tid är UTC på Vercel och lokal tid i webbläsaren — utan
  * tidszon hade samma användare fått "God kväll" mitt på dagen.
