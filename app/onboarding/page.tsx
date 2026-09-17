@@ -416,10 +416,10 @@ export default function OnboardingPage() {
       console.warn("Kunde inte spara företag till Supabase:", sbError);
     }
     const [result] = await Promise.all([
-      fetch("/api/generate-plan", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyProfile: finalProfile }),
-      }).then(r => r.json()).catch(() => null),
+      // Foretaget ar redan upsertat ovan, sa servern hittar det sjalv.
+      // Ingen foretagsdata skickas i bodyn.
+      fetch("/api/generate-plan", { method: "POST" })
+        .then(r => r.json()).catch(() => null),
       new Promise(r => setTimeout(r, 4200)),
     ]);
 

@@ -11,6 +11,10 @@
 // orden, och be om utökning BARA av de texter som faktiskt är för
 // korta. Ett extra anrop, och bara när det behövs.
 //
+// Rundan körs HÖGST EN GÅNG per plan. Hjälper den inte behåller vi det
+// modellen skrev — en text som är några ord för kort är bättre än ännu
+// ett anrop, och bättre än en tom sida.
+//
 // Modulen är ren funktion + promptbygge, utan Supabase eller
 // next/headers, så både routen och eval-skriptet kan använda den.
 // ─────────────────────────────────────────────────────────────

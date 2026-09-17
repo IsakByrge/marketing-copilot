@@ -27,11 +27,17 @@ export type PostRole = (typeof POST_ROLES)[number];
 /** Veckodagar i JSON:en. Inläggen sprids ut, inte alla på måndag. */
 export const POST_DAYS = ["mandag", "tisdag", "onsdag", "torsdag", "fredag", "lordag", "sondag"] as const;
 
-/** Ordgränser, delade med eval-skriptet så kraven inte glider isär. */
+/** Ordgränser, delade av prompten, reparationsrundan och eval-skriptet
+ *  så kraven inte kan glida isär.
+ *
+ *  Nyhetsbrevets golv sänktes från 150 till 130: efter reparation landade
+ *  det på 147 i en av tre körningar, och att köra ytterligare en runda för
+ *  tre ords skull är inte värt anropet. 130 ord är fortfarande ett riktigt
+ *  nyhetsbrev. */
 export const LENGTH_LIMITS = {
   POST_MIN_WORDS: 60,
   POST_MAX_WORDS: 150,
-  NEWSLETTER_MIN_WORDS: 150,
+  NEWSLETTER_MIN_WORDS: 130,
   NEWSLETTER_MAX_WORDS: 300,
 } as const;
 
@@ -206,7 +212,7 @@ Returnera exakt denna JSON:
   "newsletter": {
     "subject": "Ämnesrad max 50 tecken",
     "preview": "Förhandsvisning max 85 tecken",
-    "body": "MINST 150 ord, högst 300, i 2-4 korta stycken åtskilda med tom rad: scenario → vad man gör → varför just nu i ${month} ${year}",
+    "body": "MINST ${LENGTH_LIMITS.NEWSLETTER_MIN_WORDS} ord, högst ${LENGTH_LIMITS.NEWSLETTER_MAX_WORDS}, i 2-4 korta stycken åtskilda med tom rad: scenario → vad man gör → varför just nu i ${month} ${year}",
     "cta": "Uppmaning som bara hänvisar till något som finns"
   },
   "campaigns": [

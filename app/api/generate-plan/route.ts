@@ -12,27 +12,35 @@ import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { callChatJson, AI } from "@/lib/server/ai";
 import { editMemoryBlock } from "@/lib/server/editMemory";
 import { getCompanyBrainContext } from "@/lib/companyBrainServer";
-import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt } from "@/lib/server/planPrompt";
+import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, type PlanCompanyProfile } from "@/lib/server/planPrompt";
 import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
 
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-type CompanyProfile = {
-  companyName?: string; industry?: string; summary?: string;
-  customers?: string[]; products?: string[]; tone?: string[];
-  strengths?: string[]; avoid?: string[]; contentGuidelines?: string[];
+/** Den platta foretagsraden, hamtad server-side. */
+type CompanyRow = {
+  name: string; industry?: string | null; summary?: string | null;
+  customers?: string[] | null; products?: string[] | null; tone?: string[] | null;
+  strengths?: string[] | null; avoid?: string[] | null;
+  content_guidelines?: string[] | null;
 };
 
-type BrainFile = {
-  name: string; size: number; type: string; addedAt: string; content?: string;
-};
-
-type GeneratePlanBody = {
-  companyProfile?: CompanyProfile;
-  brainFiles?: BrainFile[];
-};
+/** Kontots senaste foretag. RLS gor att bara egna rader nas. */
+async function getCompanyRow(supabase: SupabaseClient, userId: string): Promise<CompanyRow | null> {
+  try {
+    const { data } = await supabase
+      .from("companies")
+      .select("name, industry, summary, customers, products, tone, strengths, avoid, content_guidelines")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    return (data?.[0] as CompanyRow) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 type PastPlan = {
   created_at: string;
@@ -92,7 +100,7 @@ async function getFeedback(supabase: SupabaseClient, companyName: string, userId
   }
 }
 
-export async function POST(request: Request) {
+export async function POST() {
   const requestId = crypto.randomUUID().slice(0, 8);
 
   const guarded = await guardAiRequest("generate-plan");
@@ -100,22 +108,36 @@ export async function POST(request: Request) {
   const { guard } = guarded;
 
   try {
-    let body: GeneratePlanBody;
-    try {
-      body = await request.json();
-    } catch {
-      await guard.finish({ status: "error", errorCategory: "bad_json" });
-      return safeError("Ogiltig förfrågan.", 400);
-    }
-    const profile = body.companyProfile;
-    const brainFiles = body.brainFiles ?? [];
     // Identiteten kommer ALLTID från sessionen — aldrig från request-body.
     const userId = guard.user.id;
 
-    if (!profile) {
+    // INGEN FÖRETAGSDATA LÄSES UR REQUEST-BODY.
+    //
+    // Tidigare skickade klienten hela companyProfile hit, och prompten
+    // byggdes på den. Det innebar att vem som helst kunde generera en
+    // plan mot påhittade produkter och styrkor genom att skicka en egen
+    // body — och, mer vardagligt, att prompten fick klientens kopia i
+    // stället för det som faktiskt står i databasen. Allt hämtas nu
+    // server-side via den RLS-scopade klienten.
+    //
+    // Bodyn läses inte alls. Ett anrop utan body fungerar.
+    const company = await getCompanyRow(guard.supabase, userId);
+    if (!company) {
       await guard.finish({ status: "error", errorCategory: "missing_profile" });
-      return safeError("Företagsprofil saknas.", 400);
+      return safeError("Ingen företagsprofil hittades på kontot.", 400);
     }
+
+    const profile: PlanCompanyProfile = {
+      companyName: company.name,
+      industry: company.industry ?? "",
+      summary: company.summary ?? "",
+      customers: company.customers ?? [],
+      products: company.products ?? [],
+      tone: company.tone ?? [],
+      strengths: company.strengths ?? [],
+      avoid: company.avoid ?? [],
+      contentGuidelines: company.content_guidelines ?? [],
+    };
 
     // Datum och veckonummer formas numera inne i planPrompt.
     const now = new Date();
@@ -125,9 +147,8 @@ export async function POST(request: Request) {
     const editMemory = await editMemoryBlock("plan_post");
 
     // Company Brain, hämtad server-side ur sessionen. Bär prioritet,
-    // lönsamhet, säsong och marknadsföringsmål — allt som den platta
-    // profilen i request-body saknar. Null när inget företag finns;
-    // då faller prompten tillbaka på den platta profilen ensam.
+    // lönsamhet, säsong och marknadsföringsmål — allt som de platta
+    // kolumnerna saknar.
     const brain = await getCompanyBrainContext();
 
     // Hämta historik från Supabase (RLS-scopat till den inloggade användaren)
@@ -153,13 +174,11 @@ ${pastPlans.map((p, i) => {
 }).join("\n\n")}`
       : "";
 
-    const fileContext = brainFiles.length > 0
-      ? `\nUPPLADDAT MATERIAL:\n${brainFiles.map(f => {
-          let line = `- ${f.name} (${f.type})`;
-          if (f.content) line += `\n  Innehåll: ${f.content.slice(0, 800)}`;
-          return line;
-        }).join("\n")}`
-      : "";
+    // Uppladdat material kom från /profile, som togs bort i en tidigare
+    // sprint. Ingen producent finns kvar, och enda stället det kunde
+    // komma ifrån nu vore request-body — vilket är precis vad den här
+    // routen inte längre läser.
+    const fileContext = "";
 
     const systemPrompt = PLAN_SYSTEM_PROMPT;
     const userPrompt = buildPlanUserPrompt({

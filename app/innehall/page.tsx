@@ -171,17 +171,19 @@ export default function ContentPage() {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
-      // Konfliktmalet ar oforandrat: en rad per (anvandare, foretag,
-      // index) som UPPDATERAS. plan_id sager vilken plan tummen galler,
-      // och lasningen ovan filtrerar pa det.
+      // Nyckeln ar (user_id, plan_id, post_index) sedan 0008, sa varje
+      // plan har egna tummar och forra veckans bevaras. Utan plan_id
+      // finns ingen rad att peka pa - da sparas ingen tumme alls, hellre
+      // det an att skriva en rad som galler fel text.
+      if (!plan.id) return;
       await sb.from("content_feedback").upsert({
         user_id: user.id,
         company_name: plan.company,
-        plan_id: plan.id ?? null,
+        plan_id: plan.id,
         post_index: index,
         post_title: title,
         rating_text: rating,
-      }, { onConflict: "user_id,company_name,post_index" });
+      }, { onConflict: "user_id,plan_id,post_index" });
     } catch (e) {
       console.warn("Kunde inte spara feedback:", e);
     }

@@ -71,11 +71,9 @@ export default function DashboardPage() {
     setGenerating(true);
     setError(null);
     try {
-      const res = await fetch("/api/generate-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyProfile: profile }),
-      });
+      // Ingen foretagsdata i bodyn: servern hamtar den sjalv ur
+      // sessionen. Klienten ska inte kunna bestamma vad planen skrivs om.
+      const res = await fetch("/api/generate-plan", { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "Kunde inte skapa veckoplanen just nu.");
