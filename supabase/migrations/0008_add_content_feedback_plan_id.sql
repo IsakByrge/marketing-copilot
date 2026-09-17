@@ -3,9 +3,17 @@
 --
 -- INTE KÖRD ÄNNU.
 --
--- Lägger till en nullbar kolumn, släpper den gamla unika nyckeln och
--- sätter en ny. Ingen rad ändras eller tas bort. RLS och policyer rörs
--- inte. Idempotent: går att köra flera gånger.
+-- ⚠ KÖR DEN DIREKT FÖRE MERGE TILL MAIN — INTE TIDIGARE.
+-- Koden som ligger i produktion just nu gör upsert med
+-- ON CONFLICT (user_id, company_name, post_index). Den nyckeln släpps
+-- här. Körs migrationen medan den gamla koden fortfarande är live
+-- slutar tummarna fungera i prod, med 42P10 vid varje försök, tills
+-- den här grenen är utrullad. Fönstret ska vara så kort som möjligt:
+-- kör migrationen, merga, invänta Vercel-bygget.
+--
+-- Lägger till en nullbar kolumn, byter unik nyckel och ersätter
+-- tabellens ALL-policy med fyra riktade. Ingen rad ändras eller tas
+-- bort. Idempotent: går att köra flera gånger.
 --
 -- VARFÖR: tabellen var unik på (user_id, company_name, post_index).
 -- Inlägg 0 i en ny plan delade alltså rad med inlägg 0 i en gammal och
@@ -16,20 +24,15 @@
 --
 -- ── OM DEN NYA NYCKELN ──────────────────────────────────────
 -- Nyckeln är ETT VANLIGT unikt index, inte ett partiellt med
--- "where plan_id is not null". Det är med flit, och det ger samma
--- resultat:
---
--- I Postgres är NULL aldrig lika med NULL i ett unikt index (såvida
--- man inte skriver NULLS NOT DISTINCT). Rader med plan_id = null
--- krockar därför aldrig med varandra — de gamla raderna ligger kvar
--- precis som ett partiellt index hade gett.
+-- "where plan_id is not null". Det är med flit, och ger samma resultat:
+-- i Postgres är NULL aldrig lika med NULL i ett unikt index, så rader
+-- med plan_id = null krockar aldrig med varandra.
 --
 -- Skälet att INTE göra det partiellt är praktiskt: PostgREST:s upsert
 -- skickar "ON CONFLICT (user_id, plan_id, post_index) DO UPDATE" utan
 -- WHERE-sats. Postgres kan bara härleda ett PARTIELLT index om satsen
 -- upprepar indexets predikat. Mot ett partiellt index hade varje
--- upsert från appen fallit med 42P10, "no unique or exclusion
--- constraint matching the ON CONFLICT specification".
+-- upsert från appen fallit med 42P10.
 --
 -- ── VAD SOM HÄNDER MED BEFINTLIGA RADER ─────────────────────
 -- Ingenting. De behåller plan_id = null och ligger kvar. Appen visar
@@ -37,14 +40,12 @@
 -- aldrig pålitlig — men fortsätter läsa dem som signal om vilka ÄMNEN
 -- och vilken TON användaren gillat. Ingen feedback går förlorad.
 --
--- Efter migrationen har varje plan egna tummar, och historiken bevaras:
--- en tumme på inlägg 3 i veckans plan rör inte tummen på inlägg 3 i
--- förra veckans.
+-- Efter migrationen har varje plan egna tummar, och historiken bevaras.
 --
 -- HUR DEN KÖRS (manuellt, körs INTE automatiskt av appen):
 -- 1. Supabase-projektets SQL Editor.
 -- 2. Klistra in hela filen och kör.
--- 3. Ingen nedtid, inget backfill-jobb.
+-- 3. Merga grenen direkt efteråt (se varningen överst).
 --
 -- Inga hemligheter, projekt-ID:n eller anslutningssträngar i filen.
 -- ─────────────────────────────────────────────────────────────
@@ -55,10 +56,13 @@ alter table public.content_feedback
 
 -- ── 2. Släpp den gamla nyckeln ──────────────────────────────
 -- Namnet är inte känt med säkerhet: tabellen skapades i Supabase-
--- gränssnittet, inte av en migration i repot. Blocket letar därför upp
--- varje unikt constraint som ligger på exakt de tre kolumnerna och
--- släpper det, i stället för att gissa ett namn. Hittas inget händer
--- ingenting — det är så den här filen blir idempotent.
+-- gränssnittet, inte av en migration i repot. Blocken letar därför upp
+-- varje unikt constraint respektive index som ligger på exakt de tre
+-- kolumnerna och släpper det, i stället för att gissa ett namn. Hittas
+-- inget händer ingenting — det är så filen blir idempotent.
+--
+-- attname är av typen "name", inte "text". Utan ::text jämförs name[]
+-- med text[], och Postgres svarar "operator does not exist".
 do $$
 declare
   c record;
@@ -72,7 +76,7 @@ begin
       and rel.relname = 'content_feedback'
       and con.contype = 'u'
       and (
-        select array_agg(att.attname order by att.attname)
+        select array_agg(att.attname::text order by att.attname)
         from unnest(con.conkey) as k(attnum)
         join pg_attribute att
           on att.attrelid = con.conrelid and att.attnum = k.attnum
@@ -99,8 +103,8 @@ begin
       and ix.indisunique
       and not exists (select 1 from pg_constraint con where con.conindid = idx.oid)
       and (
-        select array_agg(att.attname order by att.attname)
-        from unnest(ix.indkey) as k(attnum)
+        select array_agg(att.attname::text order by att.attname)
+        from unnest(ix.indkey::int2[]) as k(attnum)
         join pg_attribute att
           on att.attrelid = rel.oid and att.attnum = k.attnum
       ) = array['company_name', 'post_index', 'user_id']
@@ -121,6 +125,65 @@ create index if not exists content_feedback_user_plan_idx
   on public.content_feedback (user_id, plan_id)
   where plan_id is not null;
 
--- RLS är redan aktiverad och policyerna är oförändrade:
--- "own content_feedback - select/insert/update/delete" med
--- auth.uid() = user_id. En ny kolumn ärver dem automatiskt.
+-- ── 4. Policyer ─────────────────────────────────────────────
+-- Tabellen hade EN policy, "egen feedback" FOR ALL, som bara kollade
+-- auth.uid() = user_id. Med plan_id i tabellen räcker det inte: raden
+-- pekar nu på en plan, och en användare ska inte kunna skriva en tumme
+-- som pekar på någon annans plan även om user_id är hens eget.
+--
+-- Samma mönster som plan_text_edits (0005), med en skillnad: plan_id
+-- är nullbart här. Villkoret släpper därför igenom raden när plan_id
+-- är null — det är de gamla raderna, som ska gå att läsa och rensa.
+--
+-- RLS är redan aktiverad på tabellen. Raden nedan är med för en ny
+-- miljö och är en no-op när den redan är på.
+alter table public.content_feedback enable row level security;
+
+drop policy if exists "egen feedback" on public.content_feedback;
+drop policy if exists "own content_feedback - select" on public.content_feedback;
+drop policy if exists "own content_feedback - insert" on public.content_feedback;
+drop policy if exists "own content_feedback - update" on public.content_feedback;
+drop policy if exists "own content_feedback - delete" on public.content_feedback;
+
+create policy "own content_feedback - select" on public.content_feedback
+  for select using (
+    auth.uid() = user_id
+    and (
+      plan_id is null
+      or exists (
+        select 1 from public.plans p
+        join public.companies c on c.id = p.company_id
+        where p.id = content_feedback.plan_id and c.user_id = auth.uid()
+      )
+    )
+  );
+
+create policy "own content_feedback - insert" on public.content_feedback
+  for insert with check (
+    auth.uid() = user_id
+    and (
+      plan_id is null
+      or exists (
+        select 1 from public.plans p
+        join public.companies c on c.id = p.company_id
+        where p.id = content_feedback.plan_id and c.user_id = auth.uid()
+      )
+    )
+  );
+
+create policy "own content_feedback - update" on public.content_feedback
+  for update using (auth.uid() = user_id)
+  with check (
+    auth.uid() = user_id
+    and (
+      plan_id is null
+      or exists (
+        select 1 from public.plans p
+        join public.companies c on c.id = p.company_id
+        where p.id = content_feedback.plan_id and c.user_id = auth.uid()
+      )
+    )
+  );
+
+create policy "own content_feedback - delete" on public.content_feedback
+  for delete using (auth.uid() = user_id);
