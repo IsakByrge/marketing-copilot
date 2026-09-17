@@ -22,19 +22,14 @@ const PUBLIC_ROUTES = ["/", "/login", "/auth/callback"];
 // Protected routes (see proxy.ts). Unauthenticated → redirect to /login.
 const PROTECTED_ROUTES = [
   "/dashboard",
+  "/innehall",
+  "/produkttexter",
+  "/content/facebook",
   "/campaign-builder",
   "/campaigns",
-  "/content",
-  "/content/facebook",
-  "/company",
   "/history",
+  "/company",
   "/onboarding",
-  "/profile",
-  "/create",
-  "/newsletter",
-  "/campaign",
-  "/plan",
-  "/generating",
 ];
 
 type Result = { route: string; status: number | string; ok: boolean; note: string };

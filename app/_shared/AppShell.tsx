@@ -15,13 +15,14 @@
 // klämma in åtta träffytor på 400px skulle göra alla åtta sämre.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
+import { clearAppStorage } from "./appStorage";
 import { cx } from "./primitives";
 import {
   IconToday, IconContent, IconCompany, IconPencil, IconSparkle,
-  IconBuilder, IconCampaigns, IconHistory,
+  IconBuilder, IconCampaigns, IconHistory, IconLogout,
 } from "./icons";
 
 interface Item {
@@ -54,7 +55,17 @@ function isActive(pathname: string, href: string): boolean {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
+  const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+
+  // Utloggningen satt i gamla Shell.tsx. Den flyttade hit med den, inte
+  // bort: appstadningen fore auth.signOut() sa en delad dator aldrig
+  // behaller foregaende anvandares plan eller profil.
+  async function signOut() {
+    clearAppStorage();
+    await createClient().auth.signOut();
+    router.push("/login");
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -102,11 +113,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {email && (
-          <div className="shrink-0 border-t border-border px-5 py-4 text-xs text-text-tertiary">
-            <p className="truncate">{email}</p>
-          </div>
-        )}
+        <div className="shrink-0 border-t border-border px-3 py-3">
+          {email && (
+            <p className="truncate px-2 pb-2 text-xs text-text-tertiary">{email}</p>
+          )}
+          <button
+            type="button"
+            onClick={signOut}
+            className="flex w-full items-center gap-3 rounded px-3 py-2.5 text-sm text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+          >
+            <IconLogout size={17} />
+            Logga ut
+          </button>
+        </div>
       </aside>
 
       <header className="sticky top-0 z-20 flex h-14 items-center gap-2.5 border-b border-border bg-surface-sunken px-4 lg:hidden">
@@ -114,6 +133,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           M
         </span>
         <span className="text-sm font-medium">Marketing Copilot</span>
+        {/* Mobilens bottenrad ar full av navigering, sa utloggningen far
+            plats har i stallet. Den maste finnas nagonstans pa mobil. */}
+        <button
+          type="button"
+          onClick={signOut}
+          aria-label="Logga ut"
+          className="ml-auto flex h-10 w-10 items-center justify-center rounded text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+        >
+          <IconLogout size={18} />
+        </button>
       </header>
 
       <main className="pb-20 lg:ml-56 lg:pb-0">{children}</main>

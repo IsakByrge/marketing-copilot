@@ -3,8 +3,9 @@
 // ─────────────────────────────────────────────────────────────
 // Innehåll — allt din marknadschef skrivit, på ett ställe.
 //
-// Ersätter /content, /post/[id] och /newsletter. Tre sidor blir en:
-// samma mönster som produkttexterna — se allt, öppna, redigera direkt,
+// Ersatte /content, /post/[id] och /newsletter, som nu är borttagna
+// (se docs/product/PARKERADE_FUNKTIONER.md). Tre sidor blev en: samma
+// mönster som produkttexterna — se allt, öppna, redigera direkt,
 // kopiera. Ingen navigering fram och tillbaka för att läsa ett inlägg.
 //
 // Redigeringar sparas i plan_text_edits, en rad per (plan, inlägg).

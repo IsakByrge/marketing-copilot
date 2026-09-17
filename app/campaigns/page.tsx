@@ -7,7 +7,6 @@
 // visas riktiga kampanjförslag från senaste marknadsplanen, tydligt
 // märkta som förslag — inte som pågående kampanjer.
 // ─────────────────────────────────────────────────────────────
-import Link from "next/link";
 import AppShell from "@/app/_shared/AppShell";
 import { T, fontSerif, fontSans } from "@/app/_shared/themeLight";
 import { PageHeader, PrimaryButton, EmptyState } from "@/app/_shared/uiLight";
@@ -46,16 +45,15 @@ export default function CampaignsPage() {
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {plan.campaigns.map((c, i) => (
-                    <Link key={i} href="/campaign" style={{
+                    // Kortet lankade till /campaign, som ar parkerad. Titel
+                    // och mal star redan har, sa det finns inget att oppna.
+                    <div key={i} style={{
                       display: "block", padding: "20px 22px", borderRadius: 14,
-                      background: T.surface, border: `1px solid ${T.line}`, textDecoration: "none",
-                    }}
-                      onMouseOver={(e) => (e.currentTarget.style.borderColor = T.line2)}
-                      onMouseOut={(e) => (e.currentTarget.style.borderColor = T.line)}
-                    >
+                      background: T.surface, border: `1px solid ${T.line}`,
+                    }}>
                       <h3 style={{ fontFamily: fontSerif, fontWeight: 400, fontSize: "1.1rem", color: T.text, marginBottom: 6 }}>{c.title}</h3>
                       <p style={{ fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 300, color: T.text2, lineHeight: 1.6 }}>{c.goal}</p>
-                    </Link>
+                    </div>
                   ))}
                 </div>
               </section>

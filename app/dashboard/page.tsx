@@ -16,7 +16,7 @@ import AppShell from "@/app/_shared/AppShell";
 import { Button, ButtonLink, Card, Alert, EmptyState, Skeleton } from "@/app/_shared/primitives";
 import { useAccountData } from "@/app/_shared/useAccountData";
 import UsagePanel from "@/app/_shared/UsagePanel";
-import { firstNameFromEmail } from "@/app/_shared/Shell";
+import { firstNameFromEmail } from "@/app/_shared/user";
 import { isoWeek } from "@/lib/server/voice";
 import { createClient } from "@/lib/supabase-browser";
 
