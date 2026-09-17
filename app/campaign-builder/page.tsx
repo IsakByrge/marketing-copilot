@@ -217,7 +217,7 @@ export default function MarketingStrategistPage() {
   if (loaded && !hasCompany) {
     return (
       <AppShell>
-        <div style={{ maxWidth: 720, margin: "0 auto", padding: "56px 24px 100px" }}>
+        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
           <Header companyName="" />
           <div style={{ padding: "36px 28px", borderRadius: 16, background: T.surface, border: `1px dashed ${T.line2}` }}>
             <p style={{ fontFamily: sans, fontSize: "0.98rem", fontWeight: 500, color: T.text, marginBottom: 8 }}>Ingen företagskunskap ännu.</p>
@@ -303,7 +303,7 @@ function BriefForm(p: {
         <TextInput value={p.product} onChange={(e) => p.setProduct(e.target.value)} placeholder="t.ex. Gasolbyte inför grillsäsongen" />
         {products.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-            <span style={{ fontFamily: sans, fontSize: "0.7rem", color: T.text4, alignSelf: "center" }}>Ur Company Brain:</span>
+            <span style={{ fontFamily: sans, fontSize: "0.7rem", color: T.text4, alignSelf: "center" }}>Ur företagskunskapen:</span>
             {products.slice(0, 6).map((pr) => <Chip key={pr.id} label={pr.name} onClick={() => p.setProduct(pr.name)} />)}
           </div>
         )}

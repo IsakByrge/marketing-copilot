@@ -8,7 +8,7 @@
 // märkta som förslag — inte som pågående kampanjer.
 // ─────────────────────────────────────────────────────────────
 import AppShell from "@/app/_shared/AppShell";
-import { T, fontSerif, fontSans } from "@/app/_shared/themeLight";
+import { T, fontSans } from "@/app/_shared/themeLight";
 import { PageHeader, PrimaryButton, EmptyState } from "@/app/_shared/uiLight";
 import { IconCampaigns } from "@/app/_shared/icons";
 import { useAccountData } from "@/app/_shared/useAccountData";
@@ -18,7 +18,7 @@ export default function CampaignsPage() {
 
   return (
     <AppShell>
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "56px 40px 80px" }}>
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
         <PageHeader eyebrow="Kampanjer" title="Dina kampanjer." subtitle="Aktiva kampanjer och kampanjförslag samlade på ett ställe." />
 
         {!loaded ? (
@@ -51,7 +51,7 @@ export default function CampaignsPage() {
                       display: "block", padding: "20px 22px", borderRadius: 14,
                       background: T.surface, border: `1px solid ${T.line}`,
                     }}>
-                      <h3 style={{ fontFamily: fontSerif, fontWeight: 400, fontSize: "1.1rem", color: T.text, marginBottom: 6 }}>{c.title}</h3>
+                      <h3 style={{ fontFamily: fontSans, fontWeight: 400, fontSize: "1.1rem", color: T.text, marginBottom: 6 }}>{c.title}</h3>
                       <p style={{ fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 300, color: T.text2, lineHeight: 1.6 }}>{c.goal}</p>
                     </div>
                   ))}

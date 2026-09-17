@@ -72,9 +72,9 @@ export function PageHeader({ eyebrow, title, subtitle }: { eyebrow: string; titl
     <div style={{ marginBottom: 40 }}>
       <Eyebrow>{eyebrow}</Eyebrow>
       <h1 style={{
-        fontFamily: "var(--font-cormorant), serif", fontWeight: 300,
-        fontSize: "clamp(1.9rem,4vw,2.6rem)", letterSpacing: "-0.01em", color: T.text,
-        margin: "14px 0 10px", lineHeight: 1.08,
+        fontFamily: fontSans, fontWeight: 600,
+        fontSize: "clamp(1.5rem,3.2vw,1.85rem)", letterSpacing: "-0.02em", color: T.text,
+        margin: "12px 0 10px", lineHeight: 1.25,
       }}>
         {title}
       </h1>

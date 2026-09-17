@@ -35,7 +35,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "product-texts": "Produkttexter",
   "create-content": "Snabbskapande",
   "generate-plan": "Veckoplan",
-  "facebook-specialist": "Facebook Specialist",
+  "facebook-specialist": "Facebook-inlägg",
   "generate-image": "Bilder",
   "edit-image": "Bildredigering",
   "strategist-analyze": "Strategist",

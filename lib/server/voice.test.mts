@@ -1,6 +1,6 @@
 // Kör: npx tsx lib/server/voice.test.mts
 import assert from "node:assert/strict";
-import { isoWeek, todayLabel, voiceBlock, BANNED_PHRASES } from "./voice";
+import { isoWeek, todayLabel, voiceBlock, BANNED_PHRASES, greeting, stockholmHour } from "./voice";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -60,3 +60,31 @@ test("inga dubbletter i förbjuden-listan", () => {
 });
 
 console.log(`${passed} test ok`);
+
+// ── Hälsning efter svensk tid ───────────────────────────────
+// UTC-tider med flit: poängen är att hälsningen ska följa Stockholm,
+// inte maskinens tidszon. Januari = UTC+1, juli = UTC+2.
+test("hälsningen följer Europe/Stockholm, inte UTC", () => {
+  // 07:30 UTC i januari = 08:30 svensk tid → morgon
+  assert.equal(greeting(new Date("2026-01-15T07:30:00Z")), "God morgon");
+  // 22:30 UTC i januari = 23:30 svensk tid → kväll
+  assert.equal(greeting(new Date("2026-01-15T22:30:00Z")), "God kväll");
+  // 23:30 UTC i juli = 01:30 svensk tid dagen efter → morgon
+  assert.equal(greeting(new Date("2026-07-15T23:30:00Z")), "God morgon");
+});
+
+test("de fyra delarna av dygnet", () => {
+  const svensk = (h: number) => new Date(Date.UTC(2026, 0, 15, h - 1, 0, 0)); // januari: UTC+1
+  assert.equal(greeting(svensk(6)), "God morgon");
+  assert.equal(greeting(svensk(9)), "God morgon");
+  assert.equal(greeting(svensk(10)), "God förmiddag");
+  assert.equal(greeting(svensk(11)), "God förmiddag");
+  assert.equal(greeting(svensk(12)), "God eftermiddag");
+  assert.equal(greeting(svensk(17)), "God eftermiddag");
+  assert.equal(greeting(svensk(18)), "God kväll");
+  assert.equal(greeting(svensk(23)), "God kväll");
+});
+
+test("midnatt är timme 0, aldrig 24", () => {
+  assert.equal(stockholmHour(new Date("2026-01-15T23:00:00Z")), 0);
+});

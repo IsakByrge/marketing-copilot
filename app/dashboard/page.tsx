@@ -17,15 +17,8 @@ import { Button, ButtonLink, Card, Alert, EmptyState, Skeleton } from "@/app/_sh
 import { useAccountData } from "@/app/_shared/useAccountData";
 import UsagePanel from "@/app/_shared/UsagePanel";
 import { firstNameFromEmail } from "@/app/_shared/user";
-import { isoWeek } from "@/lib/server/voice";
+import { isoWeek, greeting } from "@/lib/server/voice";
 import { createClient } from "@/lib/supabase-browser";
-
-function greeting(d = new Date()): string {
-  const h = d.getHours();
-  if (h < 10) return "God morgon";
-  if (h < 18) return "Hej";
-  return "God kväll";
-}
 
 function Label({ children }: { children: React.ReactNode }) {
   return (

@@ -117,6 +117,28 @@ export function isoWeek(date: Date): number {
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
 }
 
+/**
+ * Timme 0–23 i Europe/Stockholm, oavsett var koden råkar köra.
+ * Serverns tid är UTC på Vercel och lokal tid i webbläsaren — utan
+ * tidszon hade samma användare fått "God kväll" mitt på dagen.
+ * hourCycle h23 med flit: h24 ger "24" för midnatt.
+ */
+export function stockholmHour(date = new Date()): number {
+  const h = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Stockholm", hour: "2-digit", hourCycle: "h23",
+  }).format(date);
+  return Number(h);
+}
+
+/** Hälsning efter svensk klockslag: morgon, förmiddag, eftermiddag, kväll. */
+export function greeting(date = new Date()): string {
+  const h = stockholmHour(date);
+  if (h < 10) return "God morgon";
+  if (h < 12) return "God förmiddag";
+  if (h < 18) return "God eftermiddag";
+  return "God kväll";
+}
+
 /** "5 augusti 2026, vecka 32" — samma formulering överallt. */
 export function todayLabel(date = new Date()): string {
   const month = date.toLocaleString("sv-SE", { month: "long" });

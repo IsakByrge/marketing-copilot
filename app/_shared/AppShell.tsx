@@ -22,7 +22,7 @@ import { clearAppStorage } from "./appStorage";
 import { cx } from "./primitives";
 import {
   IconToday, IconContent, IconCompany, IconPencil, IconSparkle,
-  IconBuilder, IconCampaigns, IconHistory, IconLogout,
+  IconBuilder, IconHistory, IconLogout,
 } from "./icons";
 
 interface Item {
@@ -37,8 +37,10 @@ const ITEMS: Item[] = [
   { href: "/innehall", label: "Innehåll", icon: IconContent },
   { href: "/produkttexter", label: "Produkttexter", icon: IconPencil },
   { href: "/content/facebook", label: "Facebook", icon: IconSparkle },
-  { href: "/campaign-builder", label: "Campaign Builder", icon: IconBuilder },
-  { href: "/campaigns", label: "Kampanjer", icon: IconCampaigns },
+  { href: "/campaign-builder", label: "Kampanjbyggaren", icon: IconBuilder },
+  // /campaigns har ingen egen post: dess kampanjforslag visas redan under
+  // Innehall, och resten av sidan ar ett tomläge for en funktion som inte
+  // finns. Sidan ligger kvar och nas fran Historik.
   { href: "/history", label: "Historik", icon: IconHistory },
   { href: "/company", label: "Vad jag vet", icon: IconCompany },
 ];
