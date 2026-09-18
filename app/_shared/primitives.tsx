@@ -301,6 +301,38 @@ export interface ChipProps extends ComponentPropsWithRef<"span"> {
   tone?: ChipTone;
 }
 
+/* ─── ToggleChip ──────────────────────────────────────────────────── */
+
+// A Chip is a <span> — it labels, it does not act. Pages that let the user
+// PICK something (angle, tone, length, a product from the company profile)
+// were each rolling their own pill <button>, which is how two pages ended up
+// with 35px hit targets and slightly different pills. This is that control,
+// once: a real button, pressed state carried by aria-pressed, and the 44px
+// mobile minimum the rest of the system uses.
+export interface ToggleChipProps extends ComponentPropsWithRef<"button"> {
+  /** Pressed state. Drives both the styling and aria-pressed. */
+  active?: boolean;
+}
+
+export function ToggleChip({ active = false, className, type, ...props }: ToggleChipProps) {
+  return (
+    <button
+      type={type ?? "button"}
+      aria-pressed={active}
+      className={cx(
+        "inline-flex min-h-11 cursor-pointer items-center rounded-full border px-3.5 py-1.5",
+        "font-sans text-sm transition-colors sm:min-h-0",
+        active
+          ? "border-primary/30 bg-primary/10 font-medium text-primary"
+          : "border-border text-text-secondary hover:border-border-strong hover:text-text-primary",
+        focusRing,
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 export function Chip({ tone = "neutral", className, ...props }: ChipProps) {
   return (
     <span

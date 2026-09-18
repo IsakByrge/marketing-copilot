@@ -9,37 +9,27 @@
 //   4. Rekommendation (beslut och affärsnytta först)
 // Strategin sparas som StrategyV2 och kan öppnas direkt i Facebook
 // Specialist via ett riktigt strategi-id.
+//
+// Sidan är flyttad från inline-stilar och themeLight till primitives.
+// Ingen affärslogik, inga texter och ingen fältordning är ändrad — bara
+// hur det ritas. Sidan hade 75 style-block och sin egen uppsättning av
+// knappar, chips och fält, vilket är hur den hann glida ifrån resten av
+// appen i typsnittsvikt, etikettstil och träffytor.
 // ─────────────────────────────────────────────────────────────
 import { useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import AppShell from "@/app/_shared/AppShell";
 import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
+import {
+  Alert, Button, ButtonLink, Card, Chip, EmptyState, Input, ToggleChip, cx,
+} from "@/app/_shared/primitives";
+import { Textarea } from "@/app/_shared/Textarea";
+import { IconBuilder } from "@/app/_shared/icons";
 import { STRATEGIST_GOALS } from "@/lib/strategist/goals";
 import { saveStrategyV2 } from "@/lib/campaignStrategyStore";
 import type {
   StrategistBrief, StrategyAnalysis, FollowUpQuestion, FollowUpAnswer, StrategyV2,
 } from "@/lib/strategist/types";
 import type { CampaignGoal } from "@/app/campaign-builder/types";
-
-// Variant B: samma nycklar som förut, ljus papperspalett. "gold" heter
-// fortfarande gold i koden men är den gröna accenten — nyckelnamnen
-// behålls för att hålla ändringen liten och risken låg.
-// Pekare till designtokens i globals.css, inte egna färgvärden. Samma
-// princip som themeLight.ts: en källa till sanning för paletten.
-const T = {
-  bg: "var(--color-background)", surface: "var(--color-surface)",
-  surface2: "var(--color-surface-sunken)", surfaceHover: "var(--color-surface-sunken)",
-  line: "var(--color-border)", line2: "var(--color-border-strong)",
-  text: "var(--color-text-primary)", text2: "var(--color-text-secondary)",
-  text3: "var(--color-text-tertiary)", text4: "var(--color-text-tertiary)",
-  gold: "var(--color-primary)", goldBright: "var(--color-primary)",
-  goldDim: "var(--color-success-surface)", goldBorder: "var(--color-border-strong)",
-  green: "var(--color-success)", greenDim: "var(--color-success-surface)",
-  orange: "var(--color-warning)", orangeDim: "var(--color-warning-surface)",
-  red: "var(--color-danger)", redDim: "var(--color-danger-surface)",
-};
-const sans = "var(--font-geist), ui-sans-serif, system-ui, sans-serif";
-const serif = "var(--font-geist), ui-sans-serif, system-ui, sans-serif";
 
 type Phase = "brief" | "analyzing" | "questions" | "recommending" | "result";
 
@@ -52,57 +42,26 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 /* ── Små byggstenar ──────────────────────────────────────────── */
+
+/** Fältetikett. Gemener och halvfet, som i resten av appen — tidigare
+ *  spärrade versaler, vilket bara den här sidan och Facebook gjorde. */
 function Label({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
   return (
-    <label style={{ display: "flex", alignItems: "baseline", gap: 8, fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, marginBottom: 9 }}>
-      {children}{optional && <span style={{ fontWeight: 300, letterSpacing: "0.02em", textTransform: "none", color: T.text4 }}>— valfritt</span>}
-    </label>
+    <p className="mb-2 flex items-baseline gap-2 font-sans text-sm font-medium text-text-primary">
+      {children}
+      {optional && <span className="font-normal text-text-tertiary">— valfritt</span>}
+    </p>
   );
 }
-// 16px, inte 0.92rem - annars zoomar Safari pa iOS in hela sidan nar
-// faltet far fokus och zoomar aldrig ut igen. Samma skal som i
-// uiLight och primitives.
-const fieldStyle: React.CSSProperties = {
-  width: "100%", background: T.surface2, border: `1px solid ${T.line2}`, borderRadius: 10,
-  padding: "13px 15px", outline: "none", fontSize: "1rem", fontWeight: 300, color: T.text, fontFamily: sans, boxSizing: "border-box",
-};
-function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} style={{ ...fieldStyle, ...props.style }}
-    onFocus={(e) => { e.target.style.borderColor = T.gold; e.target.style.boxShadow = `0 0 0 3px ${T.goldDim}`; props.onFocus?.(e); }}
-    onBlur={(e) => { e.target.style.borderColor = T.line2; e.target.style.boxShadow = "none"; props.onBlur?.(e); }} />;
-}
-function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} style={{ ...fieldStyle, resize: "vertical", lineHeight: 1.6, minHeight: 84, ...props.style }}
-    onFocus={(e) => { e.target.style.borderColor = T.gold; e.target.style.boxShadow = `0 0 0 3px ${T.goldDim}`; props.onFocus?.(e); }}
-    onBlur={(e) => { e.target.style.borderColor = T.line2; e.target.style.boxShadow = "none"; props.onBlur?.(e); }} />;
-}
-function Chip({ label, active, onClick }: { label: string; active?: boolean; onClick?: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="mcx-focusable"
-      style={{
-        fontFamily: sans, fontSize: "0.8rem", fontWeight: active ? 500 : 400, padding: "7px 13px", borderRadius: 999,
-        minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", 
-        cursor: onClick ? "pointer" : "default", transition: "all .18s",
-        border: `1px solid ${active ? T.goldBorder : T.line2}`, background: active ? T.goldDim : "transparent",
-        color: active ? T.goldBright : T.text3,
-      }}>{label}</button>
-  );
-}
-function PrimaryButton({ children, onClick, href, disabled }: { children: React.ReactNode; onClick?: () => void; href?: string; disabled?: boolean }) {
-  const st: React.CSSProperties = {
-    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 9, fontFamily: sans, fontSize: "0.86rem", fontWeight: 500,
-    padding: "13px 22px", borderRadius: 10, textDecoration: "none", border: "none",
-    background: disabled ? T.surface2 : `linear-gradient(155deg, ${T.gold}, #6f4fe0)`, color: disabled ? T.text4 : "#fff",
-    cursor: disabled ? "default" : "pointer", boxShadow: disabled ? "none" : `0 8px 24px -8px ${T.goldBorder}`,
-  };
-  if (href && !disabled) return <Link href={href} style={st}>{children}</Link>;
-  return <button onClick={onClick} disabled={disabled} style={st}>{children}</button>;
-}
-function GhostButton({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
-  return <button onClick={onClick} style={{ minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: sans, fontSize: "0.82rem", fontWeight: 400, padding: "12px 20px", borderRadius: 10, background: "transparent", border: `1px solid ${T.line2}`, color: T.text2, cursor: "pointer" }}>{children}</button>;
-}
+
+/** Sektionsetikett inuti ett kort. Versaler här är kvar med flit: det är
+ *  samma mönster som Idag, Innehåll och Historik använder. */
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: T.goldBright, marginBottom: 8 }}>{children}</div>;
+  return (
+    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+      {children}
+    </p>
+  );
 }
 
 /* ── Fasindikator ────────────────────────────────────────────── */
@@ -115,17 +74,35 @@ const PHASE_STEPS: { key: Phase[]; label: string }[] = [
 function PhaseIndicator({ phase }: { phase: Phase }) {
   const activeIdx = PHASE_STEPS.findIndex((s) => s.key.includes(phase));
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 32 }}>
+    <ol className="mb-8 flex flex-wrap gap-2">
       {PHASE_STEPS.map((s, i) => {
         const done = i < activeIdx, active = i === activeIdx;
         return (
-          <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999, background: active ? T.goldDim : "transparent", border: `1px solid ${active ? T.goldBorder : T.line}`, opacity: done || active ? 1 : 0.45 }}>
-            <span style={{ width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 600, background: done ? T.goldDim : "transparent", border: `1px solid ${done || active ? T.goldBorder : T.line2}`, color: T.goldBright }}>{done ? "✓" : i + 1}</span>
-            <span style={{ fontFamily: sans, fontSize: "0.76rem", fontWeight: active ? 500 : 400, color: active ? T.text : T.text3 }}>{s.label}</span>
-          </div>
+          <li
+            key={s.label}
+            aria-current={active ? "step" : undefined}
+            className={cx(
+              "flex items-center gap-2 rounded-full border px-3 py-1.5",
+              active ? "border-primary/30 bg-primary/10" : "border-border",
+              !done && !active && "opacity-45",
+            )}
+          >
+            <span
+              aria-hidden
+              className={cx(
+                "flex h-[18px] w-[18px] items-center justify-center rounded-full border text-xs font-semibold text-primary",
+                done ? "border-primary/30 bg-primary/10" : active ? "border-primary/30" : "border-border-strong",
+              )}
+            >
+              {done ? "✓" : i + 1}
+            </span>
+            <span className={cx("text-xs", active ? "font-medium text-text-primary" : "text-text-tertiary")}>
+              {s.label}
+            </span>
+          </li>
         );
       })}
-    </div>
+    </ol>
   );
 }
 
@@ -223,11 +200,12 @@ export default function MarketingStrategistPage() {
       <AppShell>
         <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
           <Header companyName="" />
-          <div style={{ padding: "36px 28px", borderRadius: 16, background: T.surface, border: `1px dashed ${T.line2}` }}>
-            <p style={{ fontFamily: sans, fontSize: "0.98rem", fontWeight: 500, color: T.text, marginBottom: 8 }}>Ingen företagskunskap ännu.</p>
-            <p style={{ fontFamily: sans, fontSize: "0.88rem", fontWeight: 300, color: T.text3, lineHeight: 1.65, marginBottom: 18 }}>Strategen blir vassare med en företagsprofil, men du kan börja ändå.</p>
-            <PrimaryButton href="/onboarding">Starta onboarding →</PrimaryButton>
-          </div>
+          <EmptyState
+            icon={<IconBuilder size={19} />}
+            title="Ingen företagskunskap ännu."
+            body="Strategen blir vassare med en företagsprofil, men du kan börja ändå."
+            action={<ButtonLink href="/onboarding">Starta onboarding</ButtonLink>}
+          />
         </div>
       </AppShell>
     );
@@ -235,11 +213,11 @@ export default function MarketingStrategistPage() {
 
   return (
     <AppShell>
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "44px 24px 120px" }}>
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
         <Header companyName={companyName} />
         <PhaseIndicator phase={phase} />
         {error && phase !== "analyzing" && phase !== "recommending" && (
-          <div style={{ marginBottom: 20, padding: "12px 16px", borderRadius: 10, background: T.redDim, border: `1px solid ${T.red}44`, fontFamily: sans, fontSize: "0.85rem", fontWeight: 300, color: T.text2 }}>{error}</div>
+          <Alert tone="danger" title="Det gick inte" className="mb-5">{error}</Alert>
         )}
 
         {phase === "brief" && (
@@ -276,14 +254,18 @@ export default function MarketingStrategistPage() {
 
 function Header({ companyName }: { companyName: string }) {
   return (
-    <div style={{ marginBottom: 30 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: T.goldBright }}>
-        <span style={{ width: 16, height: 1, background: T.goldBright, opacity: 0.6 }} />
+    <header className="mb-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
         {companyName ? `${companyName} · Marketing Strategist` : "Marketing Strategist"}
-      </div>
-      <h1 style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(1.9rem,4vw,2.5rem)", letterSpacing: "-0.01em", color: T.text, margin: "12px 0 8px", lineHeight: 1.08 }}>Låt strategen tänka först.</h1>
-      <p style={{ fontFamily: sans, fontSize: "0.92rem", fontWeight: 300, color: T.text3, lineHeight: 1.6, maxWidth: 540 }}>Ge en kort brief. Strategen läser din företagskunskap, analyserar, ställer bara de frågor som spelar roll — och rekommenderar en riktning.</p>
-    </div>
+      </p>
+      <h1 className="mt-3 text-[clamp(1.5rem,3.2vw,1.85rem)] font-semibold leading-[1.25] tracking-tight">
+        Låt strategen tänka först.
+      </h1>
+      <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
+        Ge en kort brief. Strategen läser din företagskunskap, analyserar, ställer bara de
+        frågor som spelar roll — och rekommenderar en riktning.
+      </p>
+    </header>
   );
 }
 
@@ -301,28 +283,41 @@ function BriefForm(p: {
 }) {
   const products = p.brain.products ?? [];
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 30 }}>
+    <div className="flex flex-col gap-8">
       <section>
         <Label>Vad vill du marknadsföra?</Label>
-        <TextInput value={p.product} onChange={(e) => p.setProduct(e.target.value)} placeholder="t.ex. Gasolbyte inför grillsäsongen" />
+        <Input value={p.product} onChange={(e) => p.setProduct(e.target.value)} placeholder="t.ex. Gasolbyte inför grillsäsongen" />
         {products.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-            <span style={{ fontFamily: sans, fontSize: "0.75rem", color: T.text4, alignSelf: "center" }}>Ur företagskunskapen:</span>
-            {products.slice(0, 6).map((pr) => <Chip key={pr.id} label={pr.name} onClick={() => p.setProduct(pr.name)} />)}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-text-tertiary">Ur företagskunskapen:</span>
+            {products.slice(0, 6).map((pr) => (
+              <ToggleChip key={pr.id} onClick={() => p.setProduct(pr.name)}>{pr.name}</ToggleChip>
+            ))}
           </div>
         )}
       </section>
 
       <section>
         <Label>Vad vill du uppnå?</Label>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 8 }}>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {STRATEGIST_GOALS.map((g) => {
             const active = p.goalKey === g.id;
             return (
-              <button key={g.id} type="button" onClick={() => p.setGoalKey(g.id)} aria-pressed={active} className="mcx-focusable"
-                style={{ textAlign: "left", padding: "12px 14px", borderRadius: 11, cursor: "pointer", background: active ? T.goldDim : T.surface, border: `1px solid ${active ? T.goldBorder : T.line}` }}>
-                <div style={{ fontFamily: sans, fontSize: "0.85rem", fontWeight: 500, color: active ? T.text : T.text2 }}>{g.title}</div>
-                <div style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{g.hint}</div>
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => p.setGoalKey(g.id)}
+                aria-pressed={active}
+                className={cx(
+                  "cursor-pointer rounded-lg border px-3.5 py-3 text-left transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  active ? "border-primary/30 bg-primary/10" : "border-border bg-surface hover:border-border-strong",
+                )}
+              >
+                <span className={cx("block text-sm font-medium", active ? "text-text-primary" : "text-text-secondary")}>
+                  {g.title}
+                </span>
+                <span className="mt-0.5 block text-xs text-text-tertiary">{g.hint}</span>
               </button>
             );
           })}
@@ -331,33 +326,33 @@ function BriefForm(p: {
 
       <section>
         <Label optional>Finns ett konkret erbjudande?</Label>
-        <TextInput value={p.offer} onChange={(e) => p.setOffer(e.target.value)} placeholder="t.ex. Fyll gasolflaskan – vänta medan du handlar" />
+        <Input value={p.offer} onChange={(e) => p.setOffer(e.target.value)} placeholder="t.ex. Fyll gasolflaskan – vänta medan du handlar" />
       </section>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+      <div className="grid gap-4 sm:grid-cols-2">
         <section>
           <Label optional>Period — från</Label>
-          <TextInput type="date" value={p.periodStart} onChange={(e) => p.setPeriodStart(e.target.value)} />
+          <Input type="date" value={p.periodStart} onChange={(e) => p.setPeriodStart(e.target.value)} />
         </section>
         <section>
           <Label optional>Period — till</Label>
-          <TextInput type="date" value={p.periodEnd} onChange={(e) => p.setPeriodEnd(e.target.value)} />
+          <Input type="date" value={p.periodEnd} onChange={(e) => p.setPeriodEnd(e.target.value)} />
         </section>
       </div>
 
       <section>
         <Label optional>Geografiskt område</Label>
-        <TextInput value={p.geo} onChange={(e) => p.setGeo(e.target.value)} placeholder="t.ex. Norrköping med omnejd" />
+        <Input value={p.geo} onChange={(e) => p.setGeo(e.target.value)} placeholder="t.ex. Norrköping med omnejd" />
       </section>
 
       <section>
         <Label optional>Något särskilt strategen ska ta hänsyn till?</Label>
-        <TextArea value={p.notes} onChange={(e) => p.setNotes(e.target.value)} rows={2} placeholder="t.ex. vi vill inte rabattera, konkurrent öppnade nyligen…" />
+        <Textarea value={p.notes} onChange={(e) => p.setNotes(e.target.value)} rows={2} placeholder="t.ex. vi vill inte rabattera, konkurrent öppnade nyligen…" />
       </section>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <PrimaryButton onClick={p.onSubmit} disabled={!p.canSubmit}>Låt strategen analysera →</PrimaryButton>
-        <span style={{ fontFamily: sans, fontSize: "0.76rem", fontWeight: 300, color: T.text4 }}>Produkt och mål räcker för att börja.</span>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={p.onSubmit} disabled={!p.canSubmit}>Låt strategen analysera</Button>
+        <span className="text-xs text-text-tertiary">Produkt och mål räcker för att börja.</span>
       </div>
     </div>
   );
@@ -367,18 +362,21 @@ function BriefForm(p: {
 function AnalyzingPanel({ title }: { title: string }) {
   const dims = ["Läser företagskunskap", "Bedömer erbjudandet", "Prioriterar målgrupp", "Väger produkt och köpbeteende", "Identifierar risker", "Tar fram rekommendation"];
   return (
-    <div className="fade-up" style={{ maxWidth: 460, paddingTop: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.goldBright, animation: "pulseDot 1.4s ease infinite" }} />
-        <span style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: T.goldBright }}>{title}</span>
+    <div className="fade-up max-w-md pt-2">
+      <div className="mb-5 flex items-center gap-2.5">
+        {/* pulseDot ligger i globals.css och neutraliseras av
+            prefers-reduced-motion-blocket dar. */}
+        <span aria-hidden className="h-2 w-2 rounded-full bg-primary" style={{ animation: "pulseDot 1.4s ease infinite" }} />
+        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{title}</span>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <ul className="flex flex-col gap-2">
         {dims.map((d) => (
-          <div key={d} style={{ display: "flex", alignItems: "center", gap: 12, fontFamily: sans, fontSize: "0.85rem", fontWeight: 300, color: T.text3 }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.goldBorder }} />{d}
-          </div>
+          <li key={d} className="flex items-center gap-3 text-sm text-text-tertiary">
+            <span aria-hidden className="h-[5px] w-[5px] shrink-0 rounded-full bg-border-strong" />
+            {d}
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }
@@ -397,46 +395,50 @@ function QuestionsView({ analysis, questions, answers, setAnswers, onBack, onSub
   });
 
   return (
-    <div className="fade-up" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+    <div className="fade-up flex flex-col gap-5">
       {analysis?.recommendedFocus && (
-        <div style={{ padding: "16px 18px", borderRadius: 14, background: T.goldDim, border: `1px solid ${T.goldBorder}` }}>
+        <Card padding="sm" className="border-primary/20 bg-primary/5">
           <SectionLabel>Strategens preliminära riktning</SectionLabel>
-          <p style={{ fontFamily: serif, fontStyle: "italic", fontSize: "1.15rem", fontWeight: 400, color: T.text, lineHeight: 1.5 }}>{analysis.recommendedFocus}</p>
-        </div>
+          <p className="text-lg leading-snug">{analysis.recommendedFocus}</p>
+        </Card>
       )}
-      <p style={{ fontFamily: sans, fontSize: "0.86rem", fontWeight: 300, color: T.text3, lineHeight: 1.6 }}>Några få frågor som faktiskt påverkar strategin:</p>
+      <p className="text-sm leading-relaxed text-text-secondary">Några få frågor som faktiskt påverkar strategin:</p>
 
       {questions.map((q, i) => {
         const val = answers[q.id] ?? "";
         return (
-          <div key={q.id} style={{ padding: "18px 20px", borderRadius: 14, background: T.surface, border: `1px solid ${T.line}` }}>
-            <div style={{ display: "flex", gap: 10, marginBottom: 6 }}>
-              <span style={{ flexShrink: 0, fontFamily: sans, fontSize: "0.78rem", color: T.goldBright, fontWeight: 500 }}>{i + 1}.</span>
-              <p style={{ fontFamily: sans, fontSize: "0.98rem", fontWeight: 400, color: T.text, lineHeight: 1.5 }}>{q.question}</p>
+          <Card key={q.id} padding="sm">
+            <div className="mb-1.5 flex gap-2.5">
+              <span className="shrink-0 text-sm font-medium text-primary">{i + 1}.</span>
+              <p className="text-[15px] leading-snug">{q.question}</p>
             </div>
-            {q.reason && <p style={{ fontFamily: sans, fontSize: "0.76rem", fontWeight: 300, color: T.text3, lineHeight: 1.55, margin: "0 0 12px 22px" }}>{q.reason}</p>}
-            <div style={{ marginLeft: 22 }}>
+            {q.reason && <p className="mb-3 ml-[22px] text-xs leading-relaxed text-text-tertiary">{q.reason}</p>}
+            <div className="ml-[22px]">
               {q.answerType === "text" && (
-                <TextArea value={val} onChange={(e) => set(q.id, e.target.value)} rows={2} placeholder="Skriv ditt svar…" />
+                <Textarea value={val} onChange={(e) => set(q.id, e.target.value)} rows={2} placeholder="Skriv ditt svar…" />
               )}
               {q.answerType === "single_select" && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {(q.options ?? []).map((o) => <Chip key={o} label={o} active={val === o} onClick={() => set(q.id, val === o ? "" : o)} />)}
+                <div className="flex flex-wrap gap-2">
+                  {(q.options ?? []).map((o) => (
+                    <ToggleChip key={o} active={val === o} onClick={() => set(q.id, val === o ? "" : o)}>{o}</ToggleChip>
+                  ))}
                 </div>
               )}
               {q.answerType === "multi_select" && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {(q.options ?? []).map((o) => <Chip key={o} label={o} active={(val.split(" | ")).includes(o)} onClick={() => toggleMulti(q.id, o)} />)}
+                <div className="flex flex-wrap gap-2">
+                  {(q.options ?? []).map((o) => (
+                    <ToggleChip key={o} active={val.split(" | ").includes(o)} onClick={() => toggleMulti(q.id, o)}>{o}</ToggleChip>
+                  ))}
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         );
       })}
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <PrimaryButton onClick={onSubmit}>Skapa min strategi →</PrimaryButton>
-        <GhostButton onClick={onBack}>← Ändra briefen</GhostButton>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={onSubmit}>Skapa min strategi</Button>
+        <Button variant="secondary" onClick={onBack}>Ändra briefen</Button>
       </div>
     </div>
   );
@@ -445,21 +447,26 @@ function QuestionsView({ analysis, questions, answers, setAnswers, onBack, onSub
 /* ── Fas 4: rekommendation ───────────────────────────────────── */
 function Block({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ padding: "16px 18px", borderRadius: 12, background: T.surface, border: `1px solid ${T.line}` }}>
+    <Card padding="sm">
       <SectionLabel>{label}</SectionLabel>
-      <div style={{ fontFamily: sans, fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.6 }}>{children}</div>
-    </div>
+      <div className="text-sm leading-relaxed text-text-secondary">{children}</div>
+    </Card>
   );
 }
-function List({ items, color }: { items: string[]; color?: string }) {
+function List({ items, muted }: { items: string[]; muted?: boolean }) {
   if (!items.length) return null;
   return (
-    <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
-      {items.map((it, i) => <li key={i} style={{ fontFamily: sans, fontSize: "0.86rem", fontWeight: 300, color: color ?? T.text2, lineHeight: 1.55 }}>{it}</li>)}
+    <ul className={cx("flex list-disc flex-col gap-1.5 pl-[18px] text-sm leading-relaxed", muted ? "text-text-tertiary" : "text-text-secondary")}>
+      {items.map((it, i) => <li key={i}>{it}</li>)}
     </ul>
   );
 }
-const CONFIDENCE = { low: { t: "Låg säkerhet", c: T.orange }, medium: { t: "Medelhög säkerhet", c: T.goldBright }, high: { t: "Hög säkerhet", c: T.green } };
+
+const CONFIDENCE = {
+  low: { t: "Låg säkerhet", tone: "warning" },
+  medium: { t: "Medelhög säkerhet", tone: "primary" },
+  high: { t: "Hög säkerhet", tone: "success" },
+} as const;
 
 function ResultView({ strategy, savedStrategyId, onAdjust, onRestart }: {
   strategy: StrategyV2; savedStrategyId: string | null; onAdjust: () => void; onRestart: () => void;
@@ -468,41 +475,43 @@ function ResultView({ strategy, savedStrategyId, onAdjust, onRestart }: {
   const a = strategy.analysis;
   const conf = CONFIDENCE[a.confidence] ?? CONFIDENCE.medium;
   return (
-    <div className="fade-up" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="fade-up flex flex-col gap-4">
       {/* Beslut först: rekommenderad riktning */}
-      <div style={{ padding: "22px 22px", borderRadius: 16, background: `linear-gradient(160deg, ${T.goldDim}, ${T.surface})`, border: `1px solid ${T.goldBorder}` }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <Card className="border-primary/20 bg-primary/5">
+        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2.5">
           <SectionLabel>Rekommenderad riktning</SectionLabel>
-          <span style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, color: conf.c }}>● {conf.t}</span>
+          <Chip tone={conf.tone}>{conf.t}</Chip>
         </div>
-        <p style={{ fontFamily: serif, fontWeight: 400, fontSize: "clamp(1.35rem,3.4vw,1.8rem)", lineHeight: 1.28, color: T.text, letterSpacing: "-0.01em" }}>{a.recommendedFocus}</p>
+        <p className="text-[clamp(1.25rem,3.4vw,1.6rem)] font-medium leading-[1.3] tracking-tight">
+          {a.recommendedFocus}
+        </p>
         {a.rationale.length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, marginBottom: 8 }}>Varför</div>
+          <div className="mt-4">
+            <SectionLabel>Varför</SectionLabel>
             <List items={a.rationale} />
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Nästa steg — högst upp för snabb åtgärd */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        {savedStrategyId
-          ? <PrimaryButton href={`/content/facebook?strategy=${encodeURIComponent(savedStrategyId)}`}>Skapa Facebook-inlägg →</PrimaryButton>
-          : <PrimaryButton href="/content/facebook">Skapa Facebook-inlägg →</PrimaryButton>}
-        <GhostButton onClick={onAdjust}>Justera strategin</GhostButton>
-        <GhostButton onClick={onRestart}>Ny strategi</GhostButton>
+      <div className="flex flex-wrap items-center gap-2.5">
+        <ButtonLink href={savedStrategyId ? `/content/facebook?strategy=${encodeURIComponent(savedStrategyId)}` : "/content/facebook"}>
+          Skapa Facebook-inlägg
+        </ButtonLink>
+        <Button variant="secondary" onClick={onAdjust}>Justera strategin</Button>
+        <Button variant="secondary" onClick={onRestart}>Ny strategi</Button>
       </div>
 
       {/* Strukturerad strategi */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+      <div className="grid gap-3 sm:grid-cols-2">
         <Block label="Kampanjmål">{s.primaryGoal}</Block>
         <Block label="Primär målgrupp">
           {s.primaryAudience}
-          {s.secondaryAudience && <div style={{ marginTop: 6, fontSize: "0.8rem", color: T.text3 }}>Sekundär: {s.secondaryAudience}</div>}
+          {s.secondaryAudience && <div className="mt-1.5 text-xs text-text-tertiary">Sekundär: {s.secondaryAudience}</div>}
         </Block>
         <Block label="Erbjudande / värdeproposition">
           {s.offer && <div>{s.offer}</div>}
-          {s.valueProposition && <div style={{ marginTop: s.offer ? 6 : 0, color: T.text2 }}>{s.valueProposition}</div>}
+          {s.valueProposition && <div className={s.offer ? "mt-1.5" : undefined}>{s.valueProposition}</div>}
         </Block>
         <Block label="Huvudbudskap">{s.mainMessage}</Block>
         <Block label="Primär CTA">{s.primaryCta}</Block>
@@ -511,26 +520,39 @@ function ResultView({ strategy, savedStrategyId, onAdjust, onRestart }: {
 
       {s.channelPriority.length > 0 && (
         <Block label="Rekommenderad kanalordning">
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="flex flex-col gap-2.5">
             {s.channelPriority.map((c, i) => (
-              <div key={i} style={{ display: "flex", gap: 10 }}>
-                <span style={{ flexShrink: 0, fontFamily: sans, fontSize: "0.8rem", fontWeight: 600, color: T.goldBright }}>{i + 1}.</span>
-                <div><strong style={{ fontWeight: 500, color: T.text, textTransform: "capitalize" }}>{c.channel}</strong><span style={{ color: T.text3 }}> — {c.reason}</span></div>
+              <div key={i} className="flex gap-2.5">
+                <span className="shrink-0 text-sm font-semibold text-primary">{i + 1}.</span>
+                <div>
+                  <strong className="font-medium capitalize text-text-primary">{c.channel}</strong>
+                  <span className="text-text-tertiary"> — {c.reason}</span>
+                </div>
               </div>
             ))}
           </div>
         </Block>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
-        {s.risks.length > 0 && <div style={{ padding: "16px 18px", borderRadius: 12, background: T.orangeDim, border: `1px solid ${T.orange}33` }}><SectionLabel>Risker & svagheter</SectionLabel><List items={s.risks} color={T.text2} /></div>}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {s.risks.length > 0 && (
+          <Card padding="sm" className="border-warning/20 bg-warning-surface">
+            <SectionLabel>Risker &amp; svagheter</SectionLabel>
+            <List items={s.risks} />
+          </Card>
+        )}
         {s.improvementOpportunities.length > 0 && <Block label="Förbättringsmöjligheter"><List items={s.improvementOpportunities} /></Block>}
         {s.kpis.length > 0 && <Block label="Mätetal (KPI)"><List items={s.kpis} /></Block>}
-        {s.assumptions.length > 0 && <div style={{ padding: "16px 18px", borderRadius: 12, background: T.surface2, border: `1px solid ${T.line}` }}><SectionLabel>Antaganden</SectionLabel><List items={s.assumptions} color={T.text3} /></div>}
+        {s.assumptions.length > 0 && (
+          <Card padding="sm" className="bg-surface-sunken">
+            <SectionLabel>Antaganden</SectionLabel>
+            <List items={s.assumptions} muted />
+          </Card>
+        )}
       </div>
 
       {strategy.companyBrainReferences.length > 0 && (
-        <p style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 300, color: T.text4, lineHeight: 1.6 }}>
+        <p className="text-xs leading-relaxed text-text-tertiary">
           Byggt på företagskunskap: {strategy.companyBrainReferences.join(" · ")}
         </p>
       )}
