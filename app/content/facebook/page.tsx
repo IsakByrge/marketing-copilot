@@ -18,7 +18,7 @@ import AppShell from "@/app/_shared/AppShell";
 import { T, fontSans } from "@/app/_shared/themeLight";
 import {
   Alert, Button, ButtonLink, Card, Chip as StatusChip, EmptyState, Input,
-  Spinner, ToggleChip, cx,
+  Spinner, ToggleChip, cx, selectedSurface, selectableSurface,
 } from "@/app/_shared/primitives";
 import { Textarea } from "@/app/_shared/Textarea";
 import { IconContent, IconSparkle, IconCheck, IconX } from "@/app/_shared/icons";
@@ -192,7 +192,7 @@ function Segmented<V extends string>({ value, onChange, options }: {
               "inline-flex min-h-11 cursor-pointer items-center justify-center rounded border px-3.5 py-2 text-sm transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
               active
-                ? "border-primary/30 bg-primary/10 font-medium text-text-primary"
+                ? cx(selectedSurface, "font-medium text-text-primary")
                 : "border-transparent text-text-tertiary hover:text-text-primary",
             )}
           >
@@ -496,7 +496,7 @@ export default function FacebookSpecialistPage() {
                       className={cx(
                         "cursor-pointer rounded-lg border px-3.5 py-3 text-left transition-colors",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                        active ? "border-primary/30 bg-primary/10" : "border-border bg-surface hover:border-border-strong",
+                        active ? selectedSurface : selectableSurface,
                       )}>
                       <span className={cx("block text-sm font-medium", active ? "text-text-primary" : "text-text-secondary")}>{o.label}</span>
                       <span className="mt-0.5 block text-xs text-text-tertiary">{o.hint}</span>
@@ -525,7 +525,7 @@ export default function FacebookSpecialistPage() {
                       className={cx(
                         "cursor-pointer rounded-lg border px-4 py-3.5 text-left transition-colors",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                        strategyId === s.id ? "border-primary/30 bg-primary/10" : "border-border bg-surface hover:border-border-strong",
+                        strategyId === s.id ? selectedSurface : selectableSurface,
                       )}>
                       <span className="block text-[15px]">{s.title}</span>
                       <span className="mt-0.5 block text-xs text-text-tertiary">{s.goal}</span>
@@ -630,7 +630,7 @@ export default function FacebookSpecialistPage() {
                     className={cx(
                       "min-w-[150px] cursor-pointer rounded-lg border px-4 py-2.5 text-left transition-colors",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                      length === o.value ? "border-primary/30 bg-primary/10" : "border-border bg-surface hover:border-border-strong",
+                      length === o.value ? selectedSurface : selectableSurface,
                     )}>
                     <span className={cx("block text-sm font-medium", length === o.value ? "text-text-primary" : "text-text-secondary")}>{o.label}</span>
                     <span className="mt-0.5 block text-xs text-text-tertiary">{o.hint}</span>

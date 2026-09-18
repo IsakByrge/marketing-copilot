@@ -316,6 +316,22 @@ export interface ChipProps extends ComponentPropsWithRef<"span"> {
   tone?: ChipTone;
 }
 
+/* ─── Valt tillstånd ──────────────────────────────────────────────── */
+
+// Ett valt alternativ såg nästan likadant ut som ett ovalt: kanten låg på
+// border-primary/30, alltså 30% emerald mot en ljus papperston, och blev
+// gråbeige mot vitt. På /content/facebook, där sex val ligger under
+// varandra, gick det inte att se vad man hade valt.
+//
+// Kanten är nu emerald i full styrka. Bredden är kvar på 1px med flit —
+// en tjockare kant i valt läge skulle flytta innehållet varje gång man
+// byter val.
+//
+// Bor här och inte i sidorna: valet ska se likadant ut överallt, och
+// nästa yta som behöver ett valt tillstånd ska inte uppfinna sitt eget.
+export const selectedSurface = "border-primary bg-primary/10";
+export const selectableSurface = "border-border bg-surface hover:border-border-strong";
+
 /* ─── ToggleChip ──────────────────────────────────────────────────── */
 
 // A Chip is a <span> — it labels, it does not act. Pages that let the user
@@ -338,7 +354,7 @@ export function ToggleChip({ active = false, className, type, ...props }: Toggle
         "inline-flex min-h-11 cursor-pointer items-center rounded-full border px-3.5 py-1.5",
         "font-sans text-sm transition-colors sm:min-h-0",
         active
-          ? "border-primary/30 bg-primary/10 font-medium text-primary"
+          ? cx(selectedSurface, "font-medium text-primary")
           : "border-border text-text-secondary hover:border-border-strong hover:text-text-primary",
         focusRing,
         className,
