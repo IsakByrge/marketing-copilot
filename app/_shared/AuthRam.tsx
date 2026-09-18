@@ -18,7 +18,7 @@
 // /login och i klientsidorna /auth/reset och /auth/callback.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
-import { ExempelRotator } from "./ExempelInlagg";
+import VeckansBrada from "./VeckansBrada";
 
 export default function AuthRam({ children }: { children: React.ReactNode }) {
   return (
@@ -38,7 +38,7 @@ export default function AuthRam({ children }: { children: React.ReactNode }) {
       </div>
 
       <aside className="hidden bg-primary px-14 py-12 lg:flex lg:flex-col lg:justify-center">
-        <div className="max-w-md">
+        <div className="max-w-xl">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/70">
             Varje måndag
           </p>
@@ -49,7 +49,7 @@ export default function AuthRam({ children }: { children: React.ReactNode }) {
             {/* Markerat som exempel har ocksa. Texten ar pahittad, och
                 det ska sta nagonstans aven nar ingen fragar. */}
             <p className="mb-3 text-xs text-white/70">Exempel</p>
-            <ExempelRotator ton="mork" />
+            <VeckansBrada ton="mork" kompakt />
           </div>
         </div>
       </aside>

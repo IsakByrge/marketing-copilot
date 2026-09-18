@@ -1,13 +1,15 @@
 // ─────────────────────────────────────────────────────────────
 // Landningssidan.
 //
-// Den tidigare versionen var en rubrik, en mening, en knapp och en
-// stiliserad Idag-vy. Den beskrev gränssnittet, inte vad man får.
+// Hjälten är veckans plan, inte rubriken. Ett ensamt exempelkort visade
+// att verktyget kan skriva en text; bräden visar en hel vecka med olika
+// roller på olika dagar, vilket är det man faktiskt betalar för.
+// Rubriken är därför nedtonad — den ska inte konkurrera med det den
+// beskriver.
 //
-// Nu tre sektioner: vad du får (med ett riktigt satt exempelinlägg som
-// byter bransch), hur det går till i tre steg, och en avslutande rad.
-// Exempelkortet är samma komponent som inloggningsflödet visar, så en
-// besökare möter samma sak före och under inloggning.
+// Rytmen är avsiktligt tresteg: rubrik stor och halvfet, brödtext
+// mindre och i sekundärton, etiketter små versaler. Tidigare låg de tre
+// för nära varandra i både storlek och vikt.
 //
 // Inga gradienter, ingen glöd, inga ikoner, inga emoji. Inga siffror om
 // resultat och inga kundcitat — det finns inget underlag för vare sig
@@ -15,7 +17,7 @@
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { ButtonLink, Chip } from "@/app/_shared/primitives";
-import { ExempelRotator } from "@/app/_shared/ExempelInlagg";
+import VeckansBrada from "@/app/_shared/VeckansBrada";
 
 /** De tre stegen. Siffror och text, inga ikoner. */
 const STEG = [
@@ -37,7 +39,7 @@ export default function Home() {
   return (
     <div className="app-light flex min-h-svh flex-col bg-background font-sans text-text-primary">
       <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-10">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-10">
           <span className="flex items-center gap-2.5">
             <span
               aria-hidden
@@ -58,45 +60,50 @@ export default function Home() {
 
       <main className="flex-1">
         {/* ── Hjälte ──────────────────────────────────────────── */}
-        <section className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 lg:px-10 lg:py-20">
-          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
-            <div>
-              <h1 className="max-w-xl text-[clamp(2rem,4.6vw,3rem)] font-semibold leading-[1.1] tracking-tight">
+        <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:px-10 lg:py-16">
+          {/* grid-cols-1 och min-w-0 ar inte dekoration. En auto-spalt
+              vaxer till sitt max-content, och den vagrata braden bidrar
+              med alla fem korten - 1448px bred spalt pa en 390px skarm,
+              vilket klippte rubriken pa mitten. min-w-0 later spalten
+              krympa och lamnar rullningen till braden dar den hor hemma. */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-center lg:gap-14">
+            <div className="min-w-0">
+              <h1 className="max-w-md text-[clamp(1.75rem,3.2vw,2.25rem)] font-semibold leading-[1.15] tracking-tight">
                 Fem inlägg och ett nyhetsbrev, varje måndag.
               </h1>
-              <p className="mt-5 max-w-lg text-lg leading-relaxed text-text-secondary">
+              <p className="mt-4 max-w-sm text-[15px] leading-relaxed text-text-secondary">
                 Skrivna utifrån vad ditt företag gör och vilka kunderna är. Du ändrar det du vill
                 och publicerar.
               </p>
-              <div className="mt-8">
-                <ButtonLink href="/login?mode=signup">Kom igång</ButtonLink>
-              </div>
+              <ButtonLink href="/login?mode=signup" className="mt-6">
+                Kom igång
+              </ButtonLink>
             </div>
 
-            <div>
-              <div className="mb-3 flex items-center gap-3">
+            <div className="min-w-0">
+              <div className="mb-4 flex items-center gap-2.5">
                 <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                  Ett inlägg ur veckan
+                  Veckans plan
                 </h2>
                 <Chip>Exempel</Chip>
               </div>
-              <ExempelRotator />
+              <VeckansBrada />
             </div>
           </div>
         </section>
 
         {/* ── Så fungerar det ─────────────────────────────────── */}
         <section className="border-t border-border bg-surface-sunken">
-          <div className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 lg:px-10 lg:py-20">
+          <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 lg:px-10 lg:py-16">
             <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
               Så fungerar det
             </h2>
-            <ol className="mt-8 grid gap-8 sm:grid-cols-3 sm:gap-10">
+            <ol className="mt-7 grid gap-8 sm:grid-cols-3 sm:gap-10">
               {STEG.map((s, i) => (
                 <li key={s.rubrik}>
-                  <span className="text-sm font-semibold text-primary">{i + 1}</span>
-                  <h3 className="mt-2 text-[17px] font-medium leading-snug">{s.rubrik}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-text-secondary">{s.text}</p>
+                  <span className="text-2xl font-semibold leading-none text-primary">{i + 1}</span>
+                  <h3 className="mt-3 text-[15px] font-medium leading-snug">{s.rubrik}</h3>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-text-secondary">{s.text}</p>
                 </li>
               ))}
             </ol>
@@ -104,18 +111,20 @@ export default function Home() {
         </section>
 
         {/* ── Avslut ──────────────────────────────────────────── */}
-        <section className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 lg:px-10 lg:py-20">
-          <div className="flex flex-wrap items-center justify-between gap-6">
-            <p className="max-w-xl text-lg leading-relaxed">
-              Nästa måndag kan veckans texter ligga färdiga.
-            </p>
-            <ButtonLink href="/login?mode=signup">Kom igång</ButtonLink>
+        <section className="border-t border-border">
+          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 lg:px-10 lg:py-20">
+            <div className="flex flex-wrap items-center justify-between gap-6">
+              <p className="max-w-lg text-[clamp(1.25rem,2.4vw,1.6rem)] font-semibold leading-snug tracking-tight">
+                Nästa måndag kan veckans texter ligga färdiga.
+              </p>
+              <ButtonLink href="/login?mode=signup">Kom igång</ButtonLink>
+            </div>
           </div>
         </section>
       </main>
 
       <footer className="border-t border-border">
-        <div className="mx-auto max-w-5xl px-4 py-6 text-sm text-text-tertiary sm:px-6 lg:px-10">
+        <div className="mx-auto max-w-6xl px-4 py-6 text-sm text-text-tertiary sm:px-6 lg:px-10">
           Marketing Copilot
         </div>
       </footer>
