@@ -9,7 +9,8 @@
 // Testas i pipeline.test.mts.
 // ─────────────────────────────────────────────────────────────
 import type { ColumnGuess, Row } from "./csv";
-import { visibleLength } from "./html";
+import { toPlainText, visibleLength } from "./html";
+import { missingHardFacts, uncoveredFacts, type ListedFact } from "./hardFacts";
 import { pickTemplate, type TemplateId } from "./templates";
 import type { PageResult } from "./pageFacts";
 
@@ -25,6 +26,8 @@ export interface WorkItem {
   metaDescription?: string;
   /** Uppgifter som saknades. Icke-tom = "Behöver uppgifter". */
   needsInfo?: string[];
+  /** Modellens egen faktalista med nyckelord. Kontrolleras mot texten. */
+  facts?: ListedFact[];
   approved?: boolean;
 }
 
@@ -166,9 +169,25 @@ export const EMPTY_FILTERS: Filters = {
 /** Var artikeln står just nu. Styr både filter och märket i listan. */
 export type ItemState = "saknar" | "tunn" | "ok" | "utkast" | "behover" | "godkand";
 
+/**
+ * Det utkastet tappat: tal med enhet och förkortningar ur före-texten, och
+ * uppgifter ur modellens egen faktalista vars nyckelord inte står i texten.
+ * Räknas om från texten varje gång, så att varningen försvinner när du
+ * själv skriver in det som fattades.
+ */
+export function lostFacts(p: Product, item: WorkItem | undefined): string[] {
+  if (!item?.description) return [];
+  const draft = toPlainText(item.description);
+  return [
+    ...missingHardFacts(toPlainText(p.current), draft),
+    ...uncoveredFacts(item.facts, draft),
+  ];
+}
+
 export function itemState(p: Product, item: WorkItem | undefined, thinLimit: number): ItemState {
   if (item?.approved) return "godkand";
   if (item?.needsInfo && item.needsInfo.length > 0) return "behover";
+  if (lostFacts(p, item).length > 0) return "behover";
   if (item?.description) return "utkast";
   if (p.currentLength === 0) return "saknar";
   return p.currentLength < thinLimit ? "tunn" : "ok";

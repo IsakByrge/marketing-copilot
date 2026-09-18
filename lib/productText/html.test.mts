@@ -132,6 +132,13 @@ test("tom text ger noll ord", () => {
   assert.equal(wordCount("<p></p>"), 0);
 });
 
+test("toPlainText tar bort innehållet i style och script, inte bara taggen", () => {
+  // Verona (101259): en inklistrad <style> på 10 800 tecken räknades som text.
+  const html = `<p><style type="text/css">.r-1{margin:0px;}</style></p><p>Maxeffekt 3,4 kW</p><script>var x=1</script>`;
+  assert.equal(toPlainText(html), "Maxeffekt 3,4 kW");
+  assert.equal(visibleLength(html), "Maxeffekt 3,4 kW".length);
+});
+
 test("wordCount räknar ord, inte taggar", () => {
   assert.equal(wordCount("<p>Ett tva tre</p><ul><li>fyra</li></ul>"), 4);
 });

@@ -32,11 +32,12 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     summary: "Kaminer, grillar, pizzaugnar, kylskåp. 150–300 ord.",
     minWords: 150,
     maxWords: 300,
-    instructions: `MALL: HUVUDPRODUKT (150–300 ord)
+    instructions: `MALL: HUVUDPRODUKT (150–300 ord, längre om fakta kräver det)
 Struktur, i den här ordningen:
 1. Ett stycke om vad produkten löser för kunden.
-2. En punktlista med specifikationer. Bara specifikationer som står i
-   UNDERLAG. Har du färre än två — skriv ingen lista alls.
+2. En punktlista med specifikationer: VARJE effekt, förbrukning, yta,
+   mått, vikt, material och säkerhetsfunktion som står i UNDERLAG. Bara
+   det som står där. Har du färre än två, skriv ingen lista alls.
 3. Ett stycke om vad som behövs till den för att den ska fungera.
 4. Ett stycke om vad som inte ingår.
 Står det inte i UNDERLAG vad som behövs till eller inte ingår: hoppa över

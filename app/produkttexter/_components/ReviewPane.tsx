@@ -18,7 +18,7 @@ import { Input } from "@/app/_shared/primitives";
 import { HtmlPreview } from "./HtmlPreview";
 import { TEMPLATES, META_TITLE_MAX, META_DESCRIPTION_MAX, type TemplateId } from "@/lib/productText/templates";
 import { visibleLength, wordCount } from "@/lib/productText/html";
-import type { Product, WorkItem } from "@/lib/productText/session";
+import { lostFacts, type Product, type WorkItem } from "@/lib/productText/session";
 import type { PageResult } from "@/lib/productText/pageFacts";
 
 export interface ReviewPaneProps {
@@ -50,8 +50,10 @@ export function ReviewPane({
   const template = TEMPLATES[item.template];
   const draft = item.description ?? "";
   const words = wordCount(draft);
-  const outsideRange = draft !== "" && (words < template.minWords || words > template.maxWords);
+  // Bara för kort varnar. Över maxlängden är rätt när fakta kräver det.
+  const outsideRange = draft !== "" && words < template.minWords;
   const needs = item.needsInfo ?? [];
+  const lost = lostFacts(product, item);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -87,7 +89,7 @@ export function ReviewPane({
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-medium tracking-tight">{product.name}</h2>
           {item.approved && <Chip tone="success">Godkänd</Chip>}
-          {needs.length > 0 && <Chip tone="warning">Behöver uppgifter</Chip>}
+          {(needs.length > 0 || lost.length > 0) && <Chip tone="warning">Behöver uppgifter</Chip>}
         </div>
         <p className="mt-1 text-xs text-text-tertiary">
           {product.id}
@@ -102,6 +104,15 @@ export function ReviewPane({
           <p>
             Texten är skriven utan {needs.join(", ")}. Lägg in uppgifterna i
             artikeldatan och skriv om, eller fyll i dem själv nedan.
+          </p>
+        </Alert>
+      )}
+
+      {lost.length > 0 && (
+        <Alert tone="warning" title="Texten har tappat fakta">
+          <p>
+            Det här finns i underlaget men inte i den nya texten: {lost.join(", ")}.
+            Skriv in det nedan, eller skriv om texten.
           </p>
         </Alert>
       )}

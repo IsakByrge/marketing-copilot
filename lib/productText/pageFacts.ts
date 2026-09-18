@@ -37,6 +37,8 @@ export interface PageFacts {
   producer?: string;
   articleNumber?: string;
   documents: PageDocument[];
+  /** Sidans FAQ-flik som ren text, när butiken har en. */
+  faq?: string;
 }
 
 /** Ett misslyckat hämtningsförsök. Sparas också, så vi inte försöker om i onödan. */
@@ -56,11 +58,14 @@ export const MAX_DESCRIPTION = 2_500;
 export const MAX_SPECS = 40;
 export const MAX_SPEC_LEN = 200;
 export const MAX_DOCUMENTS = 8;
+export const MAX_FAQ = 2_500;
 
-/** Block vars innehåll aldrig är produktfakta. Tas bort före allt annat. */
+/** Block vars innehåll aldrig är produktfakta. Tas bort före allt annat.
+ *  `form` står inte här: Wikinggruppen lägger hela produktytan, med
+ *  beskrivning och specifikationstabell, inuti köpformuläret. */
 const STRIP_BLOCKS = [
   "script", "style", "noscript", "template", "svg", "nav", "header",
-  "footer", "form", "aside", "select", "button",
+  "footer", "aside", "select", "button", "textarea",
 ];
 
 /** Tar bort ett helt element inklusive innehåll, oavsett attribut. */
@@ -97,10 +102,10 @@ function readTitle(html: string): string | undefined {
   return t ? t.slice(0, 200) : undefined;
 }
 
-/** Läser ett meta-fält oavsett om det använder name eller property. */
+/** Läser ett meta-fält oavsett om det använder name, property eller itemprop. */
 function readMeta(html: string, key: string): string | undefined {
   const re = new RegExp(
-    `<meta\\b[^>]*(?:name|property)\\s*=\\s*["']${key}["'][^>]*>`,
+    `<meta\\b[^>]*(?:name|property|itemprop)\\s*=\\s*["']${key}["'][^>]*>`,
     "i",
   );
   const tag = html.match(re)?.[0];
@@ -183,10 +188,64 @@ export function readDescription(html: string): string | undefined {
   return joined || undefined;
 }
 
+export interface PageTab {
+  label: string;
+  /** Recensionsfliken. Kunders åsikter är inte fakta och läses aldrig. */
+  reviews: boolean;
+  html: string;
+}
+
+/**
+ * Wikinggruppens produktflikar. Rubriken står i navigeringen
+ * (`<a class="tabs__nav__item" href="#tabs-216">Specifikationer</a>`) och
+ * innehållet i en `<div class="tabs__body" id="tabs-216">`. Flikarna ligger
+ * efter varandra, så en flik slutar där nästa börjar. Den sista slutar vid
+ * formulärets slut.
+ *
+ * Verifierat mot Gasolkamin Verona (101259) den 2026-09-19: flikarna
+ * Produktbeskrivning, Specifikationer (en <table> med <th>/<td>), FAQ och
+ * Recensioner (data-systemcode="reviews").
+ *
+ * Tom lista när sidan inte har den strukturen.
+ */
+export function readTabs(html: string): PageTab[] {
+  const labels = new Map<string, { label: string; reviews: boolean }>();
+  for (const m of html.matchAll(/<a\b([^>]*\btabs__nav__item\b[^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const id = m[1].match(/href\s*=\s*["']#([^"']+)["']/i)?.[1];
+    if (!id) continue;
+    const code = m[1].match(/data-systemcode\s*=\s*["']([^"']*)["']/i)?.[1] ?? "";
+    labels.set(id, { label: textOf(m[2]), reviews: code.toLowerCase() === "reviews" });
+  }
+  if (labels.size === 0) return [];
+
+  const bodies = [...html.matchAll(/<div\b[^>]*\btabs__body\b[^>]*>/gi)].map((m) => ({
+    start: m.index,
+    end: m.index + m[0].length,
+    id: m[0].match(/\bid\s*=\s*["']([^"']+)["']/i)?.[1],
+  }));
+
+  const out: PageTab[] = [];
+  bodies.forEach((b, i) => {
+    const info = b.id ? labels.get(b.id) : undefined;
+    if (!info) return;
+    let stop = i + 1 < bodies.length ? bodies[i + 1].start : html.indexOf("</form>", b.end);
+    if (stop === -1) stop = Math.min(html.length, b.end + 30_000);
+    out.push({ ...info, html: html.slice(b.end, stop) });
+  });
+  return out;
+}
+
+/** Innehållet i första elementet med ett visst itemprop, som text. */
+function readItemprop(html: string, prop: string): string | undefined {
+  const m = html.match(new RegExp(`<(\\w+)\\b[^>]*itemprop\\s*=\\s*["']${prop}["'][^>]*>([^<]*)</\\1>`, "i"));
+  const t = m ? textOf(m[2]) : "";
+  return t || undefined;
+}
+
 /**
  * Hela extraktionen. `baseUrl` behövs för att göra dokumentlänkar absoluta.
  *
- * Returnerar aldrig något som inte stod på sidan — saknas en tabell blir
+ * Returnerar aldrig något som inte stod på sidan. Saknas en tabell blir
  * `specs` tom, och då märks artikeln "Behöver uppgifter" längre fram.
  */
 export function extractPageFacts(html: string, url: string): PageFacts {
@@ -195,23 +254,36 @@ export function extractPageFacts(html: string, url: string): PageFacts {
   // Kommentarer kan gömma både gammal text och hela navigationsmenyer.
   body = body.replace(/<!--[\s\S]*?-->/g, " ");
 
-  const specs = readSpecs(body);
-  const description = readDescription(body) ?? readMeta(html, "description");
+  // Har sidan produktflikar läser vi bara dem. Då kommer varken "Bevaka
+  // produkt", lagerstatus eller recensioner med som underlag.
+  const tabs = readTabs(body).filter((t) => !t.reviews);
+  const scope = tabs.length > 0 ? tabs.map((t) => t.html).join("\n") : body;
+  const descriptionTab = tabs.find((t) => /beskrivning/i.test(t.label));
+  const faqTab = tabs.find((t) => /faq|vanliga fr/i.test(t.label));
+
+  const specs = readSpecs(scope);
+  const description = readDescription(descriptionTab?.html ?? scope) ?? readMeta(html, "description");
+  const faq = faqTab ? textOf(faqTab.html).slice(0, MAX_FAQ) || undefined : undefined;
 
   return {
     url,
     title: readTitle(body) ?? readTitle(html),
     description,
     specs,
-    producer: fromSpecs(specs, PRODUCER_LABELS) ?? readMeta(html, "product:brand"),
-    articleNumber: fromSpecs(specs, ARTICLE_LABELS) ?? readMeta(html, "product:retailer_item_id"),
+    producer: fromSpecs(specs, PRODUCER_LABELS)
+      ?? readMeta(html, "product:brand")
+      ?? readMeta(html, "brand"),
+    articleNumber: fromSpecs(specs, ARTICLE_LABELS)
+      ?? readMeta(html, "product:retailer_item_id")
+      ?? readItemprop(body, "sku"),
     documents: readDocuments(body, url),
+    faq,
   };
 }
 
 /** Sant när sidan gav något att skriva ifrån. Bara en titel räcker inte. */
 export function hasUsablePageFacts(f: PageFacts): boolean {
-  return Boolean(f.description || f.specs.length > 0 || f.documents.length > 0);
+  return Boolean(f.description || f.specs.length > 0 || f.documents.length > 0 || f.faq);
 }
 
 /**
@@ -219,7 +291,10 @@ export function hasUsablePageFacts(f: PageFacts): boolean {
  * Inramningen — att det här är data och inte instruktioner — sätts av
  * anroparen i prompt.ts, en gång, så den inte kan glömmas här.
  */
-export function formatPageFacts(f: PageFacts): string | null {
+export function formatPageFacts(
+  f: PageFacts,
+  opts: { skipDescription?: boolean } = {},
+): string | null {
   if (!hasUsablePageFacts(f)) return null;
   const lines: string[] = [];
   if (f.producer) lines.push(`Tillverkare enligt sidan: ${f.producer}`);
@@ -231,6 +306,9 @@ export function formatPageFacts(f: PageFacts): string | null {
   if (f.documents.length > 0) {
     lines.push(`Dokument som finns: ${f.documents.map((d) => d.label).join(", ")}`);
   }
-  if (f.description) lines.push(`Sidans egen text: ${f.description}`);
-  return lines.join("\n");
+  if (f.faq) lines.push(`Sidans vanliga frågor: ${f.faq}`);
+  // Sidans beskrivning är samma fält som exportens befintliga text. Finns
+  // den redan i underlaget är det bara samma sak två gånger.
+  if (f.description && !opts.skipDescription) lines.push(`Sidans egen text: ${f.description}`);
+  return lines.length > 0 ? lines.join("\n") : null;
 }

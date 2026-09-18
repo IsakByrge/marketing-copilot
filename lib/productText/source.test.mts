@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { parseHttpUrl, isPrivateAddress, isBlockedHostname } from "../server/safeUrl";
 import { parseRobots, isAllowed } from "../server/robots";
 import {
-  extractPageFacts, readSpecs, readDocuments, textOf, formatPageFacts, hasUsablePageFacts,
+  extractPageFacts, readSpecs, readDocuments, readTabs, textOf, formatPageFacts, hasUsablePageFacts,
   MAX_SPECS,
 } from "./pageFacts";
 import { validatePageFacts, buildUserPrompt, buildSystemPrompt, validateProducts } from "./prompt";
@@ -267,6 +267,95 @@ test("hämtad text ramas in som citat i prompten", () => {
   assert.ok(user.includes("HÄMTAT FRÅN PRODUKTSIDAN"));
   assert.ok(user.includes("SLUT PÅ HÄMTAT"));
   assert.ok(user.includes("Gänga: G1/4"));
+});
+
+// ── Wikinggruppens produktsida ──────────────────────────────
+// Strukturen avskriven från Gasolkamin Verona (101259) 2026-09-19, förkortad.
+// Hela produktytan ligger i köpformuläret, och specifikationerna i en egen
+// flik. Förra versionen tog bort <form> och fick ut noll specifikationer.
+const WIKING = `<html><head><meta itemprop="brand" content="Gasso"></head><body>
+<form action="/cart">
+<div class="product-reminder"><p class="product-reminder__text">Ange din e-postadress nedan så meddelar vi dig när produkten finns i lager!</p></div>
+<div class="tabs">
+<div class="tabs__nav js-tabs__nav"><a class="tabs__nav__item js-tabs__nav__item is-active"
+href="#tabs-1598" data-systemcode="">Produktbeskrivning<div><svg><use href="#x"></use></svg></div></a></div>
+<div class="tabs__nav js-tabs__nav"><a class="tabs__nav__item js-tabs__nav__item"
+href="#tabs-216" data-systemcode="">Specifikationer</a></div>
+<div class="tabs__nav js-tabs__nav"><a class="tabs__nav__item js-tabs__nav__item"
+href="#tabs-324" data-systemcode="">FAQ</a></div>
+<div class="tabs__nav js-tabs__nav"><a class="tabs__nav__item js-tabs__nav__item"
+href="#tabs-1923" data-systemcode="reviews">Recensioner</a></div>
+<div class="tabs__body js-tabs__body is-tabs-visible" id="tabs-1598" data-tabid="1598"><div itemprop="description"><p><style type="text/css">.r-1{color:red}</style></p><p>Skapa en mysig och varm atmosfär i ditt hem med Verona Gasolkamin, helt utan el.</p></div></div>
+<div class="tabs__body js-tabs__body" id="tabs-216" data-tabid="216"><table><tbody><tr><th style="text-align: left;">Varum&auml;rke</th><td><p>Gasso</p></td></tr><tr><th style="text-align: left;">Effekt:</th><td>1,9 - 3,4 kW</td></tr><tr><th style="text-align: left;">M&aring;tt (LxBxH):</th><td>475x424x743 mm</td></tr></tbody></table></div>
+<div class="tabs__body js-tabs__body" id="tabs-324" data-tabid="324"><p><strong>S&auml;kerhetsavst&aring;nd?</strong></p><ul><li>1m framf&ouml;r, 0,5m &aring;t sidorna och 0,2m bak&aring;t</li></ul></div>
+<div class="tabs__body js-tabs__body" id="tabs-1923" data-tabid="1923"><div class="tabs__reviews"><div itemprop="reviewBody"><table><tr><th>Betyg</th><td>2 av 5, ger inte samma värme som min gamla</td></tr></table><p>Den er snygg i design, men gär inte samma värme som den jag hadde.</p></div></div></div>
+</div>
+</form>
+<div id="produktdata"><b>Artikelnummer:</b><br><span id="js-articlenumber" itemprop="sku">101259</span><br>
+<a href="/produktfiler/veronamanual.pdf" target="_blank"> Manual Verona</a></div>
+</body></html>`;
+
+test("Wikinggruppen: flikarna läses med rubrik, recensioner märks", () => {
+  const tabs = readTabs(WIKING);
+  assert.deepEqual(tabs.map((t) => [t.label, t.reviews]), [
+    ["Produktbeskrivning", false], ["Specifikationer", false], ["FAQ", false], ["Recensioner", true],
+  ]);
+});
+
+test("Wikinggruppen: specifikationstabellen inuti formuläret hittas", () => {
+  const f = extractPageFacts(WIKING, "https://shop.gasolfyllarna.se/varmare/gasolkaminer/gasolkamin-verona/");
+  assert.deepEqual(f.specs, [
+    { label: "Varumärke", value: "Gasso" },
+    { label: "Effekt", value: "1,9 - 3,4 kW" },
+    { label: "Mått (LxBxH)", value: "475x424x743 mm" },
+  ]);
+  assert.equal(f.producer, "Gasso");
+  assert.equal(f.articleNumber, "101259");
+  assert.equal(f.documents[0]?.label, "Manual Verona");
+});
+
+test("Wikinggruppen: recensioner, lagerbevakning och CSS blir aldrig underlag", () => {
+  const f = extractPageFacts(WIKING, "https://shop.gasolfyllarna.se/p");
+  const all = JSON.stringify(f);
+  assert.ok(!all.includes("gär inte samma värme"));
+  assert.ok(!all.includes("Betyg"));
+  assert.ok(!all.includes("e-postadress"));
+  assert.ok(!all.includes("color:red"));
+  assert.match(f.description ?? "", /Verona Gasolkamin, helt utan el/);
+});
+
+test("Wikinggruppen: FAQ-fliken följer med som underlag", () => {
+  const f = extractPageFacts(WIKING, "https://shop.gasolfyllarna.se/p");
+  assert.match(f.faq ?? "", /Säkerhetsavstånd\? 1m framför, 0,5m åt sidorna/);
+  assert.match(formatPageFacts(f) ?? "", /Sidans vanliga frågor: Säkerhetsavstånd/);
+});
+
+test("sidans beskrivning hoppas över när exportens text redan finns med", () => {
+  const f = extractPageFacts(WIKING, "https://shop.gasolfyllarna.se/p");
+  assert.ok(!(formatPageFacts(f, { skipDescription: true }) ?? "").includes("Sidans egen text"));
+  assert.ok((formatPageFacts(f) ?? "").includes("Sidans egen text"));
+});
+
+test("sida utan flikar läses som förut", () => {
+  assert.deepEqual(readTabs("<p>ingen flik här</p>"), []);
+});
+
+test("befintlig text med inklistrad CSS når modellen som produkttext", () => {
+  // Verona: 10 800 tecken CSS före första meningen. Det gamla taket på
+  // 4 000 tecken rå HTML släppte bara igenom CSS:en.
+  const css = `<p><style type="text/css">${".r-x{margin:0px;} ".repeat(700)}</style></p>`;
+  const products = validateProducts([{
+    id: "101259", name: "Gasolkamin Verona", template: "huvudprodukt",
+    current: `${css}<p>Maxeffekt 3,4 kW och förbrukning 247 g/h.</p>`,
+  }])!;
+  const user = buildUserPrompt(products);
+  assert.ok(!user.includes("margin:0px"));
+  assert.match(user, /BEFINTLIG TEXT I BUTIKEN \(huvudkälla\):\nMaxeffekt 3,4 kW och förbrukning 247 g\/h\./);
+});
+
+test("sidfakta: FAQ saneras och kapas som övriga fält", () => {
+  const v = validatePageFacts({ url: "https://butiken.se/p", faq: "x".repeat(10_000), specs: [], documents: [] })!;
+  assert.equal(v.faq?.length, 2_500);
 });
 
 test("systemprompten säger att hämtad text inte är instruktioner", () => {

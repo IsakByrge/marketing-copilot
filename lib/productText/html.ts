@@ -174,11 +174,20 @@ export function sanitizeHtml(input: string): string {
 }
 
 /**
+ * Tar bort block vars innehåll aldrig syns, se DROP_CONTENT. Utan det här
+ * räknas en inklistrad <style> som text: Verona (101259) hade 10 800 tecken
+ * CSS före första meningen om kaminen, och det var CSS:en som nådde modellen.
+ */
+function dropHiddenBlocks(html: string): string {
+  return html.replace(/<(script|style|noscript|iframe|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ");
+}
+
+/**
  * Synlig text utan taggar och entiteter. Grunden för både teckenräkning
  * och "före"-kolumnen i godkännandevyn.
  */
 export function toPlainText(html: string): string {
-  return decodeEntities((html ?? "").replace(/<(br|\/p|\/li|\/ul)\s*\/?>/gi, " ").replace(/<[^>]*>/g, ""))
+  return decodeEntities(dropHiddenBlocks(html ?? "").replace(/<(br|\/p|\/li|\/ul)\s*\/?>/gi, " ").replace(/<[^>]*>/g, ""))
     .replace(/\s+/g, " ")
     .trim();
 }

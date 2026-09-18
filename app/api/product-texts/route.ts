@@ -20,13 +20,17 @@ import {
   validateProducts,
   validateGenerated,
   budgetFor,
+  buildRetryPrompt,
+  rewriteReasons,
+  isImprovement,
   MAX_BATCH,
 } from "@/lib/productText/prompt";
 import { buildFactsLookup } from "@/lib/productText/productFacts";
 import { editMemoryBlock } from "@/lib/server/editMemory";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Två modellanrop när en text avvisas av faktakontrollen.
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8);
@@ -72,21 +76,48 @@ export async function POST(request: Request) {
       temperature: 0.5,
       maxTokens: budgetFor(products),
     });
+    let promptTokens = result.promptTokens;
+    let completionTokens = result.completionTokens;
 
     const texts = validateGenerated(result.parsed, products);
     if (!texts) {
       console.error(`PRODUCT_TEXTS ${requestId}: SchemaValidationFailed`);
       await guard.finish({
         status: "error", errorCategory: "schema_validation", model: AI.CHAT_MODEL,
-        promptTokens: result.promptTokens, completionTokens: result.completionTokens,
+        promptTokens, completionTokens,
       });
       return safeError("Texterna kunde inte skapas. Försök igen.", 502);
     }
 
-    await guard.finish({
-      status: "ok", model: AI.CHAT_MODEL,
-      promptTokens: result.promptTokens, completionTokens: result.completionTokens,
-    });
+    // Hård kontroll: tappade en text ett tal med enhet eller en förkortning
+    // ur före-texten, eller en uppgift ur modellens egen faktalista, avvisas
+    // den och skrivs om en gång, med besked om vad som saknades. Saknas
+    // något ändå går texten tillbaka märkt och visas som "Behöver
+    // uppgifter", aldrig som klar.
+    const rejected = texts
+      .map((t) => ({ id: t.id, reasons: rewriteReasons(t) }))
+      .filter((r) => r.reasons.length > 0);
+    if (rejected.length > 0) {
+      const again = products.filter((p) => rejected.some((r) => r.id === p.id));
+      try {
+        const retry = await callChatJson(system, buildRetryPrompt(again, rejected, lookup), {
+          temperature: 0.3,
+          maxTokens: budgetFor(again),
+        });
+        promptTokens += retry.promptTokens;
+        completionTokens += retry.completionTokens;
+
+        for (const fixed of validateGenerated(retry.parsed, again) ?? []) {
+          const i = texts.findIndex((t) => t.id === fixed.id);
+          if (i !== -1 && isImprovement(fixed, texts[i])) texts[i] = fixed;
+        }
+      } catch (error) {
+        // Omskrivningen misslyckades. Första versionen går tillbaka, märkt.
+        console.error(`PRODUCT_TEXTS ${requestId}: retry ${error instanceof Error ? error.name : "UnknownError"}`);
+      }
+    }
+
+    await guard.finish({ status: "ok", model: AI.CHAT_MODEL, promptTokens, completionTokens });
     return Response.json({ texts });
   } catch (error) {
     const name = error instanceof Error ? error.name : "UnknownError";

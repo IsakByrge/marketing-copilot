@@ -21,11 +21,11 @@ import {
   parseCsv, guessColumns, checkIdColumn, THIN_LIMIT,
   type Row, type ColumnGuess,
 } from "@/lib/productText/csv";
-import { BATCH_SIZE } from "@/lib/productText/prompt";
+import { BATCH_SIZE, type GeneratedText } from "@/lib/productText/prompt";
 import { TEMPLATES, TEMPLATE_IDS, type TemplateId } from "@/lib/productText/templates";
 import {
   buildProducts, initialItems, catalogStats, categoriesOf, filterProducts,
-  sortProducts, itemState, approvedFor, EMPTY_FILTERS,
+  sortProducts, itemState, lostFacts, approvedFor, EMPTY_FILTERS,
   type Filters, type ItemState, type Product, type Session, type SortDir,
   type SortKey, type WorkItem,
 } from "@/lib/productText/session";
@@ -289,6 +289,7 @@ export default function ProductTextsPage() {
               metaTitle: t.metaTitle,
               metaDescription: t.metaDescription,
               needsInfo: t.needsInfo,
+              facts: t.facts,
               approved: false,
             };
           }
@@ -382,7 +383,7 @@ export default function ProductTextsPage() {
     batch: { template: TemplateId; products: Product[] },
     pages: Record<string, PageResult>,
     onWait: (waiting: boolean) => void,
-  ): Promise<Array<{ id: string; description: string; metaTitle: string; metaDescription: string; needsInfo: string[] }> | null> {
+  ): Promise<GeneratedText[] | null> {
     const payload = {
       products: batch.products.map((p) => {
         const page = pages[p.id];
@@ -744,7 +745,9 @@ export default function ProductTextsPage() {
                         : progress.phase === "hamtar"
                           ? `Hämtar produktsidor ${progress.done}/${progress.total}`
                           : `Skriver ${progress.done}/${progress.total}`
-                      : `Skriv ${selected.size || ""} texter`}
+                      : selected.size === 0
+                        ? "Skriv texter"
+                        : `Skriv ${selected.size} ${selected.size === 1 ? "text" : "texter"}`}
                   </Button>
                   {busy && (
                     <Button variant="ghost" size="sm" onClick={() => { cancelRef.current = true; }}>
@@ -785,6 +788,7 @@ export default function ProductTextsPage() {
                   const item = items[p.id];
                   const source = sources[p.id];
                   const state = itemState(p, item, THIN_LIMIT);
+                  const lost = lostFacts(p, item);
                   const chip = STATE_CHIP[state];
                   const checked = selected.has(p.id);
                   return (
@@ -834,6 +838,11 @@ export default function ProductTextsPage() {
                             {item?.needsInfo && item.needsInfo.length > 0 && (
                               <p className="mt-2 text-xs text-warning">
                                 Saknar: {item.needsInfo.join(", ")}
+                              </p>
+                            )}
+                            {lost.length > 0 && (
+                              <p className="mt-2 text-xs text-warning">
+                                Tappade fakta: {lost.join(", ")}
                               </p>
                             )}
 
