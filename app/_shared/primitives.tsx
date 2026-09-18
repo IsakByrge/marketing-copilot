@@ -239,11 +239,26 @@ export interface InputProps extends ComponentPropsWithRef<"input"> {
 }
 
 export function Input({ invalid = false, className, type, ...props }: InputProps) {
+  // Ett tomt datumfalt ser ifyllt ut. Chrome ritar masken "aaaa-mm-dd" i
+  // faltets egen textfarg, inte i platshallarfargen: uppmatt rgb(26,26,24)
+  // mot rgb(138,131,119) for ett vanligt falt bredvid. Tva falt pa samma
+  // rad sag alltsa olika ut, det ena redan besvarat. Ar vardet tomt farsk
+  // vi masken till samma ton som ovriga platshallare - ::-webkit-datetime-
+  // edit arver faltets color, sa det racker att satta den har.
+  const tomtDatum = type === "date" && !props.value;
   return (
     <input
       type={type ?? "text"}
       aria-invalid={invalid || undefined}
-      className={cx(fieldControlBase, invalid ? fieldControlError : fieldControlOk, className)}
+      className={cx(
+        fieldControlBase,
+        invalid ? fieldControlError : fieldControlOk,
+        // Den inbyggda kalenderikonen ar mork som standard och drar till
+        // sig mer uppmarksamhet an falten omkring.
+        type === "date" && "[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60",
+        tomtDatum && "text-text-tertiary",
+        className,
+      )}
       {...props}
     />
   );

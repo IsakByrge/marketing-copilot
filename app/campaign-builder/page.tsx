@@ -1,10 +1,10 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────
-// Marketing Strategist 2.0 (ligger kvar på /campaign-builder t.v.).
+// Kampanjstrategi (rutten heter fortfarande /campaign-builder).
 // Fyra tydliga faser — inte ett långt formulär, inte en falsk chatt:
-//   1. Kort brief (kompakt formulär, förifyllt ur Company Brain)
-//   2. Strategen analyserar (server gör en strukturerad analys)
+//   1. Kort underlag (kompakt formulär, förifyllt ur Company Brain)
+//   2. Analys (server gör en strukturerad analys)
 //   3. 0–4 adaptiva följdfrågor (endast beslutspåverkande, rätt widget)
 //   4. Rekommendation (beslut och affärsnytta först)
 // Strategin sparas som StrategyV2 och kan öppnas direkt i Facebook
@@ -19,6 +19,7 @@
 import { useMemo, useRef, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
 import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
+import { tillgangligaOrter } from "@/app/_shared/locations";
 import {
   Alert, Button, ButtonLink, Card, Chip, EmptyState, Input, ToggleChip, cx,
 } from "@/app/_shared/primitives";
@@ -66,7 +67,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 /* ── Fasindikator ────────────────────────────────────────────── */
 const PHASE_STEPS: { key: Phase[]; label: string }[] = [
-  { key: ["brief"], label: "Brief" },
+  { key: ["brief"], label: "Underlag" },
   { key: ["analyzing"], label: "Analys" },
   { key: ["questions"], label: "Frågor" },
   { key: ["recommending", "result"], label: "Rekommendation" },
@@ -203,7 +204,7 @@ export default function MarketingStrategistPage() {
           <EmptyState
             icon={<IconBuilder size={19} />}
             title="Ingen företagskunskap ännu."
-            body="Strategen blir vassare med en företagsprofil, men du kan börja ändå."
+            body="Strategin blir vassare med en företagsprofil, men du kan börja ändå."
             action={<ButtonLink href="/onboarding">Starta onboarding</ButtonLink>}
           />
         </div>
@@ -234,7 +235,7 @@ export default function MarketingStrategistPage() {
           />
         )}
 
-        {phase === "analyzing" && <AnalyzingPanel title="Strategen analyserar ditt underlag" />}
+        {phase === "analyzing" && <AnalyzingPanel title="Analyserar underlaget" />}
         {phase === "recommending" && <AnalyzingPanel title="Formar rekommendationen" />}
 
         {phase === "questions" && (
@@ -256,14 +257,14 @@ function Header({ companyName }: { companyName: string }) {
   return (
     <header className="mb-8">
       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-        {companyName ? `${companyName} · Marketing Strategist` : "Marketing Strategist"}
+        {companyName ? `${companyName} · Kampanjstrategi` : "Kampanjstrategi"}
       </p>
       <h1 className="mt-3 text-[clamp(1.5rem,3.2vw,1.85rem)] font-semibold leading-[1.25] tracking-tight">
-        Låt strategen tänka först.
+        Tänk igenom kampanjen först.
       </h1>
       <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
-        Ge en kort brief. Strategen läser din företagskunskap, analyserar, ställer bara de
-        frågor som spelar roll — och rekommenderar en riktning.
+        Ge ett kort underlag. Det vägs mot din företagskunskap, du får bara de frågor
+        som faktiskt påverkar valet — och sedan en rekommenderad riktning.
       </p>
     </header>
   );
@@ -282,11 +283,25 @@ function BriefForm(p: {
   canSubmit: boolean; onSubmit: () => void;
 }) {
   const products = p.brain.products ?? [];
+
+  // Platshallarna var hardkodade gasolexempel - "Gasolbyte infor
+  // grillsasongen", "Fyll gasolflaskan". For ett bemanningsforetag ar det
+  // en gissning om fel bransch, och en platshallare som gissar fel ar
+  // samre an ingen alls. Harled dem ur foretagsdatan nar den racker till,
+  // annars branschneutralt. Ingen paahittad data: bara det anvandaren
+  // sjalv skrivit in.
+  const orter = tillgangligaOrter(p.brain.locations, p.brain.companySummary);
+  const produktExempel = products[0]?.name
+    ? `t.ex. ${products[0].name}`
+    : "t.ex. produkten eller tjänsten du vill lyfta";
+  const ortExempel = orter[0]
+    ? `t.ex. ${orter[0]} med omnejd`
+    : "t.ex. orten ni finns på, med omnejd";
   return (
     <div className="flex flex-col gap-8">
       <section>
         <Label>Vad vill du marknadsföra?</Label>
-        <Input value={p.product} onChange={(e) => p.setProduct(e.target.value)} placeholder="t.ex. Gasolbyte inför grillsäsongen" />
+        <Input value={p.product} onChange={(e) => p.setProduct(e.target.value)} placeholder={produktExempel} />
         {products.length > 0 && (
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <span className="text-xs text-text-tertiary">Ur företagskunskapen:</span>
@@ -326,7 +341,7 @@ function BriefForm(p: {
 
       <section>
         <Label optional>Finns ett konkret erbjudande?</Label>
-        <Input value={p.offer} onChange={(e) => p.setOffer(e.target.value)} placeholder="t.ex. Fyll gasolflaskan – vänta medan du handlar" />
+        <Input value={p.offer} onChange={(e) => p.setOffer(e.target.value)} placeholder="t.ex. ett erbjudande som gäller under perioden" />
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -342,17 +357,19 @@ function BriefForm(p: {
 
       <section>
         <Label optional>Geografiskt område</Label>
-        <Input value={p.geo} onChange={(e) => p.setGeo(e.target.value)} placeholder="t.ex. Norrköping med omnejd" />
+        <Input value={p.geo} onChange={(e) => p.setGeo(e.target.value)} placeholder={ortExempel} />
       </section>
 
       <section>
-        <Label optional>Något särskilt strategen ska ta hänsyn till?</Label>
+        <Label optional>Något särskilt att ta hänsyn till?</Label>
         <Textarea value={p.notes} onChange={(e) => p.setNotes(e.target.value)} rows={2} placeholder="t.ex. vi vill inte rabattera, konkurrent öppnade nyligen…" />
       </section>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={p.onSubmit} disabled={!p.canSubmit}>Låt strategen analysera</Button>
-        <span className="text-xs text-text-tertiary">Produkt och mål räcker för att börja.</span>
+        <Button onClick={p.onSubmit} disabled={!p.canSubmit}>Analysera underlaget</Button>
+        <span className="text-xs text-text-tertiary">
+          Vad du vill marknadsföra och vad du vill uppnå räcker för att börja.
+        </span>
       </div>
     </div>
   );
@@ -398,7 +415,7 @@ function QuestionsView({ analysis, questions, answers, setAnswers, onBack, onSub
     <div className="fade-up flex flex-col gap-5">
       {analysis?.recommendedFocus && (
         <Card padding="sm" className="border-primary/20 bg-primary/5">
-          <SectionLabel>Strategens preliminära riktning</SectionLabel>
+          <SectionLabel>Preliminär riktning</SectionLabel>
           <p className="text-lg leading-snug">{analysis.recommendedFocus}</p>
         </Card>
       )}
@@ -437,8 +454,8 @@ function QuestionsView({ analysis, questions, answers, setAnswers, onBack, onSub
       })}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={onSubmit}>Skapa min strategi</Button>
-        <Button variant="secondary" onClick={onBack}>Ändra briefen</Button>
+        <Button onClick={onSubmit}>Skapa strategin</Button>
+        <Button variant="secondary" onClick={onBack}>Ändra underlaget</Button>
       </div>
     </div>
   );
