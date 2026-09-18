@@ -121,15 +121,15 @@ export default function LoginForm() {
   const rubrik =
     mode === "signup" ? "Skapa konto"
       : mode === "forgot" ? "Glömt lösenordet?"
-        : "Välkommen tillbaka.";
+        : "Veckans texter väntar.";
 
   const ingress =
     mode === "signup" ? "E-post och lösenord räcker. Inget kort, ingen uppsägningstid."
       : mode === "forgot" ? "Skriv din e-postadress, så skickar vi en länk där du kan välja ett nytt lösenord."
-        : "Logga in för att se veckans texter.";
+        : "Logga in så ligger de kvar där du lämnade dem.";
 
   return (
-    <div className="w-full max-w-sm">
+    <div>
       <h1 className="text-[clamp(1.6rem,4vw,2rem)] font-semibold leading-tight tracking-tight">
         {rubrik}
       </h1>

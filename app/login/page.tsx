@@ -5,9 +5,12 @@
 // Suspense-gräns på en förrenderad rutt — annars faller hela
 // klientträdet tillbaka till klientrendering vid bygget. Ramen är
 // därför en serverkomponent och formuläret ligger i LoginForm.
+//
+// Själva ytan — tvåspalt med exempelkortet till höger — delas med
+// /auth/reset och /auth/callback via AuthRam.
 // ─────────────────────────────────────────────────────────────
-import Link from "next/link";
 import { Suspense } from "react";
+import AuthRam from "@/app/_shared/AuthRam";
 import LoginForm from "./LoginForm";
 
 function Skelett() {
@@ -21,26 +24,10 @@ function Skelett() {
 
 export default function LoginPage() {
   return (
-    <div className="app-light flex min-h-svh flex-col bg-background font-sans text-text-primary">
-      <header className="border-b border-border">
-        <div className="mx-auto flex h-14 max-w-5xl items-center px-4 sm:px-6 lg:px-10">
-          <Link href="/" className="flex items-center gap-2.5 text-text-primary">
-            <span
-              aria-hidden
-              className="flex h-7 w-7 items-center justify-center rounded bg-primary text-sm font-medium text-white"
-            >
-              M
-            </span>
-            <span className="text-sm font-medium">Marketing Copilot</span>
-          </Link>
-        </div>
-      </header>
-
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
-        <Suspense fallback={<Skelett />}>
-          <LoginForm />
-        </Suspense>
-      </main>
-    </div>
+    <AuthRam>
+      <Suspense fallback={<Skelett />}>
+        <LoginForm />
+      </Suspense>
+    </AuthRam>
   );
 }
