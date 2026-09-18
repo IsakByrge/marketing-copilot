@@ -25,6 +25,7 @@ import { IconContent, IconSparkle, IconCheck, IconX } from "@/app/_shared/icons"
 import ImageMaker from "@/app/_shared/ImageMaker";
 import { briefToSubject } from "@/lib/server/imagePrompt";
 import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
+import { tillgangligaOrter } from "@/app/_shared/locations";
 import {
   GOAL_OPTIONS, ANGLE_OPTIONS, LENGTH_OPTIONS, TONE_SUGGESTIONS,
   type FacebookBrief, type FacebookContentGoal, type FacebookAngle, type FacebookLength,
@@ -264,6 +265,30 @@ export default function FacebookSpecialistPage() {
 
   const selectedProduct = useMemo(() => brain.products.find((p) => p.id === productId) ?? null, [brain.products, productId]);
   const toneDefault = brain.tone.join(", ");
+
+  // Platshallarna var hardkodade bilverkstadsexempel - "Vinterservice med
+  // rekonditionering och lackskydd", "15% pa forsta besoket", "fran 1 495
+  // kr", "Vasteras med omnejd". For ett bemanningsforetag gissar de fel
+  // bransch, och en platshallare som gissar fel ar samre an ingen alls.
+  // Harled dem ur foretagsdatan nar den racker till, annars
+  // branschneutralt. Ingen paahittad data: bara det anvandaren skrivit in.
+  // Priset far medvetet INGEN sifferexempel - en paahittad prisnivaa ar
+  // precis den sortens gissning vi inte ska visa.
+  const platshallare = useMemo(() => {
+    const orter = tillgangligaOrter(brain.locations, brain.companySummary);
+    return {
+      amne: brain.products[0]?.name
+        ? `t.ex. ${brain.products[0].name}`
+        : "t.ex. produkten eller tjänsten inlägget handlar om",
+      malgrupp: brain.primaryCustomers[0]
+        ? `t.ex. ${brain.primaryCustomers[0]}`
+        : "t.ex. de kunder du helst vill nå",
+      ort: orter[0] ? `t.ex. ${orter[0]} med omnejd` : "t.ex. orten ni finns på, med omnejd",
+      cta: brain.preferredCallsToAction[0]
+        ? `t.ex. ${brain.preferredCallsToAction[0]}`
+        : "t.ex. vad läsaren ska göra efter att ha läst",
+    };
+  }, [brain.products, brain.primaryCustomers, brain.locations, brain.companySummary, brain.preferredCallsToAction]);
 
   // Skriver in strategins värden i formulärets arbetskopia. Rör BARA de fält
   // som kan härledas ur strategin; CTA/vinkel/ton/längd lämnas orörda (ingen källa).
@@ -552,11 +577,11 @@ export default function FacebookSpecialistPage() {
               <div className="mt-4 flex flex-col gap-4">
                 <Field label="Vad marknadsförs" hint={underlag === "product" ? "Förifyllt från produkten — justera fritt för det här inlägget." : undefined}>
                   <Textarea value={productOrTopic} onChange={(e) => { touch(); setProductOrTopic(e.target.value); }} rows={2}
-                    placeholder="t.ex. Vinterservice med rekonditionering och lackskydd" />
+                    placeholder={platshallare.amne} />
                 </Field>
                 <Field label="Målgrupp för inlägget">
                   <Input value={audience} onChange={(e) => { touch(); setAudience(e.target.value); }}
-                    placeholder={brain.primaryCustomers[0] ? `t.ex. ${brain.primaryCustomers[0]}` : "t.ex. villaägare i närområdet"} />
+                    placeholder={platshallare.malgrupp} />
                 </Field>
               </div>
             </section>
@@ -565,14 +590,14 @@ export default function FacebookSpecialistPage() {
             <section>
               <SectionLabel>3 · Erbjudande & handling</SectionLabel>
               <div className="mt-3 grid gap-3.5 sm:grid-cols-2">
-                <Field label="Erbjudande" optional><Input value={offer} onChange={(e) => { touch(); setOffer(e.target.value); }} placeholder="t.ex. 15% på första besöket" /></Field>
-                <Field label="Pris" optional><Input value={price} onChange={(e) => { touch(); setPrice(e.target.value); }} placeholder="t.ex. från 1 495 kr" /></Field>
-                <Field label="Sista datum" optional><Input value={deadline} onChange={(e) => { touch(); setDeadline(e.target.value); }} placeholder="t.ex. 20 juni" /></Field>
-                <Field label="Geografiskt område" optional><Input value={geo} onChange={(e) => { touch(); setGeo(e.target.value); }} placeholder="t.ex. Västerås med omnejd" /></Field>
+                <Field label="Erbjudande" optional><Input value={offer} onChange={(e) => { touch(); setOffer(e.target.value); }} placeholder="t.ex. ett erbjudande som gäller nu" /></Field>
+                <Field label="Pris" optional><Input value={price} onChange={(e) => { touch(); setPrice(e.target.value); }} placeholder="t.ex. ett pris eller prisintervall" /></Field>
+                <Field label="Sista datum" optional><Input value={deadline} onChange={(e) => { touch(); setDeadline(e.target.value); }} placeholder="t.ex. sista dagen erbjudandet gäller" /></Field>
+                <Field label="Geografiskt område" optional><Input value={geo} onChange={(e) => { touch(); setGeo(e.target.value); }} placeholder={platshallare.ort} /></Field>
               </div>
               <div className="mt-3.5">
                 <Field label="Önskad CTA — vad ska läsaren göra?">
-                  <Input value={desiredAction} onChange={(e) => { touch(); setDesiredAction(e.target.value); }} placeholder="t.ex. Boka tid online, ring oss, besök butiken" />
+                  <Input value={desiredAction} onChange={(e) => { touch(); setDesiredAction(e.target.value); }} placeholder={platshallare.cta} />
                 </Field>
               </div>
             </section>
@@ -616,7 +641,7 @@ export default function FacebookSpecialistPage() {
 
             <div>
               <Field label="Övrigt till specialisten" optional>
-                <Textarea value={notes} onChange={(e) => { touch(); setNotes(e.target.value); }} rows={2} placeholder="t.ex. lyft att vi är familjeägda sedan 1998" />
+                <Textarea value={notes} onChange={(e) => { touch(); setNotes(e.target.value); }} rows={2} placeholder="t.ex. något du vill att inlägget lyfter fram" />
               </Field>
             </div>
 

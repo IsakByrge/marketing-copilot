@@ -2,16 +2,28 @@
 
 // ─────────────────────────────────────────────────────────────
 // Kampanjer — ingen datamodell spårar ännu "aktiva" kampanjer med
-// status/datum/kanal (Campaign Builder sparar inget kampanjresultat
+// status/datum/kanal (Kampanjstrategin sparar inget kampanjresultat
 // än), så det ärliga tomläget visas alltid för den delen. Däremot
 // visas riktiga kampanjförslag från senaste marknadsplanen, tydligt
 // märkta som förslag — inte som pågående kampanjer.
+//
+// Sista sidan som låg på uiLight. Med den här flytten kan den filen
+// tas bort helt.
 // ─────────────────────────────────────────────────────────────
 import AppShell from "@/app/_shared/AppShell";
-import { T, fontSans } from "@/app/_shared/themeLight";
-import { PageHeader, PrimaryButton, EmptyState } from "@/app/_shared/uiLight";
+import { ButtonLink, Card, EmptyState, Skeleton } from "@/app/_shared/primitives";
 import { IconCampaigns } from "@/app/_shared/icons";
 import { useAccountData } from "@/app/_shared/useAccountData";
+
+/** Sektionsetikett. Versaler är kvar med flit — samma mönster som
+ *  Idag, Innehåll, Historik, Kampanjstrategi och Facebook. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+      {children}
+    </p>
+  );
+}
 
 export default function CampaignsPage() {
   const { plan, loaded } = useAccountData();
@@ -19,20 +31,30 @@ export default function CampaignsPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
-        <PageHeader eyebrow="Kampanjer" title="Dina kampanjer." subtitle="Aktiva kampanjer och kampanjförslag samlade på ett ställe." />
+        <header className="mb-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+            Kampanjer
+          </p>
+          <h1 className="mt-3 text-[clamp(1.5rem,3.2vw,1.85rem)] font-semibold leading-[1.25] tracking-tight">
+            Dina kampanjer.
+          </h1>
+          <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
+            Aktiva kampanjer och kampanjförslag samlade på ett ställe.
+          </p>
+        </header>
 
         {!loaded ? (
-          <div className="skel" style={{ width: "100%", height: 160, borderRadius: 14 }} />
+          <Skeleton className="h-40 w-full rounded-lg" />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 44 }}>
+          <div className="flex flex-col gap-11">
             <section>
               <SectionLabel>Aktiva kampanjer</SectionLabel>
-              <div style={{ marginTop: 14 }}>
+              <div className="mt-3.5">
                 <EmptyState
                   icon={<IconCampaigns size={19} />}
                   title="Du har inga aktiva kampanjer ännu."
-                  body="Börja med att låta din marknadschef skapa en strategi tillsammans med dig."
-                  action={<PrimaryButton href="/campaign-builder">Skapa första kampanjen</PrimaryButton>}
+                  body="Börja med att arbeta fram en kampanjstrategi."
+                  action={<ButtonLink href="/campaign-builder">Skapa första kampanjen</ButtonLink>}
                 />
               </div>
             </section>
@@ -40,20 +62,17 @@ export default function CampaignsPage() {
             {plan?.campaigns && plan.campaigns.length > 0 && (
               <section>
                 <SectionLabel>Kampanjförslag från din senaste marknadsplan</SectionLabel>
-                <p style={{ fontFamily: fontSans, fontSize: "0.8rem", fontWeight: 300, color: T.text4, marginTop: 6, marginBottom: 16 }}>
-                  Utkast från AI:n — inte startade eller aktiva.
+                <p className="mb-4 mt-1.5 text-xs text-text-tertiary">
+                  Utkast — inte startade eller aktiva.
                 </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="flex flex-col gap-2.5">
                   {plan.campaigns.map((c, i) => (
                     // Kortet lankade till /campaign, som ar parkerad. Titel
                     // och mal star redan har, sa det finns inget att oppna.
-                    <div key={i} style={{
-                      display: "block", padding: "20px 22px", borderRadius: 14,
-                      background: T.surface, border: `1px solid ${T.line}`,
-                    }}>
-                      <h3 style={{ fontFamily: fontSans, fontWeight: 400, fontSize: "1.1rem", color: T.text, marginBottom: 6 }}>{c.title}</h3>
-                      <p style={{ fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 300, color: T.text2, lineHeight: 1.6 }}>{c.goal}</p>
-                    </div>
+                    <Card key={i} padding="sm">
+                      <h2 className="text-[17px] font-medium leading-snug">{c.title}</h2>
+                      <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">{c.goal}</p>
+                    </Card>
                   ))}
                 </div>
               </section>
@@ -62,13 +81,5 @@ export default function CampaignsPage() {
         )}
       </div>
     </AppShell>
-  );
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3 }}>
-      {children}
-    </div>
   );
 }

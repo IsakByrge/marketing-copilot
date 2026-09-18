@@ -10,11 +10,14 @@
 //
 // VILKET LAGER SKA JAG ANVÄNDA?
 //   • Ny sida            → app/_shared/primitives.tsx. Alltid.
-//   • Migrerad legacy    → uiLight.tsx + den här filen. Bara som brygga.
 //   • Mörk legacy-sida   → theme.ts + ui.tsx. Rör dem inte.
 //
-// TAS BORT NÄR: sista sidan som importerar uiLight.tsx är omskriven på
-// primitives. Just nu är det /content/facebook, /campaigns och /history.
+// uiLight.tsx är BORTA. Alla ljusa sidor är omskrivna på primitives.
+//
+// Kvar finns bara EN användare av den här filen: FacebookPreview i
+// /content/facebook. Den härmar Facebooks eget utseende med flit och
+// ska därför inte följa vårt designsystem. Skrivs den någon gång om
+// kan även den här filen tas bort.
 // ─────────────────────────────────────────────────────────────
 
 const token = (name: string) => `var(--color-${name})`;
