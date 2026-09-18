@@ -59,9 +59,12 @@ function Label({ children, optional }: { children: React.ReactNode; optional?: b
     </label>
   );
 }
+// 16px, inte 0.92rem - annars zoomar Safari pa iOS in hela sidan nar
+// faltet far fokus och zoomar aldrig ut igen. Samma skal som i
+// uiLight och primitives.
 const fieldStyle: React.CSSProperties = {
   width: "100%", background: T.surface2, border: `1px solid ${T.line2}`, borderRadius: 10,
-  padding: "13px 15px", outline: "none", fontSize: "0.92rem", fontWeight: 300, color: T.text, fontFamily: sans, boxSizing: "border-box",
+  padding: "13px 15px", outline: "none", fontSize: "1rem", fontWeight: 300, color: T.text, fontFamily: sans, boxSizing: "border-box",
 };
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} style={{ ...fieldStyle, ...props.style }}

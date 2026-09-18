@@ -120,9 +120,14 @@ export function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
+// 16px, inte 0.92rem. Safari pa iOS zoomar in hela sidan nar ett falt
+// under 16px far fokus, och zoomar aldrig ut igen - anvandaren star kvar
+// inzoomad mitt i formuläret. Samma andring ar gjord pa Input och
+// Textarea i primitives; de har sidorna anvander inte dem, sa den maste
+// goras har ocksa.
 const fieldBaseStyle: React.CSSProperties = {
   width: "100%", background: T.surface2, border: `1px solid ${T.line2}`, borderRadius: 10,
-  padding: "13px 15px", outline: "none", fontSize: "0.92rem", fontWeight: 300, color: T.text,
+  padding: "13px 15px", outline: "none", fontSize: "1rem", fontWeight: 300, color: T.text,
   fontFamily: fontSans, transition,
 };
 
