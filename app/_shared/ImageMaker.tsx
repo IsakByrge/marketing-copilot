@@ -15,7 +15,8 @@
 // Delad mellan Facebook Specialist och Innehåll.
 // ─────────────────────────────────────────────────────────────
 import { useState } from "react";
-import { Button, Textarea, Alert, cx } from "./primitives";
+import { Button, Alert, cx } from "./primitives";
+import { Textarea } from "./Textarea";
 
 /** Grov uppskattning, visas som storleksordning och aldrig som exakt pris. */
 const ROUGH_COST = "några ören";

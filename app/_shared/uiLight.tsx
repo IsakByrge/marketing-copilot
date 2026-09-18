@@ -24,7 +24,7 @@ import { IconArrowRight } from "./icons";
 
 export function Eyebrow({ children, color = T.purpleBright }: { children: React.ReactNode; color?: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: fontSans, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color }}>
       <span style={{ width: 16, height: 1, background: color, opacity: 0.6, display: "block" }} />
       {children}
     </div>
@@ -56,7 +56,7 @@ export function GhostButton({ href, onClick, children, disabled }: { href?: stri
   const style: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", gap: 8,
     fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 400,
-    padding: "12px 20px", borderRadius: 10, textDecoration: "none",
+    padding: "12px 20px", borderRadius: 10, textDecoration: "none", minHeight: 44, justifyContent: "center",
     background: "transparent", border: `1px solid ${T.line2}`, color: disabled ? T.text4 : T.text2,
     cursor: disabled ? "default" : "pointer", transition,
   };
@@ -114,15 +114,20 @@ export function EmptyState({ icon, title, body, action }: {
 /** Kompakt sektionsetikett — mindre framträdande än Eyebrow, för underrubriker inom en yta. */
 export function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <div style={{ fontFamily: fontSans, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3 }}>
+    <div style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3 }}>
       {children}
     </div>
   );
 }
 
+// 16px, inte 0.92rem. Safari pa iOS zoomar in hela sidan nar ett falt
+// under 16px far fokus, och zoomar aldrig ut igen - anvandaren star kvar
+// inzoomad mitt i formuläret. Samma andring ar gjord pa Input och
+// Textarea i primitives; de har sidorna anvander inte dem, sa den maste
+// goras har ocksa.
 const fieldBaseStyle: React.CSSProperties = {
   width: "100%", background: T.surface2, border: `1px solid ${T.line2}`, borderRadius: 10,
-  padding: "13px 15px", outline: "none", fontSize: "0.92rem", fontWeight: 300, color: T.text,
+  padding: "13px 15px", outline: "none", fontSize: "1rem", fontWeight: 300, color: T.text,
   fontFamily: fontSans, transition,
 };
 
@@ -134,7 +139,7 @@ export function Field({ label, hint, error, optional, children }: {
     <div>
       <label style={{
         display: "flex", alignItems: "baseline", gap: 8,
-        fontFamily: fontSans, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.1em",
+        fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.1em",
         textTransform: "uppercase", color: T.text3, marginBottom: 9,
       }}>
         {label}
@@ -246,7 +251,7 @@ export function LoadingPanel({ title, steps, activeStep }: { title: string; step
     <div className="fade-up" style={{ maxWidth: 420 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 22 }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.purpleBright, animation: "pulseDot 1.4s ease infinite", display: "block" }} />
-        <span style={{ fontFamily: fontSans, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: T.purpleBright }}>{title}</span>
+        <span style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: T.purpleBright }}>{title}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
         {steps.map((s, i) => {

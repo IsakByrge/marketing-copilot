@@ -54,14 +54,17 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 /* ── Små byggstenar ──────────────────────────────────────────── */
 function Label({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
   return (
-    <label style={{ display: "flex", alignItems: "baseline", gap: 8, fontFamily: sans, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, marginBottom: 9 }}>
+    <label style={{ display: "flex", alignItems: "baseline", gap: 8, fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, marginBottom: 9 }}>
       {children}{optional && <span style={{ fontWeight: 300, letterSpacing: "0.02em", textTransform: "none", color: T.text4 }}>— valfritt</span>}
     </label>
   );
 }
+// 16px, inte 0.92rem - annars zoomar Safari pa iOS in hela sidan nar
+// faltet far fokus och zoomar aldrig ut igen. Samma skal som i
+// uiLight och primitives.
 const fieldStyle: React.CSSProperties = {
   width: "100%", background: T.surface2, border: `1px solid ${T.line2}`, borderRadius: 10,
-  padding: "13px 15px", outline: "none", fontSize: "0.92rem", fontWeight: 300, color: T.text, fontFamily: sans, boxSizing: "border-box",
+  padding: "13px 15px", outline: "none", fontSize: "1rem", fontWeight: 300, color: T.text, fontFamily: sans, boxSizing: "border-box",
 };
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} style={{ ...fieldStyle, ...props.style }}
@@ -78,6 +81,7 @@ function Chip({ label, active, onClick }: { label: string; active?: boolean; onC
     <button type="button" onClick={onClick} className="mcx-focusable"
       style={{
         fontFamily: sans, fontSize: "0.8rem", fontWeight: active ? 500 : 400, padding: "7px 13px", borderRadius: 999,
+        minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", 
         cursor: onClick ? "pointer" : "default", transition: "all .18s",
         border: `1px solid ${active ? T.goldBorder : T.line2}`, background: active ? T.goldDim : "transparent",
         color: active ? T.goldBright : T.text3,
@@ -95,10 +99,10 @@ function PrimaryButton({ children, onClick, href, disabled }: { children: React.
   return <button onClick={onClick} disabled={disabled} style={st}>{children}</button>;
 }
 function GhostButton({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
-  return <button onClick={onClick} style={{ fontFamily: sans, fontSize: "0.82rem", fontWeight: 400, padding: "12px 20px", borderRadius: 10, background: "transparent", border: `1px solid ${T.line2}`, color: T.text2, cursor: "pointer" }}>{children}</button>;
+  return <button onClick={onClick} style={{ minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: sans, fontSize: "0.82rem", fontWeight: 400, padding: "12px 20px", borderRadius: 10, background: "transparent", border: `1px solid ${T.line2}`, color: T.text2, cursor: "pointer" }}>{children}</button>;
 }
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontFamily: sans, fontSize: "0.66rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: T.goldBright, marginBottom: 8 }}>{children}</div>;
+  return <div style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: T.goldBright, marginBottom: 8 }}>{children}</div>;
 }
 
 /* ── Fasindikator ────────────────────────────────────────────── */
@@ -116,7 +120,7 @@ function PhaseIndicator({ phase }: { phase: Phase }) {
         const done = i < activeIdx, active = i === activeIdx;
         return (
           <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999, background: active ? T.goldDim : "transparent", border: `1px solid ${active ? T.goldBorder : T.line}`, opacity: done || active ? 1 : 0.45 }}>
-            <span style={{ width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.62rem", fontWeight: 600, background: done ? T.goldDim : "transparent", border: `1px solid ${done || active ? T.goldBorder : T.line2}`, color: T.goldBright }}>{done ? "✓" : i + 1}</span>
+            <span style={{ width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 600, background: done ? T.goldDim : "transparent", border: `1px solid ${done || active ? T.goldBorder : T.line2}`, color: T.goldBright }}>{done ? "✓" : i + 1}</span>
             <span style={{ fontFamily: sans, fontSize: "0.76rem", fontWeight: active ? 500 : 400, color: active ? T.text : T.text3 }}>{s.label}</span>
           </div>
         );
@@ -273,7 +277,7 @@ export default function MarketingStrategistPage() {
 function Header({ companyName }: { companyName: string }) {
   return (
     <div style={{ marginBottom: 30 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: sans, fontSize: "0.66rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: T.goldBright }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: T.goldBright }}>
         <span style={{ width: 16, height: 1, background: T.goldBright, opacity: 0.6 }} />
         {companyName ? `${companyName} · Marketing Strategist` : "Marketing Strategist"}
       </div>
@@ -303,7 +307,7 @@ function BriefForm(p: {
         <TextInput value={p.product} onChange={(e) => p.setProduct(e.target.value)} placeholder="t.ex. Gasolbyte inför grillsäsongen" />
         {products.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-            <span style={{ fontFamily: sans, fontSize: "0.7rem", color: T.text4, alignSelf: "center" }}>Ur företagskunskapen:</span>
+            <span style={{ fontFamily: sans, fontSize: "0.75rem", color: T.text4, alignSelf: "center" }}>Ur företagskunskapen:</span>
             {products.slice(0, 6).map((pr) => <Chip key={pr.id} label={pr.name} onClick={() => p.setProduct(pr.name)} />)}
           </div>
         )}
@@ -318,7 +322,7 @@ function BriefForm(p: {
               <button key={g.id} type="button" onClick={() => p.setGoalKey(g.id)} aria-pressed={active} className="mcx-focusable"
                 style={{ textAlign: "left", padding: "12px 14px", borderRadius: 11, cursor: "pointer", background: active ? T.goldDim : T.surface, border: `1px solid ${active ? T.goldBorder : T.line}` }}>
                 <div style={{ fontFamily: sans, fontSize: "0.85rem", fontWeight: 500, color: active ? T.text : T.text2 }}>{g.title}</div>
-                <div style={{ fontFamily: sans, fontSize: "0.72rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{g.hint}</div>
+                <div style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{g.hint}</div>
               </button>
             );
           })}
@@ -366,7 +370,7 @@ function AnalyzingPanel({ title }: { title: string }) {
     <div className="fade-up" style={{ maxWidth: 460, paddingTop: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.goldBright, animation: "pulseDot 1.4s ease infinite" }} />
-        <span style={{ fontFamily: sans, fontSize: "0.7rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: T.goldBright }}>{title}</span>
+        <span style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: T.goldBright }}>{title}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {dims.map((d) => (
@@ -469,12 +473,12 @@ function ResultView({ strategy, savedStrategyId, onAdjust, onRestart }: {
       <div style={{ padding: "22px 22px", borderRadius: 16, background: `linear-gradient(160deg, ${T.goldDim}, ${T.surface})`, border: `1px solid ${T.goldBorder}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
           <SectionLabel>Rekommenderad riktning</SectionLabel>
-          <span style={{ fontFamily: sans, fontSize: "0.7rem", fontWeight: 500, color: conf.c }}>● {conf.t}</span>
+          <span style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, color: conf.c }}>● {conf.t}</span>
         </div>
         <p style={{ fontFamily: serif, fontWeight: 400, fontSize: "clamp(1.35rem,3.4vw,1.8rem)", lineHeight: 1.28, color: T.text, letterSpacing: "-0.01em" }}>{a.recommendedFocus}</p>
         {a.rationale.length > 0 && (
           <div style={{ marginTop: 16 }}>
-            <div style={{ fontFamily: sans, fontSize: "0.66rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, marginBottom: 8 }}>Varför</div>
+            <div style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.text3, marginBottom: 8 }}>Varför</div>
             <List items={a.rationale} />
           </div>
         )}
@@ -526,7 +530,7 @@ function ResultView({ strategy, savedStrategyId, onAdjust, onRestart }: {
       </div>
 
       {strategy.companyBrainReferences.length > 0 && (
-        <p style={{ fontFamily: sans, fontSize: "0.74rem", fontWeight: 300, color: T.text4, lineHeight: 1.6 }}>
+        <p style={{ fontFamily: sans, fontSize: "0.75rem", fontWeight: 300, color: T.text4, lineHeight: 1.6 }}>
           Byggt på företagskunskap: {strategy.companyBrainReferences.join(" · ")}
         </p>
       )}

@@ -7,12 +7,17 @@
 // Shell.tsx lämnas orörd — sidor migreras en i taget, inte i ett svep.
 //
 // Mobil är huvudfallet: sidomenyn är dold under lg och ersätts av en
-// fast tabbrad i botten med 44px träffyta.
+// fast tabbrad i botten.
 //
-// Desktop visar alla åtta ytor. Mobilens bottenrad visar de fem du är
-// i varje vecka — Campaign Builder, Kampanjer och Historik hör till
-// desktop, där sidomenyn har plats och ändå scrollar internt. Att
-// klämma in åtta träffytor på 400px skulle göra alla åtta sämre.
+// Bottenraden hade tidigare fem sidor och inget mer, vilket gjorde
+// Kampanjbyggaren, Historik och Kampanjer OÅTKOMLIGA på telefon — inte
+// undangömda, utan omöjliga att nå, eftersom ingen annan sida länkar
+// dit. En mätning på 390px bekräftade det: de sju posterna fanns bara i
+// <aside>, som är hidden under lg.
+//
+// Nu är femte platsen "Mer", som öppnar en panel underifrån med resten.
+// Fyra sidor man är i varje vecka ligger kvar direkt i raden; det man
+// gör då och då ligger ett tryck bort. Ingen yta saknar väg.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -22,7 +27,7 @@ import { clearAppStorage } from "./appStorage";
 import { cx } from "./primitives";
 import {
   IconToday, IconContent, IconCompany, IconPencil, IconSparkle,
-  IconBuilder, IconHistory, IconLogout,
+  IconBuilder, IconHistory, IconLogout, IconCampaigns, IconMenu, IconClose,
 } from "./icons";
 
 interface Item {
@@ -38,18 +43,30 @@ const ITEMS: Item[] = [
   { href: "/produkttexter", label: "Produkttexter", icon: IconPencil },
   { href: "/content/facebook", label: "Facebook", icon: IconSparkle },
   { href: "/campaign-builder", label: "Kampanjbyggaren", icon: IconBuilder },
-  // /campaigns har ingen egen post: dess kampanjforslag visas redan under
-  // Innehall, och resten av sidan ar ett tomläge for en funktion som inte
-  // finns. Sidan ligger kvar och nas fran Historik.
   { href: "/history", label: "Historik", icon: IconHistory },
   { href: "/company", label: "Vad jag vet", icon: IconCompany },
 ];
 
-/** De fem som får plats i mobilens bottenrad. Resten nås från Idag. */
-const MOBILE_HREFS = ["/dashboard", "/innehall", "/produkttexter", "/content/facebook", "/company"];
+/** De fyra man är i varje vecka. Femte platsen i raden är "Mer". */
+const MOBILE_HREFS = ["/dashboard", "/innehall", "/produkttexter", "/content/facebook"];
 const MOBILE_ITEMS: Item[] = MOBILE_HREFS.map(
   (href) => ITEMS.find((i) => i.href === href)!,
 );
+
+/**
+ * Vad som ligger bakom "Mer".
+ *
+ * /campaigns har ingen post i desktopmenyn — dess kampanjförslag visas
+ * redan under Innehåll — men sidan finns och nåddes tidigare BARA via
+ * en länk på Historik. Var Historik oåtkomlig var Kampanjer det också.
+ * Därför står den med här, med egen rad.
+ */
+const MER_ITEMS: Item[] = [
+  ITEMS.find((i) => i.href === "/campaign-builder")!,
+  ITEMS.find((i) => i.href === "/history")!,
+  { href: "/campaigns", label: "Kampanjer", icon: IconCampaigns },
+  ITEMS.find((i) => i.href === "/company")!,
+];
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
@@ -59,6 +76,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [merOppen, setMerOppen] = useState(false);
 
   // Utloggningen satt i gamla Shell.tsx. Den flyttade hit med den, inte
   // bort: appstadningen fore auth.signOut() sa en delad dator aldrig
@@ -76,6 +94,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       .catch(() => { /* namnet är kosmetiskt — visa inget hellre än ett fel */ });
     return () => { cancelled = true; };
   }, []);
+
+  // Escape stänger. Utan det är en panel utan synlig stängknapp en fälla
+  // för den som navigerar med tangentbord.
+  useEffect(() => {
+    if (!merOppen) return;
+    const vidTangent = (e: KeyboardEvent) => { if (e.key === "Escape") setMerOppen(false); };
+    document.addEventListener("keydown", vidTangent);
+    return () => document.removeEventListener("keydown", vidTangent);
+  }, [merOppen]);
+
+  const merAktiv = MER_ITEMS.some((i) => isActive(pathname, i.href));
 
   return (
     <div className="app-light min-h-svh bg-background font-sans text-text-primary">
@@ -130,24 +159,86 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
+      {/* Utloggningen satt tidigare här uppe, eftersom bottenraden var
+          full. Nu bor den i Mer-panelen tillsammans med resten. */}
       <header className="sticky top-0 z-20 flex h-14 items-center gap-2.5 border-b border-border bg-surface-sunken px-4 lg:hidden">
         <span className="flex h-7 w-7 items-center justify-center rounded bg-primary text-sm font-medium text-white">
           M
         </span>
         <span className="text-sm font-medium">Marketing Copilot</span>
-        {/* Mobilens bottenrad ar full av navigering, sa utloggningen far
-            plats har i stallet. Den maste finnas nagonstans pa mobil. */}
-        <button
-          type="button"
-          onClick={signOut}
-          aria-label="Logga ut"
-          className="ml-auto flex h-10 w-10 items-center justify-center rounded text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
-        >
-          <IconLogout size={18} />
-        </button>
       </header>
 
       <main className="pb-20 lg:ml-56 lg:pb-0">{children}</main>
+
+      {/* ── Mer-panelen ──────────────────────────────────────────
+          Ligger över bottenraden, inte bredvid den: panelen är svaret
+          på trycket i raden, så den ska täcka den. */}
+      {merOppen && (
+        <>
+          <button
+            type="button"
+            aria-label="Stäng menyn"
+            onClick={() => setMerOppen(false)}
+            className="fixed inset-0 z-40 bg-text-primary/30 lg:hidden"
+          />
+          <div
+            id="mer-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mer i menyn"
+            className="fixed inset-x-0 bottom-0 z-50 rounded-t-xl border-t border-border bg-surface pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden"
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <p className="text-sm font-medium">Mer</p>
+              <button
+                type="button"
+                onClick={() => setMerOppen(false)}
+                aria-label="Stäng menyn"
+                className="flex h-11 w-11 items-center justify-center rounded text-text-secondary transition-colors hover:bg-surface-sunken hover:text-text-primary"
+              >
+                <IconClose size={18} />
+              </button>
+            </div>
+
+            <nav className="px-2 py-2">
+              {MER_ITEMS.map(({ href, label, icon: Icon }) => {
+                const on = isActive(pathname, href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    aria-current={on ? "page" : undefined}
+                    onClick={() => setMerOppen(false)}
+                    className={cx(
+                      "flex min-h-11 items-center gap-3 rounded px-3 py-3 text-sm transition-colors",
+                      on
+                        ? "bg-surface-sunken font-medium text-primary"
+                        : "text-text-primary hover:bg-surface-sunken",
+                    )}
+                  >
+                    <Icon size={18} />
+                    {label}
+                  </Link>
+                );
+              })}
+
+              <div className="mt-2 border-t border-border pt-2">
+                {email && (
+                  <p className="truncate px-3 pb-1 text-xs text-text-tertiary">{email}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="flex min-h-11 w-full items-center gap-3 rounded px-3 py-3 text-sm text-text-secondary transition-colors hover:bg-surface-sunken hover:text-text-primary"
+                >
+                  <IconLogout size={18} />
+                  Logga ut
+                </button>
+              </div>
+            </nav>
+          </div>
+        </>
+      )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-surface-sunken lg:hidden">
         {MOBILE_ITEMS.map(({ href, label, icon: Icon }) => {
@@ -167,6 +258,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
+
+        <button
+          type="button"
+          onClick={() => setMerOppen((v) => !v)}
+          aria-expanded={merOppen}
+          aria-controls="mer-panel"
+          className={cx(
+            "flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 text-[11px] transition-colors",
+            merOppen || merAktiv ? "font-medium text-primary" : "text-text-tertiary",
+          )}
+        >
+          <IconMenu size={19} />
+          Mer
+        </button>
       </nav>
     </div>
   );

@@ -12,8 +12,9 @@
 import { useMemo, useRef, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
 import {
-  Button, Card, Textarea, Field, Chip, Alert, EmptyState, cx,
+  Button, Card, Field, Chip, Alert, EmptyState, cx,
 } from "@/app/_shared/primitives";
+import { Textarea } from "@/app/_shared/Textarea";
 import {
   parseCsv, toCsv, guessColumns, checkIdColumn, isThin, textLength, THIN_LIMIT,
   type Row, type ColumnGuess,

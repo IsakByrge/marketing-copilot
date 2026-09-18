@@ -14,8 +14,9 @@
 import { useState, type ReactNode } from "react";
 import AppShell from "@/app/_shared/AppShell";
 import {
-  Button, ButtonLink, Card, Input, Textarea, Chip, Alert, EmptyState, Skeleton,
+  Button, ButtonLink, Card, Input, Chip, Alert, EmptyState, Skeleton,
 } from "@/app/_shared/primitives";
+import { Textarea } from "@/app/_shared/Textarea";
 import { useCompanyBrain, type SaveStatus } from "@/app/_shared/useCompanyBrain";
 import {
   computeCompleteness, topKnowledgeGaps, newManualProduct, newBrainId,
