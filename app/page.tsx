@@ -1,61 +1,37 @@
 // ─────────────────────────────────────────────────────────────
-// Landningssidan, i appens eget system: papperston, emerald, sans.
+// Landningssidan.
 //
-// En rubrik, en mening, en knapp. Rubriken beskriver resultatet —
-// att veckans texter redan är skrivna — inte tekniken bakom. Ingen
-// besökare köper "AI", de köper att slippa skriva.
+// Den tidigare versionen var en rubrik, en mening, en knapp och en
+// stiliserad Idag-vy. Den beskrev gränssnittet, inte vad man får.
 //
-// Bilden under är en STILISERING av Idag-vyn, byggd av samma
-// primitiver som den riktiga sidan. Den är märkt "Exempel" och
-// innehåller påhittat företagsinnehåll med flit: en skärmdump med
-// riktig kunddata hör inte hemma på en publik sida.
+// Nu tre sektioner: vad du får (med ett riktigt satt exempelinlägg som
+// byter bransch), hur det går till i tre steg, och en avslutande rad.
+// Exempelkortet är samma komponent som inloggningsflödet visar, så en
+// besökare möter samma sak före och under inloggning.
 //
-// Inga siffror, inga påståenden om resultat. Se VISION.md.
+// Inga gradienter, ingen glöd, inga ikoner, inga emoji. Inga siffror om
+// resultat och inga kundcitat — det finns inget underlag för vare sig
+// det ena eller det andra. Se VISION.md.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
-import { Button, ButtonLink, Card, Chip } from "@/app/_shared/primitives";
+import { ButtonLink, Chip } from "@/app/_shared/primitives";
+import { ExempelRotator } from "@/app/_shared/ExempelInlagg";
 
-/** Stiliserad Idag-vy. Samma struktur och primitiver som /dashboard. */
-function IdagExempel() {
-  return (
-    <div
-      aria-label="Exempel på hur Idag-vyn ser ut"
-      className="rounded-lg border border-border bg-background p-5 sm:p-8"
-    >
-      <header className="mb-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-          Veckans förslag
-        </p>
-        <h3 className="mt-3 max-w-lg text-[clamp(1.15rem,2.4vw,1.4rem)] font-semibold leading-[1.3] tracking-tight">
-          Den här veckan lyfter vi det ni är bäst på, innan kunderna hinner fråga efter det.
-        </h3>
-        <p className="mt-3 max-w-md text-[15px] leading-relaxed text-text-secondary">
-          Jag utgår från det du berättat om företaget, era kunder och vad de brukar undra över.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Button size="sm" disabled>Se innehållet</Button>
-          <Button size="sm" variant="secondary" disabled>Nytt förslag</Button>
-        </div>
-      </header>
-
-      <h4 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-        Klart att använda
-      </h4>
-      <div className="space-y-2.5">
-        {[
-          { title: "Fem inlägg till sociala medier", body: "Skrivna i ditt tonläge, redo att klistra in." },
-          { title: "Ett nyhetsbrev", body: "Ämnesrad, brödtext och avslutning." },
-          { title: "Två kampanjförslag", body: "Utkast att ta ställning till, inte startade kampanjer." },
-        ].map((r) => (
-          <Card key={r.title} padding="sm">
-            <p className="font-medium">{r.title}</p>
-            <p className="mt-1 text-sm leading-relaxed text-text-secondary">{r.body}</p>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
+/** De tre stegen. Siffror och text, inga ikoner. */
+const STEG = [
+  {
+    rubrik: "Berätta om företaget en gång",
+    text: "Vad ni säljer, vilka som köper och hur ni låter. Det gör du en gång, sedan ligger det kvar.",
+  },
+  {
+    rubrik: "Få veckans texter varje måndag",
+    text: "Fem inlägg, ett nyhetsbrev och ett par kampanjförslag, satta efter säsong och vad du vill sälja just nu.",
+  },
+  {
+    rubrik: "Ändra det du vill och publicera",
+    text: "Texterna går att använda som de är. Skriver du om något lär sig verktyget hur du uttrycker dig.",
+  },
+];
 
 export default function Home() {
   return (
@@ -80,29 +56,61 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-16 sm:px-6 lg:px-10 lg:py-24">
-        <h1 className="max-w-3xl text-[clamp(2rem,5vw,3.25rem)] font-semibold leading-[1.1] tracking-tight">
-          Veckans marknadsföring är redan skriven.
-        </h1>
-        <p className="mt-5 max-w-xl text-lg leading-relaxed text-text-secondary">
-          Varje måndag ligger inläggen, nyhetsbrevet och kampanjförslagen färdiga —
-          skrivna utifrån vad ditt företag gör och vilka kunderna är.
-        </p>
-        <div className="mt-8">
-          <ButtonLink href="/login?mode=signup">Kom igång</ButtonLink>
-        </div>
+      <main className="flex-1">
+        {/* ── Hjälte ──────────────────────────────────────────── */}
+        <section className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 lg:px-10 lg:py-20">
+          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+            <div>
+              <h1 className="max-w-xl text-[clamp(2rem,4.6vw,3rem)] font-semibold leading-[1.1] tracking-tight">
+                Fem inlägg och ett nyhetsbrev, varje måndag.
+              </h1>
+              <p className="mt-5 max-w-lg text-lg leading-relaxed text-text-secondary">
+                Skrivna utifrån vad ditt företag gör och vilka kunderna är. Du ändrar det du vill
+                och publicerar.
+              </p>
+              <div className="mt-8">
+                <ButtonLink href="/login?mode=signup">Kom igång</ButtonLink>
+              </div>
+            </div>
 
-        <section className="mt-20 lg:mt-28">
-          <div className="mb-4 flex items-center gap-3">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-              Så ser det ut
-            </h2>
-            <Chip>Exempel</Chip>
+            <div>
+              <div className="mb-3 flex items-center gap-3">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+                  Ett inlägg ur veckan
+                </h2>
+                <Chip>Exempel</Chip>
+              </div>
+              <ExempelRotator />
+            </div>
           </div>
-          <IdagExempel />
-          <p className="mt-3 text-sm text-text-tertiary">
-            Påhittat innehåll. Ditt eget bygger på dina svar.
-          </p>
+        </section>
+
+        {/* ── Så fungerar det ─────────────────────────────────── */}
+        <section className="border-t border-border bg-surface-sunken">
+          <div className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 lg:px-10 lg:py-20">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+              Så fungerar det
+            </h2>
+            <ol className="mt-8 grid gap-8 sm:grid-cols-3 sm:gap-10">
+              {STEG.map((s, i) => (
+                <li key={s.rubrik}>
+                  <span className="text-sm font-semibold text-primary">{i + 1}</span>
+                  <h3 className="mt-2 text-[17px] font-medium leading-snug">{s.rubrik}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-text-secondary">{s.text}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        {/* ── Avslut ──────────────────────────────────────────── */}
+        <section className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 lg:px-10 lg:py-20">
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <p className="max-w-xl text-lg leading-relaxed">
+              Nästa måndag kan veckans texter ligga färdiga.
+            </p>
+            <ButtonLink href="/login?mode=signup">Kom igång</ButtonLink>
+          </div>
         </section>
       </main>
 
