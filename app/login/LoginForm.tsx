@@ -192,7 +192,7 @@ export default function LoginForm() {
               <button
                 type="button"
                 onClick={() => byt("forgot")}
-                className="cursor-pointer text-text-secondary underline underline-offset-2 hover:text-text-primary"
+                className="inline-flex min-h-11 cursor-pointer items-center text-text-secondary underline underline-offset-2 hover:text-text-primary sm:min-h-0"
               >
                 Glömt lösenord?
               </button>
@@ -206,7 +206,7 @@ export default function LoginForm() {
             <button
               type="button"
               onClick={() => byt(mode === "login" ? "signup" : "login")}
-              className="cursor-pointer font-medium text-primary underline underline-offset-2"
+              className="inline-flex min-h-11 cursor-pointer items-center font-medium text-primary underline underline-offset-2 sm:min-h-0"
             >
               {mode === "login" ? "Skapa ett" : "Logga in"}
             </button>
@@ -215,7 +215,7 @@ export default function LoginForm() {
       )}
 
       <p className="mt-10 text-center text-sm">
-        <Link href="/" className="text-text-tertiary underline underline-offset-2 hover:text-text-secondary">
+        <Link href="/" className="inline-flex min-h-11 items-center text-text-tertiary underline underline-offset-2 hover:text-text-secondary sm:min-h-0">
           Till startsidan
         </Link>
       </p>

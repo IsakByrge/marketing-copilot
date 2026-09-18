@@ -28,7 +28,7 @@ export default function HistoryPage() {
 
         {/* /campaigns har ingen egen menypost langre. Det har ar vagen dit. */}
         <p style={{ fontFamily: fontSans, fontSize: "0.85rem", color: T.text3, marginTop: -24, marginBottom: 32 }}>
-          <Link href="/campaigns" style={{ color: T.text2, textDecoration: "underline", textUnderlineOffset: 3 }}>
+          <Link href="/campaigns" style={{ color: T.text2, textDecoration: "underline", textUnderlineOffset: 3, display: "inline-flex", alignItems: "center", minHeight: 44 }}>
             Se kampanjförslagen samlade
           </Link>
         </p>
@@ -49,7 +49,7 @@ export default function HistoryPage() {
           <div style={{ borderTop: `1px solid ${T.line}` }}>
             {history.map((entry) => (
               <div key={entry.id} style={{ display: "flex", gap: 20, padding: "20px 4px", borderBottom: `1px solid ${T.line}`, alignItems: "flex-start" }}>
-                <span style={{ fontFamily: fontSans, fontSize: "0.72rem", fontWeight: 400, color: T.text4, flexShrink: 0, width: 148, paddingTop: 3 }}>
+                <span style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 400, color: T.text4, flexShrink: 0, width: 148, paddingTop: 3 }}>
                   {formatDate(entry.createdAt)}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -57,14 +57,14 @@ export default function HistoryPage() {
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {entry.tags.slice(0, 4).map((tag, i) => (
                       <span key={i} style={{
-                        fontFamily: fontSans, fontSize: "0.68rem", fontWeight: 400, color: T.text3,
+                        fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 400, color: T.text3,
                         background: T.surface2, border: `1px solid ${T.line}`, borderRadius: 999, padding: "3px 10px",
                       }}>
                         {tag}
                       </span>
                     ))}
                   </div>
-                  <p style={{ fontFamily: fontSans, fontSize: "0.74rem", fontWeight: 300, color: T.text4, marginTop: 8 }}>
+                  <p style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 300, color: T.text4, marginTop: 8 }}>
                     {entry.postCount} inlägg · {entry.campaignCount} kampanjförslag
                   </p>
                 </div>

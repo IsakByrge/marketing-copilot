@@ -73,7 +73,7 @@ export default function Home() {
           </span>
           <Link
             href="/login"
-            className="rounded px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+            className="inline-flex min-h-11 items-center rounded px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-surface hover:text-text-primary sm:min-h-0"
           >
             Logga in
           </Link>

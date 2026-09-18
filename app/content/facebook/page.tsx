@@ -86,6 +86,7 @@ function Segmented<V extends string>({ value, onChange, options }: {
             style={{
               fontFamily: fontSans, fontSize: "0.82rem", fontWeight: active ? 500 : 400,
               padding: "8px 14px", borderRadius: 9, cursor: "pointer", transition,
+              minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", 
               border: `1px solid ${active ? T.purpleBorder : "transparent"}`,
               background: active ? T.purpleDim : "transparent",
               color: active ? T.text : T.text3,
@@ -104,6 +105,7 @@ function Chip({ label, active, onClick }: { label: string; active?: boolean; onC
       style={{
         fontFamily: fontSans, fontSize: "0.8rem", fontWeight: active ? 500 : 400,
         padding: "7px 13px", borderRadius: 999, cursor: onClick ? "pointer" : "default", transition,
+        minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", 
         border: `1px solid ${active ? T.purpleBorder : T.line2}`,
         background: active ? T.purpleDim : "transparent",
         color: active ? T.purpleBright : T.text3,
@@ -117,7 +119,7 @@ function KnownChips({ label, items }: { label: string; items: string[] }) {
   if (!items.length) return null;
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontFamily: fontSans, fontSize: "0.7rem", fontWeight: 400, color: T.text4, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 400, color: T.text4, marginBottom: 6 }}>{label}</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {items.map((it, i) => <Chip key={i} label={it} />)}
       </div>
@@ -356,7 +358,7 @@ export default function FacebookSpecialistPage() {
               <div style={{ padding: "18px 20px", borderRadius: 14, background: T.purpleDim, border: `1px solid ${T.purpleBorder}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, color: T.purpleBright }}>
                   <IconSparkle size={15} />
-                  <span style={{ fontFamily: fontSans, fontSize: "0.7rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>En sak till</span>
+                  <span style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>En sak till</span>
                 </div>
                 <p style={{ fontFamily: fontSans, fontSize: "0.95rem", fontWeight: 300, color: T.text, lineHeight: 1.6 }}>{followUp.question}</p>
               </div>
@@ -378,7 +380,7 @@ export default function FacebookSpecialistPage() {
                         border: `1px solid ${active ? T.purpleBorder : T.line}`,
                       }}>
                       <div style={{ fontFamily: fontSans, fontSize: "0.85rem", fontWeight: 500, color: active ? T.text : T.text2 }}>{o.label}</div>
-                      <div style={{ fontFamily: fontSans, fontSize: "0.73rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{o.hint}</div>
+                      <div style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{o.hint}</div>
                     </button>
                   );
                 })}
@@ -440,12 +442,12 @@ export default function FacebookSpecialistPage() {
                     <div style={{ marginTop: 16, padding: "16px 18px", borderRadius: 12, background: T.surface, border: `1px solid ${T.line}` }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: T.purpleBright }}>
                         <IconContent size={14} />
-                        <span style={{ fontFamily: fontSans, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>Redan känt om {selectedProduct.name}</span>
+                        <span style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>Redan känt om {selectedProduct.name}</span>
                       </div>
                       <KnownChips label="Differentiering" items={selectedProduct.differentiators} />
                       <KnownChips label="Vanliga invändningar" items={selectedProduct.commonObjections} />
                       {selectedProduct.seasonality && <KnownChips label="Säsong" items={[selectedProduct.seasonality]} />}
-                      <p style={{ fontFamily: fontSans, fontSize: "0.73rem", fontWeight: 300, color: T.text4, marginTop: 6 }}>
+                      <p style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 300, color: T.text4, marginTop: 6 }}>
                         Det här används automatiskt. Justeringar nedan gäller bara det här inlägget — företagskunskapen ändras inte.
                       </p>
                     </div>
@@ -512,7 +514,7 @@ export default function FacebookSpecialistPage() {
                       border: `1px solid ${length === o.value ? T.purpleBorder : T.line}`,
                     }}>
                     <div style={{ fontFamily: fontSans, fontSize: "0.85rem", fontWeight: 500, color: length === o.value ? T.text : T.text2 }}>{o.label}</div>
-                    <div style={{ fontFamily: fontSans, fontSize: "0.72rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{o.hint}</div>
+                    <div style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{o.hint}</div>
                   </button>
                 ))}
               </div>
@@ -575,7 +577,7 @@ const USER_STATUS_MAP: Record<FacebookUserStatus, { c: string; bg: string; t: st
 function StatusBadge({ status }: { status: FacebookUserStatus }) {
   const map = USER_STATUS_MAP[status];
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, background: map.bg, border: `1px solid ${map.c}44`, color: map.c, fontFamily: fontSans, fontSize: "0.74rem", fontWeight: 500 }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, background: map.bg, border: `1px solid ${map.c}44`, color: map.c, fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500 }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: map.c }} /> {map.t}
     </span>
   );
@@ -610,9 +612,9 @@ function FacebookPreview({ companyName, text, imageBrief, edited }: {
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: fontSans, fontSize: "0.9rem", fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {companyName || "Ditt företag"}
-            {edited && <span style={{ marginLeft: 8, fontSize: "0.68rem", fontWeight: 400, color: T.orange }}>✎ redigerad</span>}
+            {edited && <span style={{ marginLeft: 8, fontSize: "0.75rem", fontWeight: 400, color: T.orange }}>✎ redigerad</span>}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: fontSans, fontSize: "0.72rem", color: T.text3 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: fontSans, fontSize: "0.75rem", color: T.text3 }}>
             Just nu · <span aria-hidden>🌐</span>
           </div>
         </div>
@@ -651,7 +653,7 @@ function VariantCard({ v }: { v: FacebookPostVariant }) {
   return (
     <div style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 14, padding: "18px 20px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 10 }}>
-        <span style={{ fontFamily: fontSans, fontSize: "0.7rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.purpleBright }}>{v.angle}</span>
+        <span style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.purpleBright }}>{v.angle}</span>
         <CopyButton getText={() => `${v.postText}\n\n${v.callToAction}${v.hashtags.length ? "\n\n" + v.hashtags.map((h) => "#" + h).join(" ") : ""}`} variant="ghost" label="Kopiera" />
       </div>
       <p style={{ fontFamily: fontSans, fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.7, whiteSpace: "pre-line" }}>{v.postText}</p>
@@ -846,7 +848,7 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <SectionLabel>Kvalitetskontroll</SectionLabel>
           <StatusBadge status={result.qualityReview.userStatus} />
-          <span style={{ fontFamily: fontSans, fontSize: "0.7rem", color: T.text4 }}>internt {result.qualityReview.overallScore}/100</span>
+          <span style={{ fontFamily: fontSans, fontSize: "0.75rem", color: T.text4 }}>internt {result.qualityReview.overallScore}/100</span>
         </div>
         {result.qualityReview.statusReason && (
           <p style={{ fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 300, color: T.text2, lineHeight: 1.6, margin: "10px 0 0", maxWidth: 620 }}>{result.qualityReview.statusReason}</p>
@@ -901,7 +903,7 @@ function BriefRow({ label, value }: { label: string; value: string }) {
   if (!value) return null;
   return (
     <div style={{ display: "flex", gap: 12 }}>
-      <span style={{ flexShrink: 0, width: 96, fontFamily: fontSans, fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", color: T.text4, paddingTop: 2 }}>{label}</span>
+      <span style={{ flexShrink: 0, width: 96, fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", color: T.text4, paddingTop: 2 }}>{label}</span>
       <span style={{ fontFamily: fontSans, fontSize: "0.86rem", fontWeight: 300, color: T.text2, lineHeight: 1.6 }}>{value}</span>
     </div>
   );
