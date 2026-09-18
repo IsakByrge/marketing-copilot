@@ -211,6 +211,33 @@ det. "Inför vintern tar många med sig utrustningen till oss" fungerar.
 "Personalen hjälper dig när du kommer förbi" fungerar. Hänvisa till
 personalen, till tillverkarens anvisningar och till gällande regler.
 
+ALDRIG "ENKELT ATT INSTALLERA" ELLER "ENKELT ATT ANSLUTA":
+Skriv aldrig att något är enkelt, smidigt, snabbt eller problemfritt att
+installera, montera, ansluta, koppla in, byta eller komma igång med.
+Inte "enkel att ansluta", inte "kopplas in på några sekunder", inte
+"installationen sköter du själv", inte "smidigt att montera".
+Det är två fel i ett: vi vet inte hur svårt det är i kundens uppställning,
+och ett påstående om att något är enkelt är en uppmaning att göra det
+själv. Att tjänsten eller köpet är enkelt får du däremot skriva —
+påfyllning, beställning och besök i depån är vårt eget arbete.
+
+ANVÄNDNINGSPLATSER STÅR UNDER PRODUKTEN ELLER NÄMNS INTE:
+Nämn bara de sammanhang och platser en produkt används i som faktiskt
+står under just den produkten i företagsdatan — i produktens namn,
+beskrivning eller "Skiljer sig genom". Står det husbil och grill
+skriver du husbil och grill — inte balkong, båt, växthus, altan,
+jaktstuga, inomhus eller verkstad. En plausibel användning är fortfarande
+ett påhittat faktum, och listan är också en avgränsning av var
+utrustningen är avsedd att användas.
+
+MILJÖPÅSTÅENDEN KRÄVER UNDERLAG:
+Skriv aldrig att något är miljövänligt, klimatsmart, hållbart, grönt,
+förnybart, koldioxidneutralt, "ett bättre val för miljön" eller att det
+minskar utsläpp, om inte företagsdatan säger just det. Gasol är ett
+fossilt bränsle och ett obelagt miljöpåstående är vilseledande
+marknadsföring. Att något minskar SPILL eller sänker KOSTNADEN är en
+ekonomisk fördel och får skrivas som det — utan att växlas upp till en
+miljöfördel.
 KONKURRERANDE LÖSNINGAR:
 Nämn aldrig en konkurrerande lösning positivt — inte vedkamin,
 elvärme, värmefläkt, pelletsbrännare eller motsvarande i andra

@@ -229,6 +229,17 @@ Exakt ett inlägg per roll, i den här ordningen:
    inlägget allmänt om närområdet utan att nämna någon ort alls.
 5. "socialt" — ställer en fråga eller bjuder in till ett samtal. Inga
    tävlingar, inga utlottningar, inget som kräver bilder vi inte har.
+   Fråga ALDRIG följarna om tips, knep eller erfarenheter som rör
+   användning, hantering, förvaring eller besparing av gasol. "Vad är
+   ditt bästa gasoltips?", "Hur får du gasolen att räcka längre?" och
+   "Dela dina bästa knep i kommentarerna" är förbjudna — svaren blir
+   säkerhetsråd från okända avsändare under vårt namn, och vi kan inte
+   stå för dem. Be inte heller om att få höra HUR någon använder sin
+   gasol.
+   Fråga i stället om det gasolen används TILL: favoritreceptet på
+   grillen, bästa stället att campa, vad man lagar när det blir kallt,
+   vilken årstid som är bäst utomhus. Matlagning, resmål, sällskap och
+   årstider går bra. Utrustningen gör det inte.
 
 LÄNGD OCH SUBSTANS — LÄS DET HÄR NOGA:
 Skrivreglerna ovan säger "hellre kort än utfyllt". Det betyder INGA
@@ -286,7 +297,7 @@ Returnera exakt denna JSON:
     { "roll": "tips", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "text": "MINST 60 ord praktisk kunskap. Lovar rubriken en lista ska listan stå här.", "title": "Rubrik", "cta": "Uppmaning", "image": "Bildidé" },
     { "roll": "prioriterad_produkt", "dag": "annan dag", "produkt": "den högst prioriterade produkten i säsong", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord om just den produkten. MÅSTE innehålla produktens Skiljer sig genom, ordagrant eller nästan ordagrant — inte en generisk fördel. SISTA RADEN ska vara adressen dit man köper.", "cta": "Uppmaning", "image": "Bildidé" },
     { "roll": "lokalt", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord med lokal förankring", "cta": "Uppmaning", "image": "Bildidé" },
-    { "roll": "socialt", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord som bjuder in till samtal", "cta": "Uppmaning", "image": "Bildidé" }
+    { "roll": "socialt", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord som bjuder in till samtal om vad gasolen används TILL - mat, resor, sällskap, årstider. Aldrig en fråga om tips, knep eller hantering.", "cta": "Uppmaning", "image": "Bildidé" }
   ],
   "newsletter": {
     "subject": "Ämnesrad max 50 tecken",

@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import {
   hittaPlatshallare, beskrivSaknat, saknatIText,
   normaliseraDag, antalStycken, delaIStycken,
-  sakerhetsordIText, arSakerhetsrad, valideraPlan,
+  sakerhetsordIText, granskningsordIText, arSakerhetsrad, valideraPlan,
   kopLank, infoLank, valjLank, arBesoksuppmaning, sattLank, utanUtropstecken,
 } from "./planValidate";
 
@@ -55,7 +55,7 @@ test("vanlig text om produkten ar fortfarande inte ett rad", () => {
   }
 });
 
-test("varje ord i listan fångas för sig", () => {
+test("varje ord i listan kanns igen som omnamnande", () => {
   const prov: Array<[string, string]> = [
     ["slang", "Vi säljer slang i flera längder."],
     ["regulator", "En ny regulator finns i shoppen."],
@@ -66,7 +66,20 @@ test("varje ord i listan fångas för sig", () => {
   ];
   for (const [ord, mening] of prov) {
     assert.ok(sakerhetsordIText(mening).includes(ord), `${ord} missades i: ${mening}`);
+    // ... men inget av dem ska FLAGGA, eftersom ingen handling finns.
+    assert.deepEqual(granskningsordIText(mening), [], `falsk flagga: ${mening}`);
   }
+});
+
+test("handling i en ANNAN mening flaggar inte", () => {
+  // Det var det har som gav larm pa varenda inlagg: orden lag i samma
+  // text men inte i samma mening, och hade inget med varandra att gora.
+  const text = "Vi säljer gasolflaskor i flera storlekar. Kom förbi depån så hjälper vi dig placera din beställning.";
+  assert.deepEqual(granskningsordIText(text), []);
+});
+
+test("handling i SAMMA mening flaggar", () => {
+  assert.deepEqual(granskningsordIText("Placera gasolflaskan svalt."), ["gasolflask"]);
 });
 
 test("vanlig säljtext utan utrustning flaggas inte", () => {
@@ -74,12 +87,11 @@ test("vanlig säljtext utan utrustning flaggas inte", () => {
   assert.equal(arSakerhetsrad("Kom förbi depån i Norrköping."), false);
 });
 
-test("utrustning utan handling är inte ett råd, men flaggas för granskning", () => {
-  // Att nämna en slang som produkt ska synas i gränssnittet, men det är
-  // inte samma sak som att instruera någon att göra något med den.
+test("utrustning utan handling ar varken rad eller flagga", () => {
   const mening = "Vi har slang och regulator i sortimentet.";
-  assert.ok(sakerhetsordIText(mening).length > 0);
+  assert.ok(sakerhetsordIText(mening).length > 0, "ska synas som omnamnande");
   assert.equal(arSakerhetsrad(mening), false);
+  assert.deepEqual(granskningsordIText(mening), []);
 });
 
 test("valideraPlan märker inlägget med granskas", () => {
