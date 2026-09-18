@@ -6,7 +6,9 @@
 // rate limit per användare, Company Brain hämtas server-side, servern
 // äger hela prompten, svaret valideras, användningen loggas.
 //
-// Klienten skickar { products: [{ id, name, group?, current? }] }.
+// Klienten skickar { products: [{ id, name, template, category?, subCategory?,
+// producer?, model?, current? }] }. Mallen avgör längd, struktur och hur stor
+// tokenbudget batchen får.
 // ─────────────────────────────────────────────────────────────
 import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { hasForbiddenProxyField } from "@/lib/server/contentPrompt";
@@ -17,6 +19,7 @@ import {
   buildUserPrompt,
   validateProducts,
   validateGenerated,
+  budgetFor,
   MAX_BATCH,
 } from "@/lib/productText/prompt";
 import { buildFactsLookup } from "@/lib/productText/productFacts";
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
     const products = validateProducts(o.products);
     if (!products) {
       await guard.finish({ status: "error", errorCategory: "bad_products" });
-      return safeError(`Skicka mellan 1 och ${MAX_BATCH} produkter med id och namn.`, 400);
+      return safeError(`Skicka mellan 1 och ${MAX_BATCH} produkter med id, namn och mall.`, 400);
     }
 
     const [ctx, brain, editMemory] = await Promise.all([
@@ -63,9 +66,12 @@ export async function POST(request: Request) {
     const system = buildSystemPrompt(ctx, editMemory);
     const user = buildUserPrompt(products, lookup);
 
-    // ~120 tokens per text plus overhead. Taket i ai.ts gäller ändå.
-    const maxTokens = Math.min(400 + products.length * 200, 4_096);
-    const result = await callChatJson(system, user, { temperature: 0.5, maxTokens });
+    // Budgeten följer mallarna i batchen: en huvudprodukt på 300 ord behöver
+    // tre gånger så mycket utrymme som en reservdel på 30. Taket i ai.ts gäller ändå.
+    const result = await callChatJson(system, user, {
+      temperature: 0.5,
+      maxTokens: budgetFor(products),
+    });
 
     const texts = validateGenerated(result.parsed, products);
     if (!texts) {

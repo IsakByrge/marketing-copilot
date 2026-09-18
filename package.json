@@ -26,7 +26,10 @@
     "test:locations": "tsx app/_shared/locations.test.mts",
     "test:websites": "tsx app/_shared/websites.test.mts",
     "test:planvalidate": "tsx lib/server/planValidate.test.mts",
-    "test:season": "tsx lib/server/season.test.mts"
+    "test:season": "tsx lib/server/season.test.mts",
+    "test:producthtml": "tsx lib/productText/html.test.mts",
+    "test:productpipeline": "tsx lib/productText/pipeline.test.mts",
+    "test:productsource": "tsx lib/productText/source.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
