@@ -14,7 +14,8 @@
 import { createClient } from "@/lib/supabase-browser";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button, Card, Field, Input, Spinner, Textarea, cx } from "@/app/_shared/primitives";
+import { Alert, Button, Card, Field, Input, Spinner, cx } from "@/app/_shared/primitives";
+import { Textarea } from "@/app/_shared/Textarea";
 
 type CompanyProfile = {
   companyName: string; industry: string; summary: string;

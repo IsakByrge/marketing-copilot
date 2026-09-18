@@ -26,7 +26,8 @@
 // ─────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
-import { Button, ButtonLink, Card, Textarea, Chip, Alert, EmptyState, Skeleton } from "@/app/_shared/primitives";
+import { Button, ButtonLink, Card, Chip, Alert, EmptyState, Skeleton } from "@/app/_shared/primitives";
+import { Textarea } from "@/app/_shared/Textarea";
 import { useAccountData, type MarketingPlan } from "@/app/_shared/useAccountData";
 import ImageMaker from "@/app/_shared/ImageMaker";
 import { isoWeek } from "@/lib/server/voice";

@@ -54,9 +54,13 @@ const buttonBase =
   "transition-colors disabled:pointer-events-none disabled:opacity-50 " +
   "select-none cursor-pointer " + focusRing;
 
+// min-h-11 = 44px, men BARA pa telefon. WCAG 2.5.5 och Apples HIG vill ha
+// 44px traffyta for ett finger; en muspekare behover det inte, och pa
+// desktop skulle det gora varje knapprad luftigare an den ar ritad. En
+// matning pa 390px hittade 32- och 40px-knappar overallt i appen.
 const buttonSizes: Record<ButtonSize, string> = {
-  sm: "text-sm px-3 py-1.5",
-  md: "text-sm px-4 py-2.5",
+  sm: "text-sm px-3 py-1.5 min-h-11 sm:min-h-0",
+  md: "text-sm px-4 py-2.5 min-h-11 sm:min-h-0",
 };
 
 const buttonVariants: Record<ButtonVariant, string> = {
@@ -222,13 +226,13 @@ export function Card({ padding = "md", className, children, ...props }: CardProp
 // a field smaller than 16px takes focus, and never zooms back out — so a
 // 14px field leaves the user stranded mid-form. Phones are the main case;
 // the tighter size is the exception, not the default.
-const fieldControlBase =
+export const fieldControlBase =
   "w-full font-sans text-base sm:text-sm text-text-primary bg-surface border rounded px-3.5 py-2.5 " +
   "placeholder:text-text-tertiary transition-colors focus:outline-none " +
   "focus:ring-2 disabled:opacity-50 disabled:pointer-events-none";
 
-const fieldControlOk = "border-border focus:border-primary focus:ring-primary/20";
-const fieldControlError = "border-danger focus:border-danger focus:ring-danger/20";
+export const fieldControlOk = "border-border focus:border-primary focus:ring-primary/20";
+export const fieldControlError = "border-danger focus:border-danger focus:ring-danger/20";
 
 export interface InputProps extends ComponentPropsWithRef<"input"> {
   invalid?: boolean;
@@ -240,21 +244,6 @@ export function Input({ invalid = false, className, type, ...props }: InputProps
       type={type ?? "text"}
       aria-invalid={invalid || undefined}
       className={cx(fieldControlBase, invalid ? fieldControlError : fieldControlOk, className)}
-      {...props}
-    />
-  );
-}
-
-export interface TextareaProps extends ComponentPropsWithRef<"textarea"> {
-  invalid?: boolean;
-}
-
-export function Textarea({ invalid = false, className, rows, ...props }: TextareaProps) {
-  return (
-    <textarea
-      rows={rows ?? 4}
-      aria-invalid={invalid || undefined}
-      className={cx(fieldControlBase, "min-h-24 resize-y leading-relaxed", invalid ? fieldControlError : fieldControlOk, className)}
       {...props}
     />
   );
