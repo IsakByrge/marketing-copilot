@@ -9,7 +9,8 @@
 // ur Company Brain, så samma kod fungerar för nästa butik. Mallvalet bor
 // i templates.ts, entiteterna i html.ts.
 //
-// FAKTASPÄRREN: modellen får exakt ett UNDERLAG-block per produkt, byggt
+// UNDERLAGET (spärrtexten själv kommer ur factGuard.ts): modellen får
+// exakt ett UNDERLAG-block per produkt, byggt
 // av namn, kategori, tillverkare, modell, befintlig text och bekräftade
 // fakta ur Company Brain. Allt annat ska bli `needsInfo`, aldrig en
 // gissning. Butiken säljer gasol — en påhittad tryckklass är en
