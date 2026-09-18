@@ -12,15 +12,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import AppShell from "@/app/_shared/AppShell";
-import { T, fontSans, transition } from "@/app/_shared/themeLight";
+// themeLight ar kvar ENBART for FacebookPreview nedan. Den harmar
+// Facebooks eget utseende med flit - det ar hela poangen med en
+// forhandsvisning - och ska darfor inte folja vart designsystem.
+import { T, fontSans } from "@/app/_shared/themeLight";
 import {
-  PageHeader, PrimaryButton, GhostButton, Field, TextInput, TextArea,
-  LoadingPanel, ErrorNote, EmptyState, CopyButton, SectionLabel,
-} from "@/app/_shared/uiLight";
+  Alert, Button, ButtonLink, Card, Chip as StatusChip, EmptyState, Input,
+  Spinner, ToggleChip, cx,
+} from "@/app/_shared/primitives";
+import { Textarea } from "@/app/_shared/Textarea";
 import { IconContent, IconSparkle, IconCheck, IconX } from "@/app/_shared/icons";
 import ImageMaker from "@/app/_shared/ImageMaker";
 import { briefToSubject } from "@/lib/server/imagePrompt";
 import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
+import { tillgangligaOrter } from "@/app/_shared/locations";
 import {
   GOAL_OPTIONS, ANGLE_OPTIONS, LENGTH_OPTIONS, TONE_SUGGESTIONS,
   type FacebookBrief, type FacebookContentGoal, type FacebookAngle, type FacebookLength,
@@ -74,23 +79,123 @@ async function streamGenerate(brief: FacebookBrief, h: StreamHandlers, signal: A
 }
 
 /* ── Små, sid-lokala byggstenar ──────────────────────────── */
+
+/** Sidhuvud. Samma rytm som Idag, Innehåll, Historik och Kampanjstrategi. */
+function PageHeader({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
+  return (
+    <header className="mb-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">{eyebrow}</p>
+      <h1 className="mt-3 text-[clamp(1.5rem,3.2vw,1.85rem)] font-semibold leading-[1.25] tracking-tight">{title}</h1>
+      {subtitle && <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">{subtitle}</p>}
+    </header>
+  );
+}
+
+/** Sektionsetikett. Versaler är kvar med flit — samma mönster som övriga sidor. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">{children}</p>;
+}
+
+/** Etiketterat fält. Gemener och halvfet, som resten av appen. */
+function Field({ label, hint, optional, children }: {
+  label: string; hint?: string; optional?: boolean; children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="mb-2 flex items-baseline gap-2 font-sans text-sm font-medium text-text-primary">
+        {label}
+        {optional && <span className="font-normal text-text-tertiary">— valfritt</span>}
+      </p>
+      {hint && <p className="mb-2.5 text-xs leading-relaxed text-text-tertiary">{hint}</p>}
+      {children}
+    </div>
+  );
+}
+
+/** Kopiera-knapp med kvittering. Samma beteende som förut. */
+function CopyButton({ getText, variant = "primary", label = "Kopiera" }: {
+  getText: () => string; variant?: "primary" | "secondary"; label?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(getText());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <Button variant={variant} onClick={copy}>{copied ? "✓ Kopierat" : label}</Button>
+  );
+}
+
+/**
+ * Arbetsindikator med riktiga steg.
+ *
+ * Stegen kommer från strömmen, inte från en timer — de rör sig när
+ * servern faktiskt byter fas. Därför får den visa progress, till
+ * skillnad från Kampanjstrategins panel som medvetet inte gör det.
+ */
+function LoadingPanel({ title, steps, activeStep }: { title: string; steps: string[]; activeStep: number }) {
+  return (
+    <div className="fade-up max-w-md">
+      <div className="mb-5 flex items-center gap-2.5">
+        {/* pulseDot ligger i globals.css och neutraliseras av
+            prefers-reduced-motion-blocket dar. */}
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary" style={{ animation: "pulseDot 1.4s ease infinite" }} />
+        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{title}</span>
+      </div>
+      <ol className="flex flex-col gap-1">
+        {steps.map((s, i) => {
+          const done = i < activeStep;
+          const active = i === activeStep;
+          return (
+            <li
+              key={i}
+              aria-current={active ? "step" : undefined}
+              className={cx(
+                "flex items-center gap-3 rounded-lg border px-3.5 py-2.5 transition-colors",
+                active ? "border-primary/30 bg-primary/10" : "border-transparent",
+                !done && !active && "opacity-40",
+              )}
+            >
+              <span
+                aria-hidden
+                className={cx(
+                  "flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border text-[10px] text-primary",
+                  done ? "border-primary/30 bg-primary/10" : active ? "border-primary/30" : "border-border-strong",
+                )}
+              >
+                {done ? "✓" : active ? <Spinner className="h-2 w-2 border" /> : null}
+              </span>
+              <span className={cx("text-sm", done || active ? "text-text-secondary" : "text-text-tertiary")}>{s}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 function Segmented<V extends string>({ value, onChange, options }: {
   value: V; onChange: (v: V) => void; options: { value: V; label: string }[];
 }) {
   return (
-    <div style={{ display: "inline-flex", gap: 4, padding: 4, background: T.surface2, border: `1px solid ${T.line2}`, borderRadius: 12, flexWrap: "wrap" }}>
+    <div className="inline-flex flex-wrap gap-1 rounded-lg border border-border-strong bg-surface-sunken p-1">
       {options.map((o) => {
         const active = o.value === value;
         return (
-          <button key={o.value} type="button" onClick={() => onChange(o.value)} className="mcx-focusable"
-            style={{
-              fontFamily: fontSans, fontSize: "0.82rem", fontWeight: active ? 500 : 400,
-              padding: "8px 14px", borderRadius: 9, cursor: "pointer", transition,
-              minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", 
-              border: `1px solid ${active ? T.purpleBorder : "transparent"}`,
-              background: active ? T.purpleDim : "transparent",
-              color: active ? T.text : T.text3,
-            }}>
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            aria-pressed={active}
+            className={cx(
+              "inline-flex min-h-11 cursor-pointer items-center justify-center rounded border px-3.5 py-2 text-sm transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+              active
+                ? "border-primary/30 bg-primary/10 font-medium text-text-primary"
+                : "border-transparent text-text-tertiary hover:text-text-primary",
+            )}
+          >
             {o.label}
           </button>
         );
@@ -99,29 +204,19 @@ function Segmented<V extends string>({ value, onChange, options }: {
   );
 }
 
+/** Behåller namnet Chip — anropsställena är många och oförändrade.
+ *  Bygger nu på ToggleChip, samma val-kontroll som Kampanjstrategin. */
 function Chip({ label, active, onClick }: { label: string; active?: boolean; onClick?: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="mcx-focusable"
-      style={{
-        fontFamily: fontSans, fontSize: "0.8rem", fontWeight: active ? 500 : 400,
-        padding: "7px 13px", borderRadius: 999, cursor: onClick ? "pointer" : "default", transition,
-        minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", 
-        border: `1px solid ${active ? T.purpleBorder : T.line2}`,
-        background: active ? T.purpleDim : "transparent",
-        color: active ? T.purpleBright : T.text3,
-      }}>
-      {label}
-    </button>
-  );
+  return <ToggleChip active={active} onClick={onClick}>{label}</ToggleChip>;
 }
 
 function KnownChips({ label, items }: { label: string; items: string[] }) {
   if (!items.length) return null;
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 400, color: T.text4, marginBottom: 6 }}>{label}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {items.map((it, i) => <Chip key={i} label={it} />)}
+    <div className="mb-2.5">
+      <p className="mb-1.5 text-xs text-text-tertiary">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((it, i) => <StatusChip key={i}>{it}</StatusChip>)}
       </div>
     </div>
   );
@@ -170,6 +265,30 @@ export default function FacebookSpecialistPage() {
 
   const selectedProduct = useMemo(() => brain.products.find((p) => p.id === productId) ?? null, [brain.products, productId]);
   const toneDefault = brain.tone.join(", ");
+
+  // Platshallarna var hardkodade bilverkstadsexempel - "Vinterservice med
+  // rekonditionering och lackskydd", "15% pa forsta besoket", "fran 1 495
+  // kr", "Vasteras med omnejd". For ett bemanningsforetag gissar de fel
+  // bransch, och en platshallare som gissar fel ar samre an ingen alls.
+  // Harled dem ur foretagsdatan nar den racker till, annars
+  // branschneutralt. Ingen paahittad data: bara det anvandaren skrivit in.
+  // Priset far medvetet INGEN sifferexempel - en paahittad prisnivaa ar
+  // precis den sortens gissning vi inte ska visa.
+  const platshallare = useMemo(() => {
+    const orter = tillgangligaOrter(brain.locations, brain.companySummary);
+    return {
+      amne: brain.products[0]?.name
+        ? `t.ex. ${brain.products[0].name}`
+        : "t.ex. produkten eller tjänsten inlägget handlar om",
+      malgrupp: brain.primaryCustomers[0]
+        ? `t.ex. ${brain.primaryCustomers[0]}`
+        : "t.ex. de kunder du helst vill nå",
+      ort: orter[0] ? `t.ex. ${orter[0]} med omnejd` : "t.ex. orten ni finns på, med omnejd",
+      cta: brain.preferredCallsToAction[0]
+        ? `t.ex. ${brain.preferredCallsToAction[0]}`
+        : "t.ex. vad läsaren ska göra efter att ha läst",
+    };
+  }, [brain.products, brain.primaryCustomers, brain.locations, brain.companySummary, brain.preferredCallsToAction]);
 
   // Skriver in strategins värden i formulärets arbetskopia. Rör BARA de fält
   // som kan härledas ur strategin; CTA/vinkel/ton/längd lämnas orörda (ingen källa).
@@ -335,7 +454,7 @@ export default function FacebookSpecialistPage() {
             subtitle="Anpassat efter ditt företag, ditt mål och vilka du vill nå." />
           <EmptyState icon={<IconContent size={19} />} title="Ingen företagskunskap ännu."
             body="Jag skriver utifrån det du berättat om företaget. Fyll i det först."
-            action={<PrimaryButton href="/onboarding">Starta onboarding</PrimaryButton>} />
+            action={<ButtonLink href="/onboarding">Starta onboarding</ButtonLink>} />
         </div>
       </AppShell>
     );
@@ -353,34 +472,34 @@ export default function FacebookSpecialistPage() {
         )}
 
         {phase === "input" && (
-          <div className="fade-up" style={{ display: "flex", flexDirection: "column", gap: 34 }}>
+          <div className="fade-up flex flex-col gap-9">
             {followUp && (
-              <div style={{ padding: "18px 20px", borderRadius: 14, background: T.purpleDim, border: `1px solid ${T.purpleBorder}` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, color: T.purpleBright }}>
+              <Card padding="sm" className="border-primary/20 bg-primary/5">
+                <div className="mb-2 flex items-center gap-2 text-primary">
                   <IconSparkle size={15} />
-                  <span style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>En sak till</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.12em]">En sak till</span>
                 </div>
-                <p style={{ fontFamily: fontSans, fontSize: "0.95rem", fontWeight: 300, color: T.text, lineHeight: 1.6 }}>{followUp.question}</p>
-              </div>
+                <p className="text-[15px] leading-relaxed">{followUp.question}</p>
+              </Card>
             )}
-            {error && <ErrorNote>{error}</ErrorNote>}
-            {strategyLinkError && <ErrorNote>{strategyLinkError}</ErrorNote>}
+            {error && <Alert tone="danger" title="Det gick inte">{error}</Alert>}
+            {strategyLinkError && <Alert tone="danger" title="Det gick inte">{strategyLinkError}</Alert>}
 
             {/* 1. Syfte */}
             <section>
               <SectionLabel>1 · Syfte</SectionLabel>
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 8 }}>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {GOAL_OPTIONS.map((o) => {
                   const active = goal === o.value;
                   return (
-                    <button key={o.value} type="button" onClick={() => { touch(); setGoal(o.value); }} aria-pressed={active} className="mcx-focusable"
-                      style={{
-                        textAlign: "left", padding: "12px 14px", borderRadius: 11, cursor: "pointer", transition,
-                        background: active ? T.purpleDim : T.surface,
-                        border: `1px solid ${active ? T.purpleBorder : T.line}`,
-                      }}>
-                      <div style={{ fontFamily: fontSans, fontSize: "0.85rem", fontWeight: 500, color: active ? T.text : T.text2 }}>{o.label}</div>
-                      <div style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{o.hint}</div>
+                    <button key={o.value} type="button" onClick={() => { touch(); setGoal(o.value); }} aria-pressed={active}
+                      className={cx(
+                        "cursor-pointer rounded-lg border px-3.5 py-3 text-left transition-colors",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        active ? "border-primary/30 bg-primary/10" : "border-border bg-surface hover:border-border-strong",
+                      )}>
+                      <span className={cx("block text-sm font-medium", active ? "text-text-primary" : "text-text-secondary")}>{o.label}</span>
+                      <span className="mt-0.5 block text-xs text-text-tertiary">{o.hint}</span>
                     </button>
                   );
                 })}
@@ -390,7 +509,7 @@ export default function FacebookSpecialistPage() {
             {/* 2. Underlag */}
             <section>
               <SectionLabel>2 · Underlag</SectionLabel>
-              <div style={{ marginTop: 12, marginBottom: 14 }}>
+              <div className="mb-3.5 mt-3">
                 <Segmented value={underlag} onChange={setUnderlag}
                   options={[
                     ...(strategies.length ? [{ value: "strategy" as const, label: "Kampanjstrategi" }] : []),
@@ -400,24 +519,24 @@ export default function FacebookSpecialistPage() {
               </div>
 
               {underlag === "strategy" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="flex flex-col gap-2">
                   {strategies.map((s) => (
-                    <button key={s.id} type="button" onClick={() => handleSelectStrategy(s.id)} className="mcx-focusable"
-                      style={{
-                        textAlign: "left", padding: "14px 16px", borderRadius: 11, cursor: "pointer", transition,
-                        background: strategyId === s.id ? T.purpleDim : T.surface,
-                        border: `1px solid ${strategyId === s.id ? T.purpleBorder : T.line}`,
-                      }}>
-                      <div style={{ fontFamily: fontSans, fontSize: "1rem", color: T.text }}>{s.title}</div>
-                      <div style={{ fontFamily: fontSans, fontSize: "0.76rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{s.goal}</div>
+                    <button key={s.id} type="button" onClick={() => handleSelectStrategy(s.id)} aria-pressed={strategyId === s.id}
+                      className={cx(
+                        "cursor-pointer rounded-lg border px-4 py-3.5 text-left transition-colors",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        strategyId === s.id ? "border-primary/30 bg-primary/10" : "border-border bg-surface hover:border-border-strong",
+                      )}>
+                      <span className="block text-[15px]">{s.title}</span>
+                      <span className="mt-0.5 block text-xs text-text-tertiary">{s.goal}</span>
                     </button>
                   ))}
                   {strategyId && (
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 4, padding: "11px 14px", borderRadius: 11, background: T.purpleDim, border: `1px solid ${T.purpleBorder}` }}>
-                      <span style={{ color: T.purpleBright, flexShrink: 0, marginTop: 1 }}><IconSparkle size={14} /></span>
-                      <p style={{ fontFamily: fontSans, fontSize: "0.76rem", fontWeight: 300, color: T.text2, lineHeight: 1.55 }}>
+                    <div className="mt-1 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3.5 py-2.5">
+                      <span className="mt-0.5 shrink-0 text-primary"><IconSparkle size={14} /></span>
+                      <p className="text-xs leading-relaxed text-text-secondary">
                         {prefilledFields.length
-                          ? <>Hämtat från kampanjstrategin: <span style={{ color: T.text }}>{prefilledFields.join(", ")}</span>. Justera fritt — ändringar gäller bara det här inlägget och rör inte strategin.</>
+                          ? <>Hämtat från kampanjstrategin: <span className="text-text-primary">{prefilledFields.join(", ")}</span>. Justera fritt — ändringar gäller bara det här inlägget och rör inte strategin.</>
                           : "Den här strategin saknar fält som kan förifyllas automatiskt — fyll i nedan."}
                       </p>
                     </div>
@@ -428,41 +547,41 @@ export default function FacebookSpecialistPage() {
               {underlag === "product" && (
                 <div>
                   {brain.products.length === 0 ? (
-                    <p style={{ fontFamily: fontSans, fontSize: "0.85rem", fontWeight: 300, color: T.text3 }}>
+                    <p className="text-sm text-text-tertiary">
                       Inga produkter tillagda ännu. Välj “Något annat” och beskriv fritt, eller lägg till produkter under Vad jag vet.
                     </p>
                   ) : (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <div className="flex flex-wrap gap-2">
                       {brain.products.map((p) => (
                         <Chip key={p.id} label={p.name} active={productId === p.id} onClick={() => pickProduct(p)} />
                       ))}
                     </div>
                   )}
                   {selectedProduct && (
-                    <div style={{ marginTop: 16, padding: "16px 18px", borderRadius: 12, background: T.surface, border: `1px solid ${T.line}` }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: T.purpleBright }}>
+                    <Card padding="sm" className="mt-4">
+                      <div className="mb-3 flex items-center gap-2 text-primary">
                         <IconContent size={14} />
-                        <span style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>Redan känt om {selectedProduct.name}</span>
+                        <span className="text-xs font-semibold uppercase tracking-[0.12em]">Redan känt om {selectedProduct.name}</span>
                       </div>
                       <KnownChips label="Differentiering" items={selectedProduct.differentiators} />
                       <KnownChips label="Vanliga invändningar" items={selectedProduct.commonObjections} />
                       {selectedProduct.seasonality && <KnownChips label="Säsong" items={[selectedProduct.seasonality]} />}
-                      <p style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 300, color: T.text4, marginTop: 6 }}>
+                      <p className="mt-1.5 text-xs text-text-tertiary">
                         Det här används automatiskt. Justeringar nedan gäller bara det här inlägget — företagskunskapen ändras inte.
                       </p>
-                    </div>
+                    </Card>
                   )}
                 </div>
               )}
 
-              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="mt-4 flex flex-col gap-4">
                 <Field label="Vad marknadsförs" hint={underlag === "product" ? "Förifyllt från produkten — justera fritt för det här inlägget." : undefined}>
-                  <TextArea value={productOrTopic} onChange={(e) => { touch(); setProductOrTopic(e.target.value); }} rows={2}
-                    placeholder="t.ex. Vinterservice med rekonditionering och lackskydd" />
+                  <Textarea value={productOrTopic} onChange={(e) => { touch(); setProductOrTopic(e.target.value); }} rows={2}
+                    placeholder={platshallare.amne} />
                 </Field>
                 <Field label="Målgrupp för inlägget">
-                  <TextInput value={audience} onChange={(e) => { touch(); setAudience(e.target.value); }}
-                    placeholder={brain.primaryCustomers[0] ? `t.ex. ${brain.primaryCustomers[0]}` : "t.ex. villaägare i närområdet"} />
+                  <Input value={audience} onChange={(e) => { touch(); setAudience(e.target.value); }}
+                    placeholder={platshallare.malgrupp} />
                 </Field>
               </div>
             </section>
@@ -470,15 +589,15 @@ export default function FacebookSpecialistPage() {
             {/* 3. Erbjudande / anledning att agera */}
             <section>
               <SectionLabel>3 · Erbjudande & handling</SectionLabel>
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
-                <Field label="Erbjudande" optional><TextInput value={offer} onChange={(e) => { touch(); setOffer(e.target.value); }} placeholder="t.ex. 15% på första besöket" /></Field>
-                <Field label="Pris" optional><TextInput value={price} onChange={(e) => { touch(); setPrice(e.target.value); }} placeholder="t.ex. från 1 495 kr" /></Field>
-                <Field label="Sista datum" optional><TextInput value={deadline} onChange={(e) => { touch(); setDeadline(e.target.value); }} placeholder="t.ex. 20 juni" /></Field>
-                <Field label="Geografiskt område" optional><TextInput value={geo} onChange={(e) => { touch(); setGeo(e.target.value); }} placeholder="t.ex. Västerås med omnejd" /></Field>
+              <div className="mt-3 grid gap-3.5 sm:grid-cols-2">
+                <Field label="Erbjudande" optional><Input value={offer} onChange={(e) => { touch(); setOffer(e.target.value); }} placeholder="t.ex. ett erbjudande som gäller nu" /></Field>
+                <Field label="Pris" optional><Input value={price} onChange={(e) => { touch(); setPrice(e.target.value); }} placeholder="t.ex. ett pris eller prisintervall" /></Field>
+                <Field label="Sista datum" optional><Input value={deadline} onChange={(e) => { touch(); setDeadline(e.target.value); }} placeholder="t.ex. sista dagen erbjudandet gäller" /></Field>
+                <Field label="Geografiskt område" optional><Input value={geo} onChange={(e) => { touch(); setGeo(e.target.value); }} placeholder={platshallare.ort} /></Field>
               </div>
-              <div style={{ marginTop: 14 }}>
+              <div className="mt-3.5">
                 <Field label="Önskad CTA — vad ska läsaren göra?">
-                  <TextInput value={desiredAction} onChange={(e) => { touch(); setDesiredAction(e.target.value); }} placeholder="t.ex. Boka tid online, ring oss, besök butiken" />
+                  <Input value={desiredAction} onChange={(e) => { touch(); setDesiredAction(e.target.value); }} placeholder={platshallare.cta} />
                 </Field>
               </div>
             </section>
@@ -486,7 +605,7 @@ export default function FacebookSpecialistPage() {
             {/* 4. Vinkel */}
             <section>
               <SectionLabel>4 · Vinkel</SectionLabel>
-              <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <div className="mt-3 flex flex-wrap gap-2">
                 {ANGLE_OPTIONS.map((o) => <Chip key={o.value} label={o.label} active={angle === o.value} onClick={() => { touch(); setAngle(o.value); }} />)}
               </div>
             </section>
@@ -494,10 +613,10 @@ export default function FacebookSpecialistPage() {
             {/* 5. Ton */}
             <section>
               <SectionLabel>5 · Ton</SectionLabel>
-              <p style={{ fontFamily: fontSans, fontSize: "0.78rem", fontWeight: 300, color: T.text3, margin: "8px 0 12px" }}>
-                {toneDefault ? <>Hämtad från företagskunskapen: <span style={{ color: T.text2 }}>{toneDefault}</span>. Välj en tillfällig justering nedan om du vill.</> : "Välj en ton för det här inlägget."}
+              <p className="mb-3 mt-2 text-xs leading-relaxed text-text-tertiary">
+                {toneDefault ? <>Hämtad från företagskunskapen: <span className="text-text-secondary">{toneDefault}</span>. Välj en tillfällig justering nedan om du vill.</> : "Välj en ton för det här inlägget."}
               </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <div className="flex flex-wrap gap-2">
                 {TONE_SUGGESTIONS.map((tOpt) => <Chip key={tOpt} label={tOpt} active={tone === tOpt} onClick={() => { touch(); setTone(tone === tOpt ? "" : tOpt); }} />)}
               </div>
             </section>
@@ -505,16 +624,16 @@ export default function FacebookSpecialistPage() {
             {/* 6. Längd */}
             <section>
               <SectionLabel>6 · Längd</SectionLabel>
-              <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <div className="mt-3 flex flex-wrap gap-2">
                 {LENGTH_OPTIONS.map((o) => (
-                  <button key={o.value} type="button" onClick={() => { touch(); setLength(o.value); }} aria-pressed={length === o.value} className="mcx-focusable"
-                    style={{
-                      textAlign: "left", padding: "11px 15px", borderRadius: 11, cursor: "pointer", transition, minWidth: 150,
-                      background: length === o.value ? T.purpleDim : T.surface,
-                      border: `1px solid ${length === o.value ? T.purpleBorder : T.line}`,
-                    }}>
-                    <div style={{ fontFamily: fontSans, fontSize: "0.85rem", fontWeight: 500, color: length === o.value ? T.text : T.text2 }}>{o.label}</div>
-                    <div style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 300, color: T.text3, marginTop: 2 }}>{o.hint}</div>
+                  <button key={o.value} type="button" onClick={() => { touch(); setLength(o.value); }} aria-pressed={length === o.value}
+                    className={cx(
+                      "min-w-[150px] cursor-pointer rounded-lg border px-4 py-2.5 text-left transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                      length === o.value ? "border-primary/30 bg-primary/10" : "border-border bg-surface hover:border-border-strong",
+                    )}>
+                    <span className={cx("block text-sm font-medium", length === o.value ? "text-text-primary" : "text-text-secondary")}>{o.label}</span>
+                    <span className="mt-0.5 block text-xs text-text-tertiary">{o.hint}</span>
                   </button>
                 ))}
               </div>
@@ -522,21 +641,21 @@ export default function FacebookSpecialistPage() {
 
             <div>
               <Field label="Övrigt till specialisten" optional>
-                <TextArea value={notes} onChange={(e) => { touch(); setNotes(e.target.value); }} rows={2} placeholder="t.ex. lyft att vi är familjeägda sedan 1998" />
+                <Textarea value={notes} onChange={(e) => { touch(); setNotes(e.target.value); }} rows={2} placeholder="t.ex. något du vill att inlägget lyfter fram" />
               </Field>
             </div>
 
-            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <PrimaryButton onClick={() => run(buildBrief())}>Skapa Facebook-inlägg</PrimaryButton>
-              <span style={{ fontFamily: fontSans, fontSize: "0.76rem", fontWeight: 300, color: T.text4 }}>
-                Specialisten skriver ett utkast, kvalitetssäkrar det och förbättrar vid behov.
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={() => run(buildBrief())}>Skapa Facebook-inlägg</Button>
+              <span className="text-xs text-text-tertiary">
+                Ett utkast skrivs, kvalitetssäkras och förbättras vid behov.
               </span>
             </div>
           </div>
         )}
 
         {phase === "generating" && (
-          <div style={{ paddingTop: 20 }}>
+          <div className="pt-5">
             <LoadingPanel title="Jag skriver inlägget" steps={loadingSteps} activeStep={activeStep} />
           </div>
         )}
@@ -568,18 +687,19 @@ const CHECK_LABELS: Record<keyof FacebookQualityChecks, string> = {
 };
 
 /** Användarvänlig huvudstatus — den primära signalen (poängtalet är sekundärt). */
-const USER_STATUS_MAP: Record<FacebookUserStatus, { c: string; bg: string; t: string }> = {
-  ready: { c: T.green, bg: T.greenDim, t: "Publiceringsklar" },
-  review: { c: T.orange, bg: T.orangeDim, t: "Behöver granskas" },
-  incomplete: { c: T.red, bg: T.redDim, t: "Behöver kompletteras" },
+const USER_STATUS_MAP: Record<FacebookUserStatus, { tone: "success" | "warning" | "danger"; prick: string; t: string }> = {
+  ready: { tone: "success", prick: "bg-success", t: "Publiceringsklar" },
+  review: { tone: "warning", prick: "bg-warning", t: "Behöver granskas" },
+  incomplete: { tone: "danger", prick: "bg-danger", t: "Behöver kompletteras" },
 };
 
 function StatusBadge({ status }: { status: FacebookUserStatus }) {
   const map = USER_STATUS_MAP[status];
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, background: map.bg, border: `1px solid ${map.c}44`, color: map.c, fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500 }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: map.c }} /> {map.t}
-    </span>
+    <StatusChip tone={map.tone}>
+      <span aria-hidden className={cx("h-1.5 w-1.5 rounded-full", map.prick)} />
+      {map.t}
+    </StatusChip>
   );
 }
 
@@ -651,18 +771,18 @@ function FacebookPreview({ companyName, text, imageBrief, edited }: {
 
 function VariantCard({ v }: { v: FacebookPostVariant }) {
   return (
-    <div style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 14, padding: "18px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 10 }}>
-        <span style={{ fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: T.purpleBright }}>{v.angle}</span>
-        <CopyButton getText={() => `${v.postText}\n\n${v.callToAction}${v.hashtags.length ? "\n\n" + v.hashtags.map((h) => "#" + h).join(" ") : ""}`} variant="ghost" label="Kopiera" />
+    <Card padding="sm">
+      <div className="mb-2.5 flex items-center justify-between gap-2.5">
+        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{v.angle}</span>
+        <CopyButton getText={() => `${v.postText}\n\n${v.callToAction}${v.hashtags.length ? "\n\n" + v.hashtags.map((h) => "#" + h).join(" ") : ""}`} variant="secondary" label="Kopiera" />
       </div>
-      <p style={{ fontFamily: fontSans, fontSize: "0.9rem", fontWeight: 300, color: T.text2, lineHeight: 1.7, whiteSpace: "pre-line" }}>{v.postText}</p>
+      <p className="whitespace-pre-line text-sm leading-relaxed text-text-secondary">{v.postText}</p>
       {v.hashtags.length > 0 && (
-        <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {v.hashtags.map((h, i) => <span key={i} style={{ fontFamily: fontSans, fontSize: "0.78rem", color: T.blue }}>#{h}</span>)}
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {v.hashtags.map((h, i) => <span key={i} className="text-xs text-primary">#{h}</span>)}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -743,36 +863,36 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
 
   return (
     <div className="fade-up">
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <StatusBadge status={result.qualityReview.userStatus} />
-          <span style={{ fontFamily: fontSans, fontSize: "0.78rem", color: T.text3 }}>
-            Vinkel: <span style={{ color: T.text2 }}>{result.recommendedAngle}</span>
+          <span className="text-xs text-text-tertiary">
+            Vinkel: <span className="text-text-secondary">{result.recommendedAngle}</span>
           </span>
         </div>
-        <GhostButton onClick={onBack}>← Ändra underlag</GhostButton>
+        <Button variant="secondary" onClick={onBack}>← Ändra underlag</Button>
       </div>
 
       {result.qualityReview.statusReason && (
-        <p style={{ fontFamily: fontSans, fontSize: "0.86rem", fontWeight: 300, color: T.text2, lineHeight: 1.6, marginBottom: 18, maxWidth: 620 }}>
+        <p className="mb-4 max-w-2xl text-sm leading-relaxed text-text-secondary">
           {result.qualityReview.statusReason}
         </p>
       )}
 
       {result.angleReason && (
-        <p style={{ fontFamily: fontSans, fontSize: "0.84rem", fontWeight: 300, color: T.text3, lineHeight: 1.6, marginBottom: 22, maxWidth: 620 }}>
+        <p className="mb-5 max-w-2xl text-sm leading-relaxed text-text-tertiary">
           {result.angleReason}
         </p>
       )}
 
       {/* Primär */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginBottom: 14 }}>
+      <div className="mb-3.5 grid gap-4">
         {editing ? (
           <div>
-            <TextArea value={editedText} rows={10} onChange={(e) => { setEditedText(e.target.value); setEdited(true); }} />
-            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <GhostButton onClick={() => setEditing(false)}>Klar</GhostButton>
-              {edited && <span style={{ fontFamily: fontSans, fontSize: "0.76rem", color: T.orange, alignSelf: "center" }}>✎ Redigerad</span>}
+            <Textarea value={editedText} rows={10} onChange={(e) => { setEditedText(e.target.value); setEdited(true); }} />
+            <div className="mt-2 flex gap-2">
+              <Button variant="secondary" onClick={() => setEditing(false)}>Klar</Button>
+              {edited && <span className="self-center text-xs text-warning">✎ Redigerad</span>}
             </div>
           </div>
         ) : (
@@ -780,33 +900,33 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-        <span style={{ fontFamily: fontSans, fontSize: "0.8rem", color: T.text3 }}>CTA:</span>
-        <span style={{ fontFamily: fontSans, fontSize: "0.86rem", color: T.text2 }}>{primary.callToAction}</span>
+      <div className="mb-5 flex flex-wrap items-baseline gap-2.5">
+        <span className="text-xs text-text-tertiary">CTA:</span>
+        <span className="text-sm text-text-secondary">{primary.callToAction}</span>
       </div>
 
       {/* Actions */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+      <div className="mb-2.5 flex flex-wrap gap-2">
         <CopyButton getText={() => { void rememberEdit(); return fullCopy; }} label="Kopiera" />
-        <GhostButton onClick={() => setEditing((e) => !e)}>{editing ? "Stäng redigering" : "Redigera"}</GhostButton>
-        <GhostButton onClick={() => regen({})}>Skapa ny variant</GhostButton>
-        <GhostButton onClick={() => regen({ length: "short" })}>Förkorta</GhostButton>
-        <GhostButton onClick={() => regen({ length: "detailed" })}>Förläng</GhostButton>
-        <GhostButton onClick={() => setShowTone((s) => !s)}>Ändra ton</GhostButton>
-        <GhostButton onClick={() => setShowAngle((s) => !s)}>Byt vinkel</GhostButton>
-        <GhostButton onClick={saveDraft} disabled={saveState === "saving"}>
+        <Button variant="secondary" onClick={() => setEditing((e) => !e)}>{editing ? "Stäng redigering" : "Redigera"}</Button>
+        <Button variant="secondary" onClick={() => regen({})}>Skapa ny variant</Button>
+        <Button variant="secondary" onClick={() => regen({ length: "short" })}>Förkorta</Button>
+        <Button variant="secondary" onClick={() => regen({ length: "detailed" })}>Förläng</Button>
+        <Button variant="secondary" onClick={() => setShowTone((s) => !s)}>Ändra ton</Button>
+        <Button variant="secondary" onClick={() => setShowAngle((s) => !s)}>Byt vinkel</Button>
+        <Button variant="secondary" onClick={saveDraft} disabled={saveState === "saving"}>
           {saveState === "saving" ? "Sparar…" : saveState === "saved" ? "✓ Sparad" : "Spara som utkast"}
-        </GhostButton>
+        </Button>
       </div>
-      {saveState === "error" && <div style={{ marginBottom: 10 }}><ErrorNote>Kunde inte spara utkastet. Är migrationen för content_drafts körd?</ErrorNote></div>}
+      {saveState === "error" && <div className="mb-2.5"><Alert tone="danger" title="Det gick inte">Kunde inte spara utkastet. Är migrationen för content_drafts körd?</Alert></div>}
 
       {showTone && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 16px" }}>
+        <div className="mb-4 mt-1.5 flex flex-wrap gap-1.5">
           {TONE_SUGGESTIONS.map((tOpt) => <Chip key={tOpt} label={tOpt} onClick={() => { setShowTone(false); regen({ toneOverride: tOpt }); }} />)}
         </div>
       )}
       {showAngle && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 16px" }}>
+        <div className="mb-4 mt-1.5 flex flex-wrap gap-1.5">
           {ANGLE_OPTIONS.filter((o) => o.value !== "specialist_recommendation").map((o) =>
             <Chip key={o.value} label={o.label} onClick={() => { setShowAngle(false); regen({ requestedAngle: o.value }); }} />)}
         </div>
@@ -814,28 +934,28 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
 
       {/* Alternativ */}
       {result.alternatives.length > 0 && (
-        <section style={{ marginTop: 30 }}>
+        <section className="mt-8">
           <SectionLabel>Alternativa vinklar</SectionLabel>
-          <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+          <div className="mt-3 grid gap-3.5 sm:grid-cols-2">
             {result.alternatives.map((v) => <VariantCard key={v.id} v={v} />)}
           </div>
         </section>
       )}
 
       {/* Bildbrief */}
-      <section style={{ marginTop: 30 }}>
+      <section className="mt-8">
         <SectionLabel>Bildbrief</SectionLabel>
-        <div style={{ marginTop: 12, padding: "18px 20px", borderRadius: 14, background: T.surface, border: `1px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 8 }}>
+        <Card padding="sm" className="mt-3 flex flex-col gap-2">
           <BriefRow label="Idé" value={primary.imageBrief.concept} />
           <BriefRow label="Motiv" value={primary.imageBrief.subject} />
           <BriefRow label="Komposition" value={primary.imageBrief.composition} />
           {primary.imageBrief.textOverlay && <BriefRow label="Text i bild" value={primary.imageBrief.textOverlay} />}
           {primary.imageBrief.avoid.length > 0 && <BriefRow label="Undvik" value={primary.imageBrief.avoid.join(", ")} />}
-        </div>
+        </Card>
 
         {/* Briefen är redan skriven — bilden skapas bara om du väljer det.
             Aldrig automatiskt: en bild kostar hundra gånger mer än texten. */}
-        <div style={{ marginTop: 12 }}>
+        <div className="mt-3">
           <ImageMaker
             initialPrompt={briefToSubject(primary.imageBrief)}
             avoid={primary.imageBrief.avoid}
@@ -844,43 +964,43 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
       </section>
 
       {/* Kvalitetsstatus — status + motivering är primärt, poängtalet sekundärt */}
-      <section style={{ marginTop: 30 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <section className="mt-8">
+        <div className="flex flex-wrap items-center gap-2.5">
           <SectionLabel>Kvalitetskontroll</SectionLabel>
           <StatusBadge status={result.qualityReview.userStatus} />
-          <span style={{ fontFamily: fontSans, fontSize: "0.75rem", color: T.text4 }}>internt {result.qualityReview.overallScore}/100</span>
+          <span className="text-xs text-text-tertiary">internt {result.qualityReview.overallScore}/100</span>
         </div>
         {result.qualityReview.statusReason && (
-          <p style={{ fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 300, color: T.text2, lineHeight: 1.6, margin: "10px 0 0", maxWidth: 620 }}>{result.qualityReview.statusReason}</p>
+          <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-text-secondary">{result.qualityReview.statusReason}</p>
         )}
-        <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 6 }}>
+        <div className="mt-3.5 grid gap-1.5 sm:grid-cols-2">
           {(Object.keys(CHECK_LABELS) as (keyof FacebookQualityChecks)[]).map((k) => {
             const ok = result.qualityReview.checks[k];
             return (
-              <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 9, background: T.surface }}>
-                <span style={{ color: ok ? T.green : T.orange, display: "flex" }}>{ok ? <IconCheck size={14} /> : <IconX size={14} />}</span>
-                <span style={{ fontFamily: fontSans, fontSize: "0.8rem", fontWeight: 300, color: ok ? T.text2 : T.text3 }}>{CHECK_LABELS[k]}</span>
+              <div key={k} className="flex items-center gap-2 rounded bg-surface px-2.5 py-2">
+                <span className={cx("flex", ok ? "text-success" : "text-warning")}>{ok ? <IconCheck size={14} /> : <IconX size={14} />}</span>
+                <span className={cx("text-xs", ok ? "text-text-secondary" : "text-text-tertiary")}>{CHECK_LABELS[k]}</span>
               </div>
             );
           })}
         </div>
         {result.qualityReview.issues.length > 0 && (
-          <ul style={{ margin: "12px 0 0", paddingLeft: 18, fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 300, color: T.text3, lineHeight: 1.7 }}>
+          <ul className="mt-3 list-disc pl-[18px] text-sm leading-relaxed text-text-tertiary">
             {result.qualityReview.issues.map((it, i) => <li key={i}>{it}</li>)}
           </ul>
         )}
         {result.qualityReview.revisionSummary && (
-          <p style={{ marginTop: 10, fontFamily: fontSans, fontSize: "0.8rem", fontWeight: 300, color: T.text4, lineHeight: 1.6 }}>{result.qualityReview.revisionSummary}</p>
+          <p className="mt-2.5 text-xs leading-relaxed text-text-tertiary">{result.qualityReview.revisionSummary}</p>
         )}
       </section>
 
       {/* Antaganden & luckor */}
       {(result.assumptions.length > 0 || result.missingInformation.length > 0) && (
-        <section style={{ marginTop: 30 }}>
+        <section className="mt-8">
           {result.assumptions.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
+            <div className="mb-3.5">
               <SectionLabel>Antaganden</SectionLabel>
-              <ul style={{ margin: "10px 0 0", paddingLeft: 18, fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 300, color: T.text3, lineHeight: 1.7 }}>
+              <ul className="mt-2.5 list-disc pl-[18px] text-sm leading-relaxed text-text-tertiary">
                 {result.assumptions.map((a, i) => <li key={i}>{a}</li>)}
               </ul>
             </div>
@@ -888,7 +1008,7 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
           {result.missingInformation.length > 0 && (
             <div>
               <SectionLabel>Skulle höjt kvaliteten</SectionLabel>
-              <ul style={{ margin: "10px 0 0", paddingLeft: 18, fontFamily: fontSans, fontSize: "0.82rem", fontWeight: 300, color: T.text3, lineHeight: 1.7 }}>
+              <ul className="mt-2.5 list-disc pl-[18px] text-sm leading-relaxed text-text-tertiary">
                 {result.missingInformation.map((m, i) => <li key={i}>{m}</li>)}
               </ul>
             </div>
@@ -902,9 +1022,9 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
 function BriefRow({ label, value }: { label: string; value: string }) {
   if (!value) return null;
   return (
-    <div style={{ display: "flex", gap: 12 }}>
-      <span style={{ flexShrink: 0, width: 96, fontFamily: fontSans, fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", color: T.text4, paddingTop: 2 }}>{label}</span>
-      <span style={{ fontFamily: fontSans, fontSize: "0.86rem", fontWeight: 300, color: T.text2, lineHeight: 1.6 }}>{value}</span>
+    <div className="flex gap-3">
+      <span className="w-24 shrink-0 pt-0.5 text-xs font-semibold uppercase tracking-[0.06em] text-text-tertiary">{label}</span>
+      <span className="text-sm leading-relaxed text-text-secondary">{value}</span>
     </div>
   );
 }
