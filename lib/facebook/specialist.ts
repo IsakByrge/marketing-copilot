@@ -36,8 +36,10 @@ import {
   detectFabricatedSocialProof,
   dedupeAlternatives,
   deriveUserStatus,
+  missingCampaignTerms,
   wordCount as wc,
   LENGTH_RANGE,
+  type CampaignTerms,
   type StatusFlags,
 } from "./quality";
 
@@ -175,7 +177,9 @@ DU GÖR ALDRIG:
 - Skriver generiska öppningar ("Sommaren är här!") om de inte görs konkret företagsspecifika.
 - Levererar korta rubrikfragment som om de vore ett färdigt inlägg.
 
-FORMAT: 0–4 relevanta emojis beroende på tonalitet (inga dekorativa emoji-rader). Normalt 0–3 hashtags, endast om de tillför värde — tom lista är helt okej.
+PRODUKT OCH ERBJUDANDE: Står det något under VAD SOM MARKNADSFÖRS eller ERBJUDANDE ska det stå ordagrant i primärversionen och i varje alternativ. "20 % på Mustang" skrivs med produktnamnet och 20 %, aldrig som "allt du behöver för grillsäsongen". Det kontrolleras maskinellt och en text som saknar det skrivs om.
+
+FORMAT: 0–4 relevanta emojis beroende på tonalitet (inga dekorativa emoji-rader). Hashtags: 1–3 relevanta i primärversionen och i varje alternativ. Samma regel för alla tre, så att versionerna går att jämföra.
 
 VINKLAR: Du får en önskad vinkel. Är den "Specialistens rekommendation" väljer du själv bäst vinkel utifrån mål, produkt och målgrupp och motiverar kort. Primärversionen använder den rekommenderade vinkeln. De TVÅ alternativen ska vara GENUINT olika primären och varandra — de ska skilja sig i minst TVÅ av: strategisk vinkel, hooktyp, disposition, argumentationsordning, CTA-formulering, grad av produktfokus eller tonläge inom den valda tonaliteten. De får inte vara samma text med ny första mening, synonymbyten eller omkastade stycken. Alternativets "label" ska beskriva den verkliga vinkeln (t.ex. "Praktisk nytta", "Expertråd", "Produktfokus", "Säsongsvinkel", "Problem och lösning", "Bakom produkten").
 
@@ -213,7 +217,7 @@ Bedöm primärversionen mot:
 - audienceSpecific: talar tydligt till den angivna målgruppen.
 - clearHook: fångar uppmärksamhet utan clickbait.
 - clearCustomerValue: kundnyttan är tydlig.
-- credibleClaims: inga påhittade resultat/priser/omdömen/garantier.
+- credibleClaims: inga påhittade resultat/priser/omdömen/garantier. Erbjudande, pris och datum som står i UPPDRAG är bekräftade av användaren och ska stå i texten; be aldrig om att de tas bort.
 - correctTone: matchar företagets tonalitet.
 - clearCTA: en tydlig och rimlig nästa handling.
 - appropriateLength: rimlig längd för vald nivå (aldrig tre korta meningar när normal/utförlig valts).
@@ -317,7 +321,9 @@ function draftUserPrompt(brief: FacebookBrief, ctx: FacebookSpecialistContext): 
 }
 
 function reviewUserPrompt(brief: FacebookBrief, ctx: FacebookSpecialistContext, primary: FacebookPostVariant): string {
-  return `${contextBlock(ctx)}\n\n─────────\nUNDERLAG: mål ${brief.goal}, längdnivå ${brief.length}, önskad handling: ${brief.desiredAction}\n\nFÖRESLAGET INLÄGG (primärversion):\nVinkel: ${primary.angle}\nText:\n${primary.postText}\n\nCTA: ${primary.callToAction}\nHashtags: ${primary.hashtags.join(" ") || "(inga)"}\n\nGranska och svara med endast JSON.`;
+  // Granskaren får samma uppdrag som skribenten. Utan det såg den "20 % på
+  // Mustang" som en obekräftad rabatt och bad revisionen stryka den.
+  return `${contextBlock(ctx)}\n\n─────────\nUPPDRAG FÖR DET HÄR INLÄGGET (användarens egna, bekräftade uppgifter — erbjudande, pris och sista datum här är INTE påhittade):\n${briefBlock(brief)}\n\nFÖRESLAGET INLÄGG (primärversion):\nVinkel: ${primary.angle}\nText:\n${primary.postText}\n\nCTA: ${primary.callToAction}\nHashtags: ${primary.hashtags.join(" ") || "(inga)"}\n\nGranska och svara med endast JSON.`;
 }
 
 function reviseUserPrompt(
@@ -326,7 +332,19 @@ function reviseUserPrompt(
   primary: FacebookPostVariant,
   review: FacebookQualityReview,
 ): string {
-  return `${contextBlock(ctx)}\n\n─────────\nDu ska förbättra EN Facebook-primärversion enligt granskarens instruktion. Behåll fakta, CTA-avsikt och tonalitet. Lägg inte till nya påståenden eller erbjudanden. Rör inte de förbjudna påståendena.\n\nLÄNGDNIVÅ: ${LENGTH_GUIDANCE[brief.length]}\n\nNUVARANDE TEXT:\n${primary.postText}\n\nGRANSKARENS PROBLEM: ${review.issues.join(" | ") || "(se instruktion)"}\nREVISIONSINSTRUKTION: ${review.revisionSummary || "Höj kvaliteten enligt problemen."}\n\nSvara med ENDAST JSON för den förbättrade varianten:\n{ "id": "...", "label": "...", "angle": "...", "postText": "...", "callToAction": "...", "imageBrief": { "concept": "...", "subject": "...", "composition": "...", "textOverlay": "valfritt", "avoid": ["..."] }, "hashtags": ["..."] }`;
+  // Samma uppdrag som utkastet fick. Förut fick revisionen bara företaget
+  // och den nuvarande texten, inte produkt och erbjudande, och instruktionen
+  // "lägg inte till erbjudanden". Då skrev den bort "20 % på Mustang".
+  return `${contextBlock(ctx)}\n\n─────────\nUPPDRAG FÖR DET HÄR INLÄGGET:\n${briefBlock(brief)}\n\n─────────\nDu ska förbättra EN Facebook-primärversion enligt granskarens instruktion. Behåll fakta, CTA-avsikt och tonalitet. Lägg inte till påståenden eller erbjudanden som inte står i underlaget. Produkten under VAD SOM MARKNADSFÖRS och ERBJUDANDE ska stå ordagrant i texten. Rör inte de förbjudna påståendena.\n\nNUVARANDE TEXT:\n${primary.postText}\n\nNUVARANDE HASHTAGS: ${primary.hashtags.join(" ") || "(inga)"} — behåll dem eller byt mot lika relevanta, 1–3 stycken.\n\nGRANSKARENS PROBLEM: ${review.issues.join(" | ") || "(se instruktion)"}\nREVISIONSINSTRUKTION: ${review.revisionSummary || "Höj kvaliteten enligt problemen."}\n\nSvara med ENDAST JSON för den förbättrade varianten:\n{ "id": "...", "label": "...", "angle": "...", "postText": "...", "callToAction": "...", "imageBrief": { "concept": "...", "subject": "...", "composition": "...", "textOverlay": "valfritt", "avoid": ["..."] }, "hashtags": ["..."] }`;
+}
+
+/** Produkt och erbjudande som texten måste nämna. Vald produkt och uppdragets
+ *  erbjudande går före kampanjstrategins, eftersom de är användarens senaste val. */
+export function campaignTermsFor(brief: FacebookBrief, ctx: FacebookSpecialistContext): CampaignTerms {
+  return {
+    product: ctx.selectedProduct?.name || brief.productOrTopic || undefined,
+    offer: brief.offer || ctx.campaignStrategy?.offer || undefined,
+  };
 }
 
 /* ── Koercion av modell-JSON → strikta typer ─────────────── */
@@ -401,7 +419,7 @@ function allChecksTrue(): FacebookQualityChecks {
     companySpecific: true, audienceSpecific: true, clearHook: true, clearCustomerValue: true,
     credibleClaims: true, correctTone: true, clearCTA: true, appropriateLength: true,
     readableFormatting: true, noForbiddenClaims: true, naturalSwedish: true, honestSocialProof: true,
-    noEmptyClosing: true, noBannedPhrases: true,
+    noEmptyClosing: true, noBannedPhrases: true, mentionsProductAndOffer: true,
   };
 }
 
@@ -410,7 +428,7 @@ function allChecksFalse(): FacebookQualityChecks {
     companySpecific: false, audienceSpecific: false, clearHook: false, clearCustomerValue: false,
     credibleClaims: false, correctTone: false, clearCTA: false, appropriateLength: false,
     readableFormatting: false, noForbiddenClaims: false, naturalSwedish: false, honestSocialProof: false,
-    noEmptyClosing: false, noBannedPhrases: false,
+    noEmptyClosing: false, noBannedPhrases: false, mentionsProductAndOffer: false,
   };
 }
 
@@ -436,6 +454,8 @@ function coerceReview(raw: unknown): FacebookQualityReview | null {
     honestSocialProof: cRaw.honestSocialProof === false ? false : true,
     noEmptyClosing: cRaw.noEmptyClosing === false ? false : true,
     noBannedPhrases: cRaw.noBannedPhrases === false ? false : true,
+    // Ägs helt av den deterministiska kontrollen, aldrig av granskarmodellen.
+    mentionsProductAndOffer: true,
   };
   let score = typeof o.overallScore === "number" ? Math.round(o.overallScore) : 0;
   score = Math.max(0, Math.min(100, score));
@@ -477,6 +497,7 @@ function applyDeterministicChecks(
   brief: FacebookBrief,
   forbidden: string[],
   verifiedProofCount: number,
+  terms: CampaignTerms,
 ): { review: FacebookQualityReview; flags: StatusFlags } {
   const issues = [...review.issues];
   const checks = { ...review.checks };
@@ -496,6 +517,15 @@ function applyDeterministicChecks(
   } else if (tooLong) {
     issues.push(`Klart längre än vald längd (${n} ord).`);
     if (status === "ready") status = "needs_revision";
+  }
+
+  // Produkt och erbjudande ur underlaget ska stå i texten. Saknas något:
+  // skriv om. Kvarstår det efter revisionen blir texten aldrig "klar".
+  const missingTerms = missingCampaignTerms(primary.postText, terms);
+  checks.mentionsProductAndOffer = missingTerms.length === 0;
+  if (missingTerms.length) {
+    issues.unshift(`Nämner inte ${missingTerms.map((t) => `"${t}"`).join(" eller ")}. Produkt och erbjudande ur underlaget ska stå ordagrant i texten.`);
+    if (status !== "blocked") status = "needs_revision";
   }
 
   // Förbjudna påståenden.
@@ -529,6 +559,7 @@ function applyDeterministicChecks(
     fabricatedSocialProof: proofHits.length > 0,
     forbiddenClaim: hit != null,
     clicheCount: cliches.length,
+    missingCampaignTerms: missingTerms,
   };
 
   return { review: { ...review, status, checks, issues: issues.slice(0, CAP.MAX_ISSUES) }, flags };
@@ -616,7 +647,8 @@ export async function runFacebookSpecialist(
   };
 
   // Deterministiska fakta väger tyngre än modellens gissning.
-  let det = applyDeterministicChecks(review, draft.primary, brief, forbidden, verifiedProofCount);
+  const terms = campaignTermsFor(brief, ctx);
+  let det = applyDeterministicChecks(review, draft.primary, brief, forbidden, verifiedProofCount, terms);
   review = det.review;
 
   let primary = draft.primary;
@@ -630,7 +662,15 @@ export async function runFacebookSpecialist(
         temperature: 0.6, maxTokens: 1400, signal: options.signal,
       });
       calls++; promptTokens += reviseRes.promptTokens; completionTokens += reviseRes.completionTokens;
-      const improved = coerceVariant(reviseRes.parsed, primary.label);
+      let improved = coerceVariant(reviseRes.parsed, primary.label);
+      // En revision som tappar produkt eller erbjudande som utkastet hade är
+      // ingen förbättring, hur mycket bättre den än läser. Behåll utkastet.
+      if (improved && missingCampaignTerms(improved.postText, terms).length > det.flags.missingCampaignTerms.length) {
+        improved = null;
+      }
+      // Tappade revisionen hashtaggarna behåller vi utkastets: huvudtexten ska
+      // inte vara den enda versionen utan.
+      if (improved && improved.hashtags.length === 0) improved = { ...improved, hashtags: primary.hashtags };
       if (improved) {
         const priorIssues = review.issues;
         primary = improved;
@@ -638,11 +678,12 @@ export async function runFacebookSpecialist(
         // Vi gör vår enda tillåtna förbättring och re-reviewar INTE (ingen loop,
         // inget fjärde AI-steg). Vi litar därför på revisionen för de icke-
         // deterministiska kriterierna, men behåller full auktoritet över de
-        // deterministiska (längd, forbiddenClaims, social proof, klichéer) på den
+        // deterministiska (längd, produkt och erbjudande, forbiddenClaims, social
+        // proof, klichéer) på den
         // nya texten. Kvarstår ett allvarligt fel markeras det ALDRIG som klart.
         det = applyDeterministicChecks(
           { status: "ready", overallScore: review.overallScore, userStatus: "review", statusReason: "", checks: allChecksTrue(), issues: [] },
-          primary, brief, forbidden, verifiedProofCount,
+          primary, brief, forbidden, verifiedProofCount, terms,
         );
         review = {
           ...det.review,

@@ -683,7 +683,7 @@ const CHECK_LABELS: Record<keyof FacebookQualityChecks, string> = {
   clearCTA: "Tydlig CTA", appropriateLength: "Rimlig längd", readableFormatting: "Läsbar formatering",
   noForbiddenClaims: "Inga förbjudna påståenden", naturalSwedish: "Naturlig svenska",
   honestSocialProof: "Ärligt socialt bevis", noEmptyClosing: "Konkret avslut",
-  noBannedPhrases: "Inga tomma fraser",
+  noBannedPhrases: "Inga tomma fraser", mentionsProductAndOffer: "Produkt och erbjudande",
 };
 
 /** Användarvänlig huvudstatus — den primära signalen (poängtalet är sekundärt). */

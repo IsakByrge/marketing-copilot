@@ -190,6 +190,8 @@ export interface StatusFlags {
   fabricatedSocialProof: boolean;
   forbiddenClaim: boolean;
   clicheCount: number;
+  /** Produkt eller erbjudande ur underlaget som inte står i texten. */
+  missingCampaignTerms: string[];
 }
 
 const READY_LABEL = "Publiceringsklar";
@@ -230,6 +232,8 @@ export function deriveUserStatus(review: FacebookQualityReview, flags: StatusFla
     c.clearCTA &&
     c.clearCustomerValue &&
     c.appropriateLength &&
+    c.mentionsProductAndOffer &&
+    flags.missingCampaignTerms.length === 0 &&
     flags.clicheCount === 0;
 
   if (readyCore) {
@@ -246,6 +250,9 @@ export function deriveUserStatus(review: FacebookQualityReview, flags: StatusFla
 function buildReviewReason(review: FacebookQualityReview, flags: StatusFlags): string {
   if (flags.fabricatedSocialProof) return "Ta bort eller verifiera påståenden om kunder/omdömen före publicering.";
   if (flags.forbiddenClaim) return "Texten rör ett påstående företaget inte vill göra — justera före publicering.";
+  if (flags.missingCampaignTerms.length) {
+    return `Texten nämner inte ${flags.missingCampaignTerms.map((t) => `"${t}"`).join(" eller ")} — lägg till det före publicering.`;
+  }
   if (!review.checks.appropriateLength) return "Kontrollera längden mot vald nivå före publicering.";
   if (flags.clicheCount > 0) return "Putsa ett par formuleringar som låter lite generiska.";
   if (review.issues.length) return `Kontrollera före publicering: ${review.issues[0].replace(/\.$/, "")}.`;
@@ -261,4 +268,64 @@ export const LENGTH_RANGE: Record<FacebookLength, { min: number; max: number }> 
 
 export function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/* ── 5. Produkt och erbjudande i texten ──────────────────────
+   Buggen "20 % på Mustang": huvudtexten nämnde varken produkt eller
+   rabatt, medan båda alternativen gjorde det. Huvudtexten skrevs om
+   efter granskningen, och omskrivningsprompten saknade uppdraget.
+   Den här kontrollen ser till att det aldrig händer tyst igen: när
+   underlaget har en produkt eller ett erbjudande ska det stå i texten. */
+
+export interface CampaignTerms {
+  /** Produktens namn: vald produkt i första hand, annars "vad som marknadsförs". */
+  product?: string;
+  /** Erbjudandet ur uppdraget, annars ur kampanjstrategin. */
+  offer?: string;
+}
+
+const lower = (s: string) => s.toLowerCase().replace(/\p{Pd}/gu, "-").replace(/\s+/g, " ").trim();
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+
+/**
+ * Står namnet ordagrant i texten? Skiftläge spelar ingen roll, bindestreck
+ * och mellanslag är utbytbara, och sista ordet får böjas: "Mustang
+ * gasolgrillen" räknas för "Mustang gasolgrill". Namn på fler än fyra ord
+ * är en beskrivning, inte ett namn, och kan inte krävas ordagrant: `null`.
+ */
+export function nameMentioned(text: string, name: string): boolean | null {
+  const words = lower(name).split(/[\s-]+/).filter(Boolean);
+  if (words.length === 0 || words.length > 4) return null;
+  const pattern = words.map(esc).join("[\\s-]+");
+  return new RegExp(`(?<![\\p{L}\\p{N}])${pattern}`, "u").test(lower(text));
+}
+
+/** Enheter som följer ett tal i ett erbjudande, och hur de får skrivas i texten. */
+const OFFER_UNITS: Array<{ re: RegExp; written: string }> = [
+  { re: /^(?:%|procent)$/i, written: "(?:%|procent)" },
+  { re: /^(?:kr|kronor|:-)$/i, written: "(?:kr|kronor|:-)" },
+];
+
+/**
+ * Står erbjudandet i texten? Har erbjudandet tal ska varje tal stå där med
+ * samma enhet: "20 %" räknas som "20%" och "20 procent", "500 kr" som
+ * "500 kronor". Har det inga tal krävs frasen ordagrant som ett namn.
+ */
+export function offerMentioned(text: string, offer: string): boolean | null {
+  const numbers = [...offer.matchAll(/(\d+(?:[.,]\d+)?)\s*(%|procent|kronor|kr|:-)?/gi)];
+  if (numbers.length === 0) return nameMentioned(text, offer);
+  const hay = lower(text);
+  return numbers.every(([, n, unit]) => {
+    const num = esc(n).replace(/[.,]/g, "[.,]");
+    const written = unit ? OFFER_UNITS.find((u) => u.re.test(unit))?.written ?? esc(unit) : "";
+    return new RegExp(`(?<![\\d.,])${num}(?![\\d])${written ? `\\s*${written}` : ""}`, "iu").test(hay);
+  });
+}
+
+/** Produkt och erbjudande som saknas i texten, som de står i underlaget. */
+export function missingCampaignTerms(text: string, terms: CampaignTerms): string[] {
+  const missing: string[] = [];
+  if (terms.product?.trim() && nameMentioned(text, terms.product) === false) missing.push(terms.product.trim());
+  if (terms.offer?.trim() && offerMentioned(text, terms.offer) === false) missing.push(terms.offer.trim());
+  return missing;
 }

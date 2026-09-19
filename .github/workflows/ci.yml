@@ -91,6 +91,9 @@ jobs:
       - name: Test — produkttext nyckelord
         run: npm run test:productkeywords
 
+      - name: Test — Facebook produkt och erbjudande
+        run: npm run test:fbterms
+
       - name: Test — voice
         run: npm run test:voice
 
