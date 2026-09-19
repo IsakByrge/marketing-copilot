@@ -9,6 +9,8 @@
 // Ren logik, inga beroenden. Testas i csv.test.mts.
 // ─────────────────────────────────────────────────────────────
 
+import { visibleLength } from "./html";
+
 export type Row = Record<string, string>;
 
 export interface ParsedCsv {
@@ -129,7 +131,20 @@ export interface ColumnGuess {
   name: string | null;
   description: string | null;
   group: string | null;
+  /** Underkategori. Wikinggruppen: "Sub category". Frivillig. */
+  subGroup: string | null;
+  /** Lagersaldo, för att kunna sortera bort det som ändå inte säljs. Frivillig. */
+  stock: string | null;
+  /** Tillverkare. Räknas som verifierat underlag i faktaspärren. Frivillig. */
+  producer: string | null;
+  /** Modellbeteckning. Räknas som verifierat underlag. Frivillig. */
+  model: string | null;
+  /** Adress till produktsidan. Används för att hämta underlag. Frivillig. */
+  url: string | null;
 }
+
+/** Kolumnerna som måste vara valda innan man kan gå vidare. */
+export const REQUIRED_COLUMNS = ["id", "name", "description"] as const;
 
 /** Kandidatnamn per fält, gemener, i prioritetsordning. */
 const PATTERNS: Record<keyof ColumnGuess, string[]> = {
@@ -140,6 +155,11 @@ const PATTERNS: Record<keyof ColumnGuess, string[]> = {
   name: ["produktnamn", "artikelnamn", "namn", "titel", "name", "title"],
   description: ["beskrivning", "produktbeskrivning", "artikelbeskrivning", "brödtext", "lång beskrivning", "description", "body"],
   group: ["produktgrupp", "kategori", "varugrupp", "grupp", "category"],
+  subGroup: ["underkategori", "sub category", "subcategory", "sub-category", "underrubrik"],
+  stock: ["lager", "lagersaldo", "antal i lager", "stock", "quantity"],
+  producer: ["tillverkare", "fabrikat", "märke", "producer", "brand", "manufacturer"],
+  model: ["modell", "modellbeteckning", "model"],
+  url: ["produktsida", "produkt-url", "länk", "lank", "url", "product url", "link"],
 };
 
 /**
@@ -170,7 +190,17 @@ export function guessColumns(headers: string[]): ColumnGuess {
     }
     return null;
   };
-  return { id: pick("id"), name: pick("name"), description: pick("description"), group: pick("group") };
+  return {
+    id: pick("id"),
+    name: pick("name"),
+    description: pick("description"),
+    group: pick("group"),
+    subGroup: pick("subGroup"),
+    stock: pick("stock"),
+    producer: pick("producer"),
+    model: pick("model"),
+    url: pick("url"),
+  };
 }
 
 // ── Verifiering av artikelnummerkolumn ──────────────────────
@@ -213,16 +243,20 @@ export function checkIdColumn(rows: Row[], column: string): IdColumnCheck {
 
 // ── Tunna texter ────────────────────────────────────────────
 
-/** Under så här många tecken räknas en beskrivning som tunn. */
-export const THIN_LIMIT = 120;
+/**
+ * Under så här många tecken räknas en beskrivning som tunn. Satt efter den
+ * riktiga katalogen: median 488 tecken, 80 artiklar under 150. Gränsen ska
+ * fånga dem som verkligen saknar innehåll, inte halva sortimentet.
+ */
+export const THIN_LIMIT = 150;
 
-/** Räknar synliga tecken utan html-taggar och whitespace-brus. */
+/**
+ * Räknar synliga tecken. Delegerar till html.ts så att entiteter avkodas —
+ * "m&auml;ssing" är 8 tecken, inte 13. Två räknare som glider isär skulle
+ * betyda att listan och godkännandevyn visade olika siffror.
+ */
 export function textLength(html: string): number {
-  return (html ?? "")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim().length;
+  return visibleLength(html);
 }
 
 export function isThin(html: string, limit = THIN_LIMIT): boolean {

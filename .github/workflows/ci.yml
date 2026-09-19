@@ -76,6 +76,18 @@ jobs:
       - name: Test — product text CSV
         run: npm run test:producttext
 
+      - name: Test — produkttext HTML
+        run: npm run test:producthtml
+
+      - name: Test — produkttext pipeline
+        run: npm run test:productpipeline
+
+      - name: Test — produkttext källa (URL/robots)
+        run: npm run test:productsource
+
+      - name: Test — produkttext hårda fakta
+        run: npm run test:producthardfacts
+
       - name: Test — voice
         run: npm run test:voice
 
