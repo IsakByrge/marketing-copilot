@@ -7,6 +7,8 @@
 //   2. detectFabricatedSocialProof — påhittade kund-/omdömesformuleringar
 //   3. alternativeSimilarity / dedupeAlternatives — nästan identiska alternativ
 //   4. deriveUserStatus         — 3-nivåers användarstatus + kort motivering
+//   5. missingCampaignTerms     — produkt och erbjudande ur underlaget i texten
+//   6. detectInventedUrgency    — brådska och knapphet som underlaget inte täcker
 //
 // Medvetet konservativt: listorna är kuraterade fraser med ordgräns,
 // inte en bred blacklist. Målet är få falska träffar. Allt är
@@ -52,6 +54,8 @@ const CLICHE_PATTERNS: { re: RegExp; label: string; hint: string }[] = [
   { re: /\bsömlös[a-z]*\b/i, label: "sömlös", hint: "Undvik 'sömlös/sömlöst'." },
   { re: /\brevolutioner[a-z]*\b/i, label: "revolutionerar", hint: "Undvik 'revolutionera'." },
   { re: /\bgame[\s-]?changer\b/i, label: "game changer", hint: "Undvik 'game changer'." },
+  // Tomt beröm: säger att erbjudandet är bra utan att säga vad det är.
+  { re: /(?<![\p{L}])(?:fantastiskt|otroligt|grymt|superbra|fenomenalt|oslagbart) (?:erbjudande|pris|tillfälle)(?![\p{L}])/iu, label: "fantastiskt erbjudande", hint: "Ta bort tomt beröm som 'fantastiskt erbjudande' — skriv vad erbjudandet är." },
 ];
 
 /** Hittar tydliga AI/reklamklichéer i en text. Returnerar unika träffar. */
@@ -192,6 +196,8 @@ export interface StatusFlags {
   clicheCount: number;
   /** Produkt eller erbjudande ur underlaget som inte står i texten. */
   missingCampaignTerms: string[];
+  /** Brådska eller knapphet i texten som underlaget inte täcker. */
+  inventedUrgency: string[];
 }
 
 const READY_LABEL = "Publiceringsklar";
@@ -223,8 +229,10 @@ export function deriveUserStatus(review: FacebookQualityReview, flags: StatusFla
   const trustworthy =
     c.credibleClaims &&
     c.noForbiddenClaims &&
+    c.noInventedUrgency &&
     !flags.fabricatedSocialProof &&
-    !flags.forbiddenClaim;
+    !flags.forbiddenClaim &&
+    flags.inventedUrgency.length === 0;
 
   const readyCore =
     review.status === "ready" &&
@@ -250,6 +258,9 @@ export function deriveUserStatus(review: FacebookQualityReview, flags: StatusFla
 function buildReviewReason(review: FacebookQualityReview, flags: StatusFlags): string {
   if (flags.fabricatedSocialProof) return "Ta bort eller verifiera påståenden om kunder/omdömen före publicering.";
   if (flags.forbiddenClaim) return "Texten rör ett påstående företaget inte vill göra — justera före publicering.";
+  if (flags.inventedUrgency.length) {
+    return `Ta bort ${flags.inventedUrgency.map((t) => `"${t}"`).join(" och ")} — underlaget säger inget om att erbjudandet tar slut.`;
+  }
   if (flags.missingCampaignTerms.length) {
     return `Texten nämner inte ${flags.missingCampaignTerms.map((t) => `"${t}"`).join(" eller ")} — lägg till det före publicering.`;
   }
@@ -328,4 +339,75 @@ export function missingCampaignTerms(text: string, terms: CampaignTerms): string
   if (terms.product?.trim() && nameMentioned(text, terms.product) === false) missing.push(terms.product.trim());
   if (terms.offer?.trim() && offerMentioned(text, terms.offer) === false) missing.push(terms.offer.trim());
   return missing;
+}
+
+/* ── 6. Påhittad brådska ─────────────────────────────────────
+   "Innan erbjudandet tar slut" i ett inlägg om "20 % på Mustang" antydde
+   en deadline som inte fanns. Brådska är ett påstående om fakta: att
+   något tar slut, att tiden är begränsad, att lagret är litet. Står det
+   inte i underlaget är det påhittat, precis som ett påhittat omdöme.
+
+   Två slag:
+   - tid: tillåten när underlaget har ett sista datum
+   - knapphet (lager, antal): tillåten bara när underlaget självt talar
+     om lager eller begränsat antal
+   Ordgränser med \p{L}, eftersom \b inte känner igen å, ä och ö. */
+
+export interface UrgencyHit {
+  phrase: string;
+  kind: "tid" | "knapphet";
+}
+
+const B = "(?<![\\p{L}\\p{N}])";
+const E = "(?![\\p{L}\\p{N}])";
+const urgency = (src: string) => new RegExp(`${B}${src}${E}`, "iu");
+
+const URGENCY_PATTERNS: Array<{ re: RegExp; label: string; kind: UrgencyHit["kind"] }> = [
+  { re: urgency("innan (?:erbjudandet|kampanjen|rabatten|priset|det) (?:tar slut|går ut|försvinner|är över)"), label: "innan erbjudandet tar slut", kind: "tid" },
+  { re: urgency("innan det är för sent"), label: "innan det är för sent", kind: "tid" },
+  { re: urgency("sista chansen"), label: "sista chansen", kind: "tid" },
+  { re: urgency("missa inte"), label: "missa inte", kind: "tid" },
+  { re: urgency("passa på"), label: "passa på", kind: "tid" },
+  { re: urgency("skynda(?: dig| er| på)?"), label: "skynda dig", kind: "tid" },
+  { re: urgency("nu eller aldrig"), label: "nu eller aldrig", kind: "tid" },
+  { re: urgency("(?:bara|endast|enbart) (?:idag|i dag|ikväll|i kväll|i helgen|den här veckan|denna vecka|under en kort tid|en kort tid|för en kort tid)"), label: "bara idag", kind: "tid" },
+  { re: urgency("(?:tidsbegränsat|begränsad tid|under begränsad tid)"), label: "begränsad tid", kind: "tid" },
+  { re: urgency("(?:gäller|pågår) (?:bara|endast) (?:en kort tid|några dagar|ett tag)"), label: "gäller bara en kort tid", kind: "tid" },
+  { re: urgency("(?:så länge|medan) (?:lagret|förrådet|varorna|det finns kvar) räcker"), label: "så länge lagret räcker", kind: "knapphet" },
+  { re: urgency("(?:begränsat|begränsad) (?:antal|lager|upplaga)"), label: "begränsat antal", kind: "knapphet" },
+  { re: urgency("(?:snart|nästan) (?:slut|slutsåld|slutsålda|borta)"), label: "snart slut", kind: "knapphet" },
+  { re: urgency("få (?:exemplar|kvar)"), label: "få kvar", kind: "knapphet" },
+];
+
+/** Vad underlaget faktiskt säger om tid och knapphet. */
+export interface UrgencyBasis {
+  /** Sista datum ur uppdraget. Finns det får tidsbrådska nämnas. */
+  deadline?: string;
+  /** Uppdragets egna ord: erbjudande, pris och noteringar. Nämner de lager
+   *  eller ett begränsat antal får knapphet nämnas. */
+  briefText?: string;
+}
+
+// "lagret" innehåller inte "lager", därför båda formerna.
+const SCARCITY_IN_BRIEF = /lager|lagret|begräns|antal|exemplar|slut/i;
+
+/**
+ * Brådska i texten som underlaget inte täcker. Tom lista = inget påhittat.
+ * Tid kräver ett sista datum i underlaget, knapphet kräver att underlaget
+ * självt talar om lager eller antal.
+ */
+export function detectInventedUrgency(text: string, basis: UrgencyBasis): UrgencyHit[] {
+  const timeAllowed = Boolean(basis.deadline?.trim());
+  const scarcityAllowed = SCARCITY_IN_BRIEF.test(basis.briefText ?? "");
+  const hits: UrgencyHit[] = [];
+  const seen = new Set<string>();
+  for (const p of URGENCY_PATTERNS) {
+    if (p.kind === "tid" && timeAllowed) continue;
+    if (p.kind === "knapphet" && scarcityAllowed) continue;
+    if (p.re.test(text) && !seen.has(p.label)) {
+      seen.add(p.label);
+      hits.push({ phrase: p.label, kind: p.kind });
+    }
+  }
+  return hits;
 }
