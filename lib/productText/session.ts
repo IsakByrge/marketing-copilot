@@ -154,11 +154,18 @@ export type StatusFilter = "alla" | "saknar" | "tunn" | "utkast" | "behover" | "
 export type SortKey = "length" | "name" | "category" | "stock";
 export type SortDir = "asc" | "desc";
 
+/** Lager: alla, eller bara det som finns i lager (saldo över noll). */
+export type StockFilter = "alla" | "i_lager";
+/** Produktsidan: alla, bara de som gick att hämta, eller bara döda (404). */
+export type PageFilter = "alla" | "finns" | "saknas";
+
 export interface Filters {
   query: string;
   category: string;
   status: StatusFilter;
   template: TemplateId | "alla";
+  stock: StockFilter;
+  page: PageFilter;
 }
 
 export const EMPTY_FILTERS: Filters = {
@@ -166,7 +173,31 @@ export const EMPTY_FILTERS: Filters = {
   category: "",
   status: "alla",
   template: "alla",
+  stock: "alla",
+  page: "alla",
 };
+
+/**
+ * Vad vi vet om produktsidan. "okand" är både ej kontrollerad och fel som
+ * inte säger något om sidan (timeout, robots.txt, serverfel): då vet vi
+ * inte att den är död, och den ska inte sorteras bort som om den vore det.
+ */
+export type PageState = "finns" | "saknas" | "okand";
+
+export function pageState(source: PageResult | undefined): PageState {
+  if (!source) return "okand";
+  if (source.ok) return "finns";
+  if (source.status === 404 || source.status === 410) return "saknas";
+  // Pass som sparades innan statusen fanns har bara texten kvar.
+  if (source.status === undefined && source.reason.includes("(404)")) return "saknas";
+  return "okand";
+}
+
+/** I lager betyder ett saldo över noll. Okänt saldo räknas inte som i lager. */
+export const inStock = (p: Product): boolean => p.stock !== null && p.stock > 0;
+
+const matchesStock = (p: Product, f: StockFilter) => f === "alla" || inStock(p);
+const matchesPage = (s: PageResult | undefined, f: PageFilter) => f === "alla" || pageState(s) === f;
 
 /** Var artikeln står just nu. Styr både filter och märket i listan. */
 export type ItemState = "saknar" | "tunn" | "ok" | "utkast" | "behover" | "godkand";
@@ -205,6 +236,7 @@ export function filterProducts(
   items: Record<string, WorkItem>,
   filters: Filters,
   thinLimit: number,
+  sources: Record<string, PageResult> = {},
 ): Product[] {
   const q = filters.query.trim().toLowerCase();
   return products.filter((p) => {
@@ -212,9 +244,46 @@ export function filterProducts(
     if (!matchesStatus(itemState(p, item, thinLimit), filters.status)) return false;
     if (filters.category && p.category !== filters.category) return false;
     if (filters.template !== "alla" && item?.template !== filters.template) return false;
+    if (!matchesStock(p, filters.stock)) return false;
+    if (!matchesPage(sources[p.id], filters.page)) return false;
     if (q && !`${p.name} ${p.id} ${p.model}`.toLowerCase().includes(q)) return false;
     return true;
   });
+}
+
+/** Antal per lager- och sidfilter, som knapparna visar. */
+export interface FilterCounts {
+  /** Finns det ett lagersaldo i filen alls? Annars visas inte lagerfiltret. */
+  hasStock: boolean;
+  inStock: number;
+  pageFound: number;
+  pageMissing: number;
+  /** Med adress men aldrig hämtade. De kan kontrolleras. */
+  pageUnchecked: number;
+}
+
+/**
+ * Antalen räknas med de andra filtren aktiva, så att siffran på en knapp
+ * är exakt det antal listan visar när du trycker på den. Lagerantalet
+ * räknas utan lagerfiltret, sidantalen utan sidfiltret.
+ */
+export function filterCounts(
+  products: Product[],
+  items: Record<string, WorkItem>,
+  filters: Filters,
+  thinLimit: number,
+  sources: Record<string, PageResult>,
+): FilterCounts {
+  const forStock = filterProducts(products, items, { ...filters, stock: "alla" }, thinLimit, sources);
+  const forPage = filterProducts(products, items, { ...filters, page: "alla" }, thinLimit, sources);
+  const states = forPage.map((p) => pageState(sources[p.id]));
+  return {
+    hasStock: products.some((p) => p.stock !== null),
+    inStock: forStock.filter(inStock).length,
+    pageFound: states.filter((s) => s === "finns").length,
+    pageMissing: states.filter((s) => s === "saknas").length,
+    pageUnchecked: forPage.filter((p) => p.url && !sources[p.id]).length,
+  };
 }
 
 /**

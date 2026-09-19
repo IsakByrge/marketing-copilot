@@ -204,6 +204,14 @@ function reasonFor(error: unknown): string {
   return "Sidan kunde inte hämtas.";
 }
 
+/** HTTP-statusen i ett fel, när sidan faktiskt svarade. Listans 404-filter läser den. */
+function statusFor(error: unknown): number | undefined {
+  const name = error instanceof Error ? error.message : "";
+  if (name === "not_found") return 404;
+  const code = name.startsWith("status_") ? Number(name.slice(7)) : NaN;
+  return Number.isInteger(code) ? code : undefined;
+}
+
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8);
 
@@ -247,7 +255,7 @@ export async function POST(request: Request) {
         const { html, finalUrl } = await fetchPage(url);
         results.push({ ok: true, ...extractPageFacts(html, finalUrl) });
       } catch (error) {
-        results.push({ ok: false, url: original, reason: reasonFor(error) });
+        results.push({ ok: false, url: original, reason: reasonFor(error), status: statusFor(error) });
       }
     }
 

@@ -7,9 +7,10 @@ import { THIN_LIMIT, type ColumnGuess, type Row } from "./csv";
 import { pickTemplate, TEMPLATES } from "./templates";
 import {
   buildProducts, initialItems, catalogStats, parseStock, itemState,
-  filterProducts, sortProducts, categoriesOf, approvedFor,
+  filterProducts, sortProducts, categoriesOf, approvedFor, filterCounts, pageState,
   EMPTY_FILTERS, type WorkItem,
 } from "./session";
+import type { PageResult } from "./pageFacts";
 import { validateProducts, validateGenerated, clampMeta, budgetFor, MAX_BATCH } from "./prompt";
 import { buildImport, buildImportCsv } from "./importFile";
 import { parseCsv } from "./csv";
@@ -140,6 +141,72 @@ test("filter på status, kategori, mall och fritext", () => {
   assert.deepEqual(f({ query: "kamin" }), ["1001"]);
   assert.deepEqual(f({ query: "1002" }), ["1002"]);
   assert.deepEqual(f({}), ["1001", "1002", "1003"]);
+});
+
+// ── Lager och produktsida ───────────────────────────────────
+// Många artiklar i Visma-importen har 0 i lager och död produktsida och är
+// inte värda en text. 1001 har 4 i lager, 1002 har 0, 1003 saknar saldo.
+
+const SOURCES: Record<string, PageResult> = {
+  "1001": { ok: true, url: "https://b.se/1001", specs: [], documents: [] },
+  "1002": { ok: false, url: "https://b.se/1002", reason: "Sidan finns inte längre (404).", status: 404 },
+  "1003": { ok: false, url: "https://b.se/1003", reason: "Sidan svarade inte i tid." },
+};
+
+test("pageState: hämtad, död, och allt vi inte vet", () => {
+  assert.equal(pageState(SOURCES["1001"]), "finns");
+  assert.equal(pageState(SOURCES["1002"]), "saknas");
+  assert.equal(pageState({ ok: false, url: "x", reason: "Borta.", status: 410 }), "saknas");
+  // Timeout och serverfel betyder inte att sidan är död.
+  assert.equal(pageState(SOURCES["1003"]), "okand");
+  assert.equal(pageState({ ok: false, url: "x", reason: "Sidan svarade 503.", status: 503 }), "okand");
+  assert.equal(pageState(undefined), "okand");
+});
+
+test("pageState läser 404 ur pass som sparades innan statusen fanns", () => {
+  assert.equal(pageState({ ok: false, url: "x", reason: "Sidan finns inte längre (404)." }), "saknas");
+});
+
+test("filter: finns i lager och produktsidans läge", () => {
+  const products = buildProducts(ROWS, COLS);
+  const items = initialItems(products);
+  const f = (over: Partial<typeof EMPTY_FILTERS>) =>
+    filterProducts(products, items, { ...EMPTY_FILTERS, ...over }, THIN_LIMIT, SOURCES).map((p) => p.id);
+
+  // Noll i lager och okänt saldo räknas inte som i lager.
+  assert.deepEqual(f({ stock: "i_lager" }), ["1001"]);
+  assert.deepEqual(f({ page: "finns" }), ["1001"]);
+  assert.deepEqual(f({ page: "saknas" }), ["1002"]);
+  assert.deepEqual(f({ stock: "i_lager", page: "saknas" }), []);
+  // Utan hämtade sidor finns inget att säga om sidan.
+  assert.deepEqual(filterProducts(products, items, { ...EMPTY_FILTERS, page: "saknas" }, THIN_LIMIT).map((p) => p.id), []);
+});
+
+test("antalen stämmer med vad listan visar när du trycker", () => {
+  const rows = ROWS.map((r) => ({ ...r, URL: `https://b.se/${r["Article number"]}` }));
+  const products = buildProducts(rows, COLS);
+  const items = initialItems(products);
+  const c = filterCounts(products, items, EMPTY_FILTERS, THIN_LIMIT, SOURCES);
+  assert.deepEqual(c, { hasStock: true, inStock: 1, pageFound: 1, pageMissing: 1, pageUnchecked: 0 });
+
+  // Med ett annat filter aktivt räknas antalen inom det.
+  const tunn = filterCounts(products, items, { ...EMPTY_FILTERS, status: "saknar" }, THIN_LIMIT, SOURCES);
+  assert.equal(tunn.pageMissing, 1);
+  assert.equal(tunn.inStock, 0);
+
+  // Lagerantalet räknas utan lagerfiltret, så knappen visar vad den ger.
+  const iLager = filterCounts(products, items, { ...EMPTY_FILTERS, stock: "i_lager" }, THIN_LIMIT, SOURCES);
+  assert.equal(iLager.inStock, 1);
+  assert.equal(iLager.pageMissing, 0);
+
+  // Aldrig hämtade sidor kan kontrolleras; fel som redan sparats räknas inte.
+  const none = filterCounts(products, items, EMPTY_FILTERS, THIN_LIMIT, {});
+  assert.equal(none.pageUnchecked, 3);
+});
+
+test("utan lagerkolumn visas inget lagerfilter", () => {
+  const products = buildProducts(ROWS, { ...COLS, stock: null });
+  assert.equal(filterCounts(products, initialItems(products), EMPTY_FILTERS, THIN_LIMIT, {}).hasStock, false);
 });
 
 test("sortering på textlängd, kategori och namn", () => {
