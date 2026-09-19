@@ -46,6 +46,8 @@ export interface PageFetchError {
   url: string;
   /** Kort svensk förklaring, visas i gränssnittet. */
   reason: string;
+  /** HTTP-status när sidan svarade med ett fel, t.ex. 404. Saknas vid nätverksfel. */
+  status?: number;
 }
 
 export type PageResult =

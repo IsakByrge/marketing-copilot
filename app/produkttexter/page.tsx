@@ -25,7 +25,7 @@ import { BATCH_SIZE, type GeneratedText } from "@/lib/productText/prompt";
 import { TEMPLATES, TEMPLATE_IDS, type TemplateId } from "@/lib/productText/templates";
 import {
   buildProducts, initialItems, catalogStats, categoriesOf, filterProducts,
-  sortProducts, itemState, lostFacts, approvedFor, EMPTY_FILTERS,
+  sortProducts, itemState, lostFacts, approvedFor, filterCounts, EMPTY_FILTERS,
   type Filters, type ItemState, type Product, type Session, type SortDir,
   type SortKey, type WorkItem,
 } from "@/lib/productText/session";
@@ -153,9 +153,14 @@ export default function ProductTextsPage() {
   const categories = useMemo(() => categoriesOf(products), [products]);
 
   const visible = useMemo(() => {
-    const filtered = filterProducts(products, items, filters, THIN_LIMIT);
+    const filtered = filterProducts(products, items, filters, THIN_LIMIT, sources);
     return sortProducts(filtered, sortKey, sortDir);
-  }, [products, items, filters, sortKey, sortDir]);
+  }, [products, items, filters, sortKey, sortDir, sources]);
+
+  const counts = useMemo(
+    () => filterCounts(products, items, filters, THIN_LIMIT, sources),
+    [products, items, filters, sources],
+  );
 
   const approved = useMemo(() => approvedFor(items), [items]);
   const approvedCount = Object.keys(approved).length;
@@ -224,6 +229,29 @@ export default function ProductTextsPage() {
   const patchItem = useCallback((id: string, patch: Partial<WorkItem>) => {
     setItems((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { template: "tillbehor" }), ...patch } }));
   }, []);
+
+  // ── Kontrollera produktsidor ──────────────────────────────
+  /**
+   * Hämtar produktsidorna för de synliga artiklarna utan att skriva något,
+   * så att 404-filtret vet vilka sidor som är döda innan du lägger tid på
+   * dem. Samma hämtning och cache som när texter skrivs: en sida hämtas en
+   * gång, och sidorna hämtas lika långsamt som annars.
+   */
+  async function checkPages() {
+    const queue = visible.filter((p) => p.url && !sources[p.id]);
+    if (queue.length === 0) return;
+    cancelRef.current = false;
+    setBusy(true);
+    setError(null);
+    try {
+      setSources(await fetchSources(queue));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Kunde inte hämta produktsidorna.");
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
+  }
 
   // ── Skriv texter ──────────────────────────────────────────
   async function generate() {
@@ -691,6 +719,38 @@ export default function ProductTextsPage() {
                   ))}
                 </div>
 
+                {/* Lager och produktsida: det som avgör om en artikel är värd en text. */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {counts.hasStock && (
+                    <FilterChip
+                      active={filters.stock === "i_lager"}
+                      onClick={() => setFilters({ ...filters, stock: filters.stock === "i_lager" ? "alla" : "i_lager" })}
+                      label="Finns i lager"
+                      count={counts.inStock}
+                    />
+                  )}
+                  <FilterChip
+                    active={filters.page === "finns"}
+                    onClick={() => setFilters({ ...filters, page: filters.page === "finns" ? "alla" : "finns" })}
+                    label="Produktsida finns"
+                    count={counts.pageFound}
+                  />
+                  <FilterChip
+                    active={filters.page === "saknas"}
+                    onClick={() => setFilters({ ...filters, page: filters.page === "saknas" ? "alla" : "saknas" })}
+                    label="Produktsida saknas (404)"
+                    count={counts.pageMissing}
+                  />
+                  {counts.pageUnchecked > 0 && (
+                    <span className="flex flex-wrap items-center gap-2 pl-1 text-xs text-text-tertiary">
+                      {counts.pageUnchecked} {counts.pageUnchecked === 1 ? "sida" : "sidor"} ej kontrollerade
+                      <Button variant="ghost" size="sm" onClick={checkPages} disabled={busy}>
+                        Kontrollera produktsidor
+                      </Button>
+                    </span>
+                  )}
+                </div>
+
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="text-text-tertiary">Sortera:</span>
                   {SORT_LABELS.map((s) => (
@@ -875,6 +935,27 @@ export default function ProductTextsPage() {
         )}
       </div>
     </AppShell>
+  );
+}
+
+/** Ett filter som slås på och av, med antalet det skulle visa. */
+function FilterChip({ active, onClick, label, count }: {
+  active: boolean; onClick: () => void; label: string; count: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cx(
+        "min-h-9 shrink-0 rounded-full border px-3 text-sm transition-colors",
+        active
+          ? "border-primary bg-primary/10 text-text-primary"
+          : "border-border bg-surface text-text-secondary hover:border-border-strong",
+      )}
+    >
+      {label} <span className="tabular-nums text-text-tertiary">{count}</span>
+    </button>
   );
 }
 
