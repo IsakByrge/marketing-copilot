@@ -142,6 +142,8 @@ export interface FacebookQualityChecks {
   noEmptyClosing: boolean;
   /** Ingen av de delade förbjudna formuleringarna (lib/server/voice.ts). */
   noBannedPhrases: boolean;
+  /** Produkt och erbjudande ur underlaget står i texten. Avgörs deterministiskt. */
+  mentionsProductAndOffer: boolean;
 }
 
 /** Användarvänlig huvudstatus — ersätter poängtalet som primär signal. */

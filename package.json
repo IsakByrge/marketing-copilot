@@ -31,7 +31,8 @@
     "test:productpipeline": "tsx lib/productText/pipeline.test.mts",
     "test:productsource": "tsx lib/productText/source.test.mts",
     "test:producthardfacts": "tsx lib/productText/hardFacts.test.mts",
-    "test:productkeywords": "tsx lib/productText/keywords.test.mts"
+    "test:productkeywords": "tsx lib/productText/keywords.test.mts",
+    "test:fbterms": "tsx lib/facebook/campaignTerms.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
