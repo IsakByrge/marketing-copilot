@@ -135,25 +135,53 @@ export function parseListedFacts(input: unknown): ListedFact[] {
 
 const loose = (s: string) => normalize(s).toLowerCase();
 
+/** För ordjämförelse: gemener, och dubbla bokstäver som en, så att butikens
+ *  "termostatsstyrd" och rätt stavade "termostatstyrd" blir samma ord. */
+const wordForm = (s: string) => loose(s).replace(/(\p{L})\1+/gu, "$1");
+
 /**
- * Uppgifter ur modellens egen lista vars nyckelord inte står i texten.
- * Ett långt ord får tappa sin böjningsändelse: "gjutjärnet" räknas för
- * "gjutjärn" och tvärtom.
+ * Står ordet i texten? Ett långt ord får tappa sin böjningsändelse:
+ * "gjutjärnet" räknas för "gjutjärn", "termostatstyrning" för
+ * "termostatstyrd". Ett kort ord måste stå i början av ett ord, så att
+ * "lock" inte hittas i "blocket". Är ordet ett mått jämförs det som ett
+ * mått: "138 g/h" står i "138-247 g/h".
  */
+export function mentions(plainText: string, word: string): boolean {
+  const measures = extractHardFacts(word);
+  if (measures.length > 0) {
+    const hard = new Set(extractHardFacts(plainText).map((f) => f.key));
+    return measures.every((m) => hard.has(m.key));
+  }
+  const text = wordForm(plainText);
+  const w = wordForm(word);
+  if (!w) return false;
+  // Flera ord: vart och ett ska stå där, böjt eller inte. "Den batteridrivna
+  // tändningen" räknas för "batteridriven tändning".
+  const parts = w.split(" ");
+  if (parts.length > 1) return parts.every((part) => mentions(plainText, part));
+  const atWordStart = (s: string) => new RegExp(`(?<![\\p{L}\\p{N}])${escape(s)}`, "u").test(text);
+  if (w.length < 6) return atWordStart(w);
+  if (text.includes(w)) return true;
+  // Böjningsändelse av: "värmen" → "värme", "termostatstyrd" → "termostatsty".
+  // En stam på sex tecken får stå var som helst, en på fem bara i början av
+  // ett ord, och kortare stammar godtas inte: "locket" ska inte hittas i "lockar".
+  for (const cut of [1, 2]) {
+    const stem = w.slice(0, w.length - cut);
+    if (stem.length >= 6 ? text.includes(stem) : stem.length >= 5 && atWordStart(stem)) return true;
+  }
+  return false;
+}
+
+/** Uppgifter ur modellens egen lista vars nyckelord inte står i texten. */
 export function uncoveredFacts(facts: ListedFact[] | undefined, afterPlain: string): string[] {
   if (!facts || facts.length === 0) return [];
-  const text = loose(afterPlain);
-  const hard = new Set(extractHardFacts(afterPlain).map((f) => f.key));
-  return facts
-    .filter((f) => {
-      // Är ordet ett mått jämförs det som ett mått: "138 g/h" står i "138-247 g/h".
-      const measures = extractHardFacts(f.ord);
-      if (measures.length > 0) return !measures.every((m) => hard.has(m.key));
-      const word = loose(f.ord);
-      if (text.includes(word)) return false;
-      return !(word.length >= 6 && text.includes(word.slice(0, word.length - 2)));
-    })
-    .map((f) => f.uppgift);
+  return facts.filter((f) => !mentions(afterPlain, f.ord)).map((f) => f.uppgift);
+}
+
+/** Nyckelord ur före-texten (se keywords.ts) som saknas i efter-texten. */
+export function missingKeywords(keywords: string[] | undefined, afterPlain: string): string[] {
+  if (!keywords || keywords.length === 0) return [];
+  return keywords.filter((k) => !mentions(afterPlain, k));
 }
 
 /**

@@ -23,14 +23,19 @@ import {
   buildRetryPrompt,
   rewriteReasons,
   isImprovement,
+  currentPlain,
   MAX_BATCH,
 } from "@/lib/productText/prompt";
+import {
+  KEYWORD_SYSTEM, MIN_WORDS_FOR_KEYWORDS, buildKeywordPrompt, parseKeywords,
+} from "@/lib/productText/keywords";
+import { wordCount } from "@/lib/productText/html";
 import { buildFactsLookup } from "@/lib/productText/productFacts";
 import { editMemoryBlock } from "@/lib/server/editMemory";
 
 export const runtime = "nodejs";
-// Två modellanrop när en text avvisas av faktakontrollen.
-export const maxDuration = 120;
+// Upp till tre modellanrop: nyckelord, text, och omskrivning om texten avvisas.
+export const maxDuration = 150;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8);
@@ -67,17 +72,43 @@ export async function POST(request: Request) {
       editMemoryBlock("product_text"),
     ]);
     const lookup = brain ? buildFactsLookup(brain) : undefined;
+    let promptTokens = 0;
+    let completionTokens = 0;
+
+    // Steg 1: material och funktioner ur före-texten, innan något skrivs.
+    // Misslyckas det skrivs texten ändå, med siffrorna som enda krav.
+    const before = new Map(
+      products
+        .map((p) => [p.id, currentPlain(p)] as const)
+        .filter(([, text]) => wordCount(text) >= MIN_WORDS_FOR_KEYWORDS),
+    );
+    if (before.size > 0) {
+      try {
+        const kw = await callChatJson(
+          KEYWORD_SYSTEM,
+          buildKeywordPrompt([...before].map(([id, text]) => ({ id, text }))),
+          { temperature: 0, maxTokens: 200 + before.size * 150 },
+        );
+        promptTokens += kw.promptTokens;
+        completionTokens += kw.completionTokens;
+        const found = parseKeywords(kw.parsed, before);
+        for (const p of products) p.keywords = found.get(p.id);
+      } catch (error) {
+        console.error(`PRODUCT_TEXTS ${requestId}: keywords ${error instanceof Error ? error.name : "UnknownError"}`);
+      }
+    }
+
     const system = buildSystemPrompt(ctx, editMemory);
     const user = buildUserPrompt(products, lookup);
 
-    // Budgeten följer mallarna i batchen: en huvudprodukt på 300 ord behöver
-    // tre gånger så mycket utrymme som en reservdel på 30. Taket i ai.ts gäller ändå.
+    // Steg 2: texten. Budgeten följer mallarna i batchen: en huvudprodukt på
+    // 400 ord behöver tio gånger så mycket som en reservdel. Taket i ai.ts gäller ändå.
     const result = await callChatJson(system, user, {
       temperature: 0.5,
       maxTokens: budgetFor(products),
     });
-    let promptTokens = result.promptTokens;
-    let completionTokens = result.completionTokens;
+    promptTokens += result.promptTokens;
+    completionTokens += result.completionTokens;
 
     const texts = validateGenerated(result.parsed, products);
     if (!texts) {
@@ -89,13 +120,15 @@ export async function POST(request: Request) {
       return safeError("Texterna kunde inte skapas. Försök igen.", 502);
     }
 
-    // Hård kontroll: tappade en text ett tal med enhet eller en förkortning
-    // ur före-texten, eller en uppgift ur modellens egen faktalista, avvisas
+    // Steg 3, hård kontroll: tappade en text ett tal med enhet, en förkortning
+    // eller ett nyckelord ur före-texten, eller en uppgift ur modellens egen
+    // faktalista, avvisas
     // den och skrivs om en gång, med besked om vad som saknades. Saknas
     // något ändå går texten tillbaka märkt och visas som "Behöver
     // uppgifter", aldrig som klar.
+    const byId = new Map(products.map((p) => [p.id, p]));
     const rejected = texts
-      .map((t) => ({ id: t.id, reasons: rewriteReasons(t) }))
+      .map((t) => ({ id: t.id, reasons: rewriteReasons(t, byId.get(t.id)) }))
       .filter((r) => r.reasons.length > 0);
     if (rejected.length > 0) {
       const again = products.filter((p) => rejected.some((r) => r.id === p.id));
@@ -109,7 +142,7 @@ export async function POST(request: Request) {
 
         for (const fixed of validateGenerated(retry.parsed, again) ?? []) {
           const i = texts.findIndex((t) => t.id === fixed.id);
-          if (i !== -1 && isImprovement(fixed, texts[i])) texts[i] = fixed;
+          if (i !== -1 && isImprovement(fixed, texts[i], byId.get(fixed.id))) texts[i] = fixed;
         }
       } catch (error) {
         // Omskrivningen misslyckades. Första versionen går tillbaka, märkt.
