@@ -11,6 +11,7 @@
 // tokenbudget batchen får.
 // ─────────────────────────────────────────────────────────────
 import { guardAiRequest, safeError } from "@/lib/server/guard";
+import { classifyAiError } from "@/lib/server/aiError";
 import { hasForbiddenProxyField } from "@/lib/server/contentPrompt";
 import { getCompanyBrainContext, getCompanyBrain } from "@/lib/companyBrainServer";
 import { callChatJson, AI } from "@/lib/server/ai";
@@ -153,13 +154,9 @@ export async function POST(request: Request) {
     await guard.finish({ status: "ok", model: AI.CHAT_MODEL, promptTokens, completionTokens });
     return Response.json({ texts });
   } catch (error) {
-    const name = error instanceof Error ? error.name : "UnknownError";
-    console.error(`PRODUCT_TEXTS ${requestId}: ${name}`);
-    await guard.finish({ status: "error", errorCategory: name });
-    const status = name === "AbortError" ? 504 : 500;
-    const message = name === "AbortError"
-      ? "Det tog för lång tid att skapa texterna. Försök igen."
-      : "Kunde inte skapa texterna just nu.";
-    return safeError(message, status);
+    const failure = classifyAiError(error, "texterna");
+    console.error(`PRODUCT_TEXTS ${requestId}: ${failure.kind} ${failure.logTag}`);
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+    return safeError(failure.message, failure.httpStatus);
   }
 }

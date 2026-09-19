@@ -17,6 +17,7 @@ import { runFacebookSpecialist, criticalFollowUp, type FacebookPhase } from "@/l
 import { editMemoryBlock } from "@/lib/server/editMemory";
 import { buildFacebookContext } from "@/lib/facebook/context";
 import { guardAiRequest } from "@/lib/server/guard";
+import { classifyAiError } from "@/lib/server/aiError";
 import { AI } from "@/lib/server/ai";
 
 export const runtime = "nodejs";
@@ -98,12 +99,15 @@ export async function POST(request: Request) {
         await guard.finish({ status: "ok", model: process.env.FACEBOOK_DRAFT_MODEL || AI.CHAT_MODEL, promptTokens: meta.usage.promptTokens, completionTokens: meta.usage.completionTokens });
         controller.close();
       } catch (error) {
-        const name = error instanceof Error ? error.name : "UnknownError";
-        console.error(`FB_SPECIALIST ${requestId}: ${name}`);
+        // Strömmen är redan öppen med 200, så felet går i ett eget meddelande.
+        // Förut sa det "Det gick inte att skapa inlägget just nu" även när
+        // OpenAI-nyckeln var slut på saldo (buggrapport 2026-09-19).
+        const failure = classifyAiError(error, "inlägget");
+        console.error(`FB_SPECIALIST ${requestId}: ${failure.kind} ${failure.logTag}`);
         try {
-          controller.enqueue(line({ type: "error", error: "Det gick inte att skapa inlägget just nu. Dina uppgifter är kvar och du kan försöka igen." }));
+          controller.enqueue(line({ type: "error", error: failure.message, kind: failure.kind }));
         } catch { /* strömmen redan stängd */ }
-        await guard.finish({ status: "error", errorCategory: name });
+        await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
         controller.close();
       }
     },

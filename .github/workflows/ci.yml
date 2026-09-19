@@ -97,6 +97,9 @@ jobs:
       - name: Test — Facebook längd, brådska och tomt beröm
         run: npm run test:fbrules
 
+      - name: Test — felbesked vid saldo, tidsgräns och fel
+        run: npm run test:aierror
+
       - name: Test — voice
         run: npm run test:voice
 

@@ -13,6 +13,7 @@
 //   • loggar användning (ingen prompt/företagsdata).
 // ─────────────────────────────────────────────────────────────
 import { guardAiRequest, safeError } from "@/lib/server/guard";
+import { classifyAiError } from "@/lib/server/aiError";
 import { getCompanyBrainContext } from "@/lib/companyBrainServer";
 import { editMemoryBlock } from "@/lib/server/editMemory";
 import { callChatJson, AI } from "@/lib/server/ai";
@@ -89,11 +90,9 @@ export async function POST(request: Request) {
     });
     return Response.json(content);
   } catch (error) {
-    const name = error instanceof Error ? error.name : "UnknownError";
-    console.error(`CREATE_CONTENT ${requestId}: ${name}`);
-    await guard.finish({ status: "error", errorCategory: name });
-    const status = name === "AbortError" ? 504 : 500;
-    const message = name === "AbortError" ? "Det tog för lång tid att skapa innehållet. Försök igen." : "Kunde inte skapa innehållet just nu.";
-    return safeError(message, status);
+    const failure = classifyAiError(error, "innehållet");
+    console.error(`CREATE_CONTENT ${requestId}: ${failure.kind} ${failure.logTag}`);
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+    return safeError(failure.message, failure.httpStatus);
   }
 }

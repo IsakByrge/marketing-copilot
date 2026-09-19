@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────
 import { NextResponse } from "next/server";
 import { guardAiRequest } from "@/lib/server/guard";
+import { classifyAiError } from "@/lib/server/aiError";
 import { getOpenAI, AI } from "@/lib/server/ai";
 import {
   LIMITS,
@@ -365,9 +366,9 @@ export async function POST(request: Request) {
     return NextResponse.json(decision);
   } catch (error) {
     // Logga aldrig känslig företagsinformation — bara felets art.
-    const name = error instanceof Error ? error.name : "UnknownError";
-    console.error(`CAMPAIGN_INTERVIEW_ERROR ${requestId}: ${name}`);
-    await guard.finish({ status: "error", errorCategory: name });
-    return NextResponse.json({ error: "Resonemangsmotorn är inte tillgänglig just nu." }, { status: 500 });
+    const failure = classifyAiError(error, "nästa fråga");
+    console.error(`CAMPAIGN_INTERVIEW_ERROR ${requestId}: ${failure.kind} ${failure.logTag}`);
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+    return NextResponse.json({ error: failure.message, kind: failure.kind }, { status: failure.httpStatus });
   }
 }

@@ -16,6 +16,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Card, Field, Input, Spinner, cx } from "@/app/_shared/primitives";
 import { Textarea } from "@/app/_shared/Textarea";
+import type { MarketingPlan } from "@/app/_shared/useAccountData";
 
 type CompanyProfile = {
   companyName: string; industry: string; summary: string;
@@ -186,10 +187,18 @@ function AnalyzingScreen() {
   );
 }
 
+/** Svar från en route: ok bara när status är 2xx och kroppen inte är ett felsvar. */
+async function readJson<T>(r: Response): Promise<{ ok: boolean; data: (T & { error?: string }) | null }> {
+  const data = (await r.json().catch(() => null)) as (T & { error?: string }) | null;
+  return { ok: r.ok && Boolean(data) && !data?.error, data };
+}
+
 /* ── STEG 2: Förifyllda fält att bekräfta/justera ──────── */
-function ConfirmScreen({ profile, prefilled, onConfirm }: {
+function ConfirmScreen({ profile, prefilled, notice, onConfirm }: {
   profile: CompanyProfile;
   prefilled: boolean;
+  /** Varför analysen eller planen inte blev av, med serverns egna ord. */
+  notice: string | null;
   onConfirm: (answers: { bestCustomer: string; commonQuestion: string; differentiator: string; recentJob: string }) => void;
 }) {
   const [bestCustomer, setBestCustomer] = useState(profile.bestCustomer || "");
@@ -236,6 +245,10 @@ function ConfirmScreen({ profile, prefilled, onConfirm }: {
           ? "Jag läste din hemsida och gissade svaren. Läs igenom och ändra det som är fel — det här styr allt jag skriver åt dig."
           : "Var konkret. Generiska svar ger generiska texter."}
       </p>
+
+      {notice && (
+        <Alert tone="warning" className="mt-5">{notice}</Alert>
+      )}
 
       {prefilled && (
         <Alert className="mt-5">Förslagen nedan kommer från din hemsida. Ändra fritt.</Alert>
@@ -296,6 +309,7 @@ export default function OnboardingPage() {
   const [screen, setScreen] = useState<"start" | "analyzing" | "confirm" | "generating">("start");
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [prefilled, setPrefilled] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   // Tills kontrollen nedan är klar visas ingenting: den som redan har ett
   // företag ska inte hinna se ett tomt formulär och börja fylla i det.
   const [checking, setChecking] = useState(true);
@@ -330,13 +344,17 @@ export default function OnboardingPage() {
 
     const input = { companyName: name, website: website.trim() };
 
-    const [result] = await Promise.all([
+    const [res] = await Promise.all([
       fetch("/api/analyze-company", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
-      }).then(r => r.json()).catch(() => null),
+      }).then((r) => readJson<CompanyProfile>(r), () => ({ ok: false, data: null })),
       new Promise(r => setTimeout(r, 3500)),
     ]);
+    // Ett felsvar är inte en profil. Förut blev { error } en tom profil och
+    // ingen fick veta varför fälten var tomma, inte ens vid slut saldo.
+    const result = res.ok ? res.data : null;
+    setNotice(res.ok ? null : `${res.data?.error ?? "Hemsidan kunde inte läsas."} Du kan fylla i fälten själv.`);
 
     const p: CompanyProfile = result || {
       companyName: name, industry: "",
@@ -416,13 +434,24 @@ export default function OnboardingPage() {
     } catch (sbError) {
       console.warn("Kunde inte spara företag till Supabase:", sbError);
     }
-    const [result] = await Promise.all([
+    const [res] = await Promise.all([
       // Foretaget ar redan upsertat ovan, sa servern hittar det sjalv.
       // Ingen foretagsdata skickas i bodyn.
       fetch("/api/generate-plan", { method: "POST" })
-        .then(r => r.json()).catch(() => null),
+        .then((r) => readJson<MarketingPlan>(r), () => ({ ok: false, data: null })),
       new Promise(r => setTimeout(r, 4200)),
     ]);
+
+    // Blev det ingen plan: tillbaka till frågorna med svaren kvar och
+    // beskedet synligt. Förut sparades felsvaret som en tom plan och man
+    // hamnade på en tom översikt utan förklaring.
+    if (!res.ok) {
+      setProfile(finalProfile);
+      setNotice(res.data?.error ?? "Veckans förslag kunde inte skapas. Försök igen.");
+      setScreen("confirm");
+      return;
+    }
+    const result = res.data;
 
     // Första planen sparas i databasen, inte på enheten. Misslyckas det
     // står dashboarden tom i stället för att visa något som inte finns
@@ -478,7 +507,7 @@ export default function OnboardingPage() {
           <>
             {screen === "start" && <StartScreen onAnalyze={handleAnalyze} onManual={handleManual} />}
             {screen === "analyzing" && <AnalyzingScreen />}
-            {screen === "confirm" && profile && <ConfirmScreen profile={profile} prefilled={prefilled} onConfirm={handleConfirm} />}
+            {screen === "confirm" && profile && <ConfirmScreen profile={profile} prefilled={prefilled} notice={notice} onConfirm={handleConfirm} />}
             {screen === "generating" && <GeneratingScreen />}
           </>
         )}

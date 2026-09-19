@@ -12,6 +12,7 @@ import { coerceRecommend } from "@/lib/strategist/validate";
 import { callJson, STRATEGIST_MODEL } from "@/lib/strategist/model";
 import { parseBrief, parseAnswers, parseAnalysis } from "@/lib/strategist/request";
 import { guardAiRequest } from "@/lib/server/guard";
+import { classifyAiError } from "@/lib/server/aiError";
 
 export const maxDuration = 60;
 
@@ -64,9 +65,9 @@ export async function POST(request: Request) {
     await guard.finish({ status: "ok", model: STRATEGIST_MODEL, companyId: ctxResult.companyId, promptTokens, completionTokens });
     return Response.json({ status: "ok", strategy: out.value });
   } catch (error) {
-    const name = error instanceof Error ? error.name : "UnknownError";
-    console.error(`STRATEGIST_RECOMMEND ${requestId}: ${name}`);
-    await guard.finish({ status: "error", errorCategory: name });
-    return Response.json({ status: "error", error: "Strategen är inte tillgänglig just nu." }, { status: 500 });
+    const failure = classifyAiError(error, "strategin");
+    console.error(`STRATEGIST_RECOMMEND ${requestId}: ${failure.kind} ${failure.logTag}`);
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+    return Response.json({ status: "error", error: failure.message, kind: failure.kind }, { status: failure.httpStatus });
   }
 }
