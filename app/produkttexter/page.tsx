@@ -290,6 +290,7 @@ export default function ProductTextsPage() {
               metaDescription: t.metaDescription,
               needsInfo: t.needsInfo,
               facts: t.facts,
+              keywords: t.keywords,
               approved: false,
             };
           }

@@ -29,19 +29,27 @@ export const TEMPLATES: Record<TemplateId, Template> = {
   huvudprodukt: {
     id: "huvudprodukt",
     label: "Huvudprodukt",
-    summary: "Kaminer, grillar, pizzaugnar, kylskåp. 150–300 ord.",
-    minWords: 150,
-    maxWords: 300,
-    instructions: `MALL: HUVUDPRODUKT (150–300 ord, längre om fakta kräver det)
-Struktur, i den här ordningen:
-1. Ett stycke om vad produkten löser för kunden.
+    summary: "Kaminer, grillar, pizzaugnar, kylskåp. 250–400 ord.",
+    // Huvudprodukterna är de dyra artiklarna. Verona (6 990 kr) blev 110 ord
+    // på 150–300, och kunden som lägger sju tusen vill kunna läsa sig trygg.
+    minWords: 250,
+    maxWords: 400,
+    instructions: `MALL: HUVUDPRODUKT (250–400 ord, längre om fakta kräver det)
+Fyra delar, i den här ordningen. Ordantalen per del är mål, inte tak.
+1. Vad produkten löser för kunden (80–120 ord, två stycken). Situationen
+   den används i och vad den gör där, med underlagets egna uppgifter.
 2. En punktlista med specifikationer: VARJE effekt, förbrukning, yta,
    mått, vikt, material och säkerhetsfunktion som står i UNDERLAG. Bara
    det som står där. Har du färre än två, skriv ingen lista alls.
-3. Ett stycke om vad som behövs till den för att den ska fungera.
-4. Ett stycke om vad som inte ingår.
-Står det inte i UNDERLAG vad som behövs till eller inte ingår: hoppa över
-det stycket och lägg uppgiften i needsInfo. Skriv aldrig "kontakta oss för
+3. Vad som är särskilt med den (130–180 ord, tre stycken). Material,
+   konstruktion, funktioner, säkerhet, hur den tänds, styrs och drivs:
+   det som skiljer den från en enklare modell. En sak per mening, och vad
+   den betyder för kunden.
+4. Vad som behövs till den och vad som inte ingår (50–90 ord). Flaskor,
+   tillbehör, installation, ventilation, det som levereras utan.
+Står det inte i UNDERLAG vad som behövs till eller inte ingår: skriv bara
+det du vet och lägg resten i needsInfo. Fyll aldrig ut med allmänna
+påståenden som inte står i underlaget. Skriv aldrig "kontakta oss för
 mer information".`,
   },
   tillbehor: {

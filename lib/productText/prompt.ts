@@ -30,7 +30,8 @@ import {
   type PageFacts,
 } from "./pageFacts";
 import {
-  extractHardFacts, missingHardFacts, parseListedFacts, uncoveredFacts, type ListedFact,
+  extractHardFacts, missingHardFacts, missingKeywords, parseListedFacts, uncoveredFacts,
+  type ListedFact,
 } from "./hardFacts";
 
 /** Största batch servern accepterar. Klienten delar upp efter mall. */
@@ -46,16 +47,17 @@ export const MAX_CURRENT_RAW = 50_000;
 export const MAX_CURRENT_PLAIN = 8_000;
 
 /** Hur många artiklar av varje mall som får plats i ett anrop utan att
- *  svaret trunkeras mot tokentaket i ai.ts. Huvudprodukter är långa. */
+ *  svaret trunkeras mot tokentaket i ai.ts. En huvudprodukt på 400 ord med
+ *  faktalista tar ~1 500 tokens; två gick inte säkert under taket på 4 096. */
 export const BATCH_SIZE: Record<TemplateId, number> = {
-  huvudprodukt: 2,
+  huvudprodukt: 1,
   tillbehor: 5,
   reservdel: 8,
 };
 
 /** Grov tokenbudget per artikel och mall, för max_tokens. */
 const TOKENS_PER_ITEM: Record<TemplateId, number> = {
-  huvudprodukt: 1_500,
+  huvudprodukt: 2_600,
   tillbehor: 300,
   reservdel: 200,
 };
@@ -71,6 +73,11 @@ export interface ProductInput {
   current?: string;
   /** Fakta hämtade från artikelns egen produktsida. Citerat underlag. */
   page?: PageFacts;
+  /**
+   * Material och funktioner ur före-texten (se keywords.ts). Sätts av
+   * servern, aldrig av klienten: validateProducts läser inte fältet.
+   */
+  keywords?: string[];
 }
 
 export interface GeneratedText {
@@ -81,8 +88,10 @@ export interface GeneratedText {
   metaDescription: string;
   /** Uppgifter modellen saknade. Icke-tom lista = "Behöver uppgifter". */
   needsInfo: string[];
-  /** Tal med enhet och förkortningar ur före-texten som inte kom med. */
+  /** Tal med enhet, förkortningar och nyckelord ur före-texten som inte kom med. */
   missingFacts: string[];
+  /** Nyckelorden som krävdes. Följer med till klienten så kontrollen kan räknas om vid redigering. */
+  keywords: string[];
   /** Modellens egen lista över sakuppgifter, med nyckelord att kontrollera. */
   facts: ListedFact[];
   /** Uppgifter ur `facts` vars nyckelord inte står i texten. */
@@ -148,8 +157,9 @@ innehållet. Säljfraser och uppmaningar får du stryka. Fakta får du aldrig
 stryka.
 
 Varje produkt kan ha en rad "MÅSTE FINNAS MED". Allt på den raden ska stå
-i texten med samma siffra och enhet, eller samma förkortning. Raden
-kontrolleras maskinellt, och en text som saknar något skickas tillbaka.
+i texten med samma siffra och enhet, samma förkortning eller samma ord
+(böjt är okej: "gjutjärnet" räknas för "gjutjärn"). Raden kontrolleras
+maskinellt, och en text som saknar något skickas tillbaka.
 
 LÄNGD
 Mallens ordantal är ett riktmärke för när underlaget är tunt. Krockar
@@ -192,8 +202,9 @@ produkten är utifrån namnet, och lista allt som saknas i "needsInfo".
 
 FORMAT
 Utdata är HTML, inte ren text. Endast dessa taggar: <p>, <ul>, <li>,
-<strong>. Ingen rubrik, inga länkar, inga attribut. Skriv å, ä och ö som
-vanliga tecken — kodningen sköter vi.
+<strong>. Ingen rubrik, inga länkar, inga attribut. Markera inga enskilda
+ord eller nyckelord med <strong>. Skriv å, ä och ö som vanliga tecken,
+kodningen sköter vi.
 
 META
 metaTitle: högst ${META_TITLE_MAX} tecken, produktnamnet först, inget
@@ -211,6 +222,11 @@ ${templateBlock}
 Svara med JSON:
 { "texts": [ { "id": "artikelnummer", "fakta": [ { "uppgift": "maxeffekt 3,4 kW", "ord": "3,4 kW" }, { "uppgift": "tillverkad i gjutjärn", "ord": "gjutjärn" } ], "description": "<p>…</p>", "metaTitle": "…", "metaDescription": "…", "needsInfo": ["mått", "gänga"] } ] }
 Ett objekt per produkt du fått, med exakt samma id.
+
+För mallen huvudprodukt: skriv "delar" i stället för "description", med
+mallens fyra delar som egna fält. Vi sätter ihop dem i den ordningen:
+"delar": { "loser": "<p>…</p><p>…</p>", "specifikationer": "<ul><li>…</li></ul>", "sarskilt": "<p>…</p><p>…</p><p>…</p>", "behovs": "<p>…</p>" }
+Varje del har sitt eget ordmål i mallen och räknas för sig.
 
 Skriv "fakta" FÖRST: varje sakuppgift ur den befintliga texten och resten av
 underlaget, en per rad. Tal, mått, material, funktioner, hur den tänds
@@ -272,9 +288,9 @@ export function buildUserPrompt(products: ProductInput[], lookup?: FactsLookup):
           "gänga eller vad produkten passar till. Lista dem i needsInfo.",
     );
 
-    const required = extractHardFacts(current);
+    const required = [...extractHardFacts(current).map((f) => f.label), ...(p.keywords ?? [])];
     if (required.length > 0) {
-      parts.push(`MÅSTE FINNAS MED: ${required.map((f) => f.label).join(", ")}`);
+      parts.push(`MÅSTE FINNAS MED: ${required.join(", ")}`);
     }
     return parts.join("\n");
   });
@@ -305,14 +321,27 @@ säger är det rätt.`;
 }
 
 /**
+ * Hur många ord en huvudprodukt ligger under mallens minimum, när
+ * före-texten själv räcker till minimum. Annars 0: en tunn artikel ska inte
+ * fyllas ut med luft, och tillbehör och reservdelar kontrolleras inte på
+ * längd (de är hundratals och ska inte kosta ett extra anrop var).
+ */
+export function shortBy(t: GeneratedText, p: ProductInput): number {
+  if (p.template !== "huvudprodukt") return 0;
+  const min = TEMPLATES[p.template].minWords;
+  const words = wordCount(t.description);
+  return words < min && wordCount(currentPlain(p)) >= min ? min - words : 0;
+}
+
+/**
  * Varför en text ska skrivas om. Tom lista betyder att den klarar de
  * maskinella kontrollerna.
  *
- * Längden är inte ett skäl. Att avvisa korta texter prövades på Verona:
- * modellen landade på samma ordantal andra gången också, och varje artikel
- * kostade ett extra anrop. Det som räknas är att inget faktum tappas.
+ * Längd prövades som skäl på 150 ord och hjälpte inte: beskedet var bara
+ * ett ordantal, och modellen landade på samma längd igen. Nu säger beskedet
+ * vad texten ska byggas ut med.
  */
-export function rewriteReasons(t: GeneratedText): string[] {
+export function rewriteReasons(t: GeneratedText, p?: ProductInput): string[] {
   const reasons: string[] = [];
   if (t.missingFacts.length > 0) {
     reasons.push(`de här uppgifterna ur den befintliga texten saknades: ${t.missingFacts.join(", ")}`);
@@ -320,15 +349,33 @@ export function rewriteReasons(t: GeneratedText): string[] {
   if (t.uncoveredFacts.length > 0) {
     reasons.push(`du listade de här i "fakta" men skrev inte med dem: ${t.uncoveredFacts.join(", ")}`);
   }
+  const short = p ? shortBy(t, p) : 0;
+  if (p && short > 0) {
+    const min = TEMPLATES[p.template].minWords;
+    reasons.push(
+      `texten har ${min - short} ord och mallen kräver minst ${min}. Bygg ut ` +
+      `"loser" och "sarskilt" med uppgifter ur ` +
+      `underlaget som inte kommit med, till exempel ur sidans vanliga frågor. ` +
+      `Förklara vad varje uppgift betyder för kunden. Fyll inte ut med säljfraser ` +
+      `eller upprepningar`,
+    );
+  }
   return reasons;
 }
 
-/** Sant när `next` är bättre än `prev`: färre tappade tal och förkortningar först, sedan färre övriga. */
-export function isImprovement(next: GeneratedText, prev: GeneratedText): boolean {
+/**
+ * Sant när `next` är bättre än `prev`: färre tappade tal, förkortningar och
+ * nyckelord först, sedan färre övriga tappade uppgifter, sist närmare
+ * mallens minimum.
+ */
+export function isImprovement(next: GeneratedText, prev: GeneratedText, p?: ProductInput): boolean {
   if (next.missingFacts.length !== prev.missingFacts.length) {
     return next.missingFacts.length < prev.missingFacts.length;
   }
-  return next.uncoveredFacts.length < prev.uncoveredFacts.length;
+  if (next.uncoveredFacts.length !== prev.uncoveredFacts.length) {
+    return next.uncoveredFacts.length < prev.uncoveredFacts.length;
+  }
+  return p ? shortBy(next, p) < shortBy(prev, p) : false;
 }
 
 /** Sanerar och begränsar klientens produktdata innan den når modellen. */
@@ -444,7 +491,7 @@ export function validateGenerated(parsed: unknown, asked: ProductInput[]): Gener
     const product = wanted.get(id);
     if (!product || seenIds.has(id)) continue;
 
-    const rawDescription = typeof o.description === "string" ? o.description : "";
+    const rawDescription = joinParts(o.delar) ?? (typeof o.description === "string" ? o.description : "");
     if (!rawDescription.trim()) continue;
 
     const description = stripInternalFields(sanitizeHtml(rawDescription.slice(0, MAX_FIELD_LEN)));
@@ -480,12 +527,30 @@ export function validateGenerated(parsed: unknown, asked: ProductInput[]): Gener
         META_DESCRIPTION_MAX,
       ),
       needsInfo,
-      missingFacts: missingHardFacts(currentPlain(product), plain),
+      missingFacts: [
+        ...missingHardFacts(currentPlain(product), plain),
+        ...missingKeywords(product.keywords, plain),
+      ],
+      keywords: product.keywords ?? [],
       facts,
       uncoveredFacts: uncoveredFacts(facts, plain),
     });
   }
   return out.length > 0 ? out : null;
+}
+
+/**
+ * Huvudproduktens fyra delar i mallens ordning. Modellen skriver dem som
+ * egna fält: med ett ordmål per del blev Verona 233–249 ord, med ett mål
+ * för hela texten 103–168. Delar som saknas hoppas över.
+ */
+export const PARTS = ["loser", "specifikationer", "sarskilt", "behovs"] as const;
+
+export function joinParts(input: unknown): string | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const o = input as Record<string, unknown>;
+  const html = PARTS.map((k) => (typeof o[k] === "string" ? o[k] : "")).join("");
+  return html.trim() ? html : null;
 }
 
 /** Rader som börjar med ett internt fältnamn. */

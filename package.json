@@ -30,7 +30,8 @@
     "test:producthtml": "tsx lib/productText/html.test.mts",
     "test:productpipeline": "tsx lib/productText/pipeline.test.mts",
     "test:productsource": "tsx lib/productText/source.test.mts",
-    "test:producthardfacts": "tsx lib/productText/hardFacts.test.mts"
+    "test:producthardfacts": "tsx lib/productText/hardFacts.test.mts",
+    "test:productkeywords": "tsx lib/productText/keywords.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

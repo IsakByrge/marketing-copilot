@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 import type { ColumnGuess, Row } from "./csv";
 import { toPlainText, visibleLength } from "./html";
-import { missingHardFacts, uncoveredFacts, type ListedFact } from "./hardFacts";
+import { missingHardFacts, missingKeywords, uncoveredFacts, type ListedFact } from "./hardFacts";
 import { pickTemplate, type TemplateId } from "./templates";
 import type { PageResult } from "./pageFacts";
 
@@ -28,6 +28,8 @@ export interface WorkItem {
   needsInfo?: string[];
   /** Modellens egen faktalista med nyckelord. Kontrolleras mot texten. */
   facts?: ListedFact[];
+  /** Material och funktioner ur före-texten som texten måste ha kvar. */
+  keywords?: string[];
   approved?: boolean;
 }
 
@@ -170,8 +172,9 @@ export const EMPTY_FILTERS: Filters = {
 export type ItemState = "saknar" | "tunn" | "ok" | "utkast" | "behover" | "godkand";
 
 /**
- * Det utkastet tappat: tal med enhet och förkortningar ur före-texten, och
- * uppgifter ur modellens egen faktalista vars nyckelord inte står i texten.
+ * Det utkastet tappat: tal med enhet, förkortningar och nyckelord ur
+ * före-texten, och uppgifter ur modellens egen faktalista vars nyckelord
+ * inte står i texten.
  * Räknas om från texten varje gång, så att varningen försvinner när du
  * själv skriver in det som fattades.
  */
@@ -180,6 +183,7 @@ export function lostFacts(p: Product, item: WorkItem | undefined): string[] {
   const draft = toPlainText(item.description);
   return [
     ...missingHardFacts(toPlainText(p.current), draft),
+    ...missingKeywords(item.keywords, draft),
     ...uncoveredFacts(item.facts, draft),
   ];
 }

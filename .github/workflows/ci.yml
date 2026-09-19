@@ -88,6 +88,9 @@ jobs:
       - name: Test — produkttext hårda fakta
         run: npm run test:producthardfacts
 
+      - name: Test — produkttext nyckelord
+        run: npm run test:productkeywords
+
       - name: Test — voice
         run: npm run test:voice
 
