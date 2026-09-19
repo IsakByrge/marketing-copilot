@@ -25,9 +25,9 @@
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase-browser";
 import { Alert, ButtonLink, Spinner } from "@/app/_shared/primitives";
+import AuthRam from "@/app/_shared/AuthRam";
 
 /** Hur länge vi väntar innan vi ger upp. Långt nog för ett trögt nät,
  *  kort nog att ingen hinner tro att sidan är död. */
@@ -105,42 +105,28 @@ export default function AuthCallback() {
   }, [router]);
 
   return (
-    <div className="app-light flex min-h-svh flex-col bg-background font-sans text-text-primary">
-      <header className="border-b border-border">
-        <div className="mx-auto flex h-14 max-w-5xl items-center px-4 sm:px-6 lg:px-10">
-          <Link href="/" className="flex items-center gap-2.5 text-text-primary">
-            <span
-              aria-hidden
-              className="flex h-7 w-7 items-center justify-center rounded bg-primary text-sm font-medium text-white"
-            >
-              M
-            </span>
-            <span className="text-sm font-medium">Marketing Copilot</span>
-          </Link>
+    <AuthRam>
+      {fel ? (
+        <div>
+          <h1 className="text-[clamp(1.6rem,4vw,2rem)] font-semibold leading-tight tracking-tight">
+            Inloggningen gick inte igenom.
+          </h1>
+          <Alert tone="danger" title="Det gick inte" className="mt-5">
+            {fel}
+          </Alert>
+          <ButtonLink href="/login" className="mt-6 w-full">
+            Till inloggningen
+          </ButtonLink>
         </div>
-      </header>
-
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
-        {fel ? (
-          <div className="w-full max-w-sm">
-            <h1 className="text-2xl font-semibold tracking-tight">Inloggningen gick inte igenom.</h1>
-            <Alert tone="danger" title="Det gick inte" className="mt-5">
-              {fel}
-            </Alert>
-            <ButtonLink href="/login" className="mt-6 w-full">
-              Till inloggningen
-            </ButtonLink>
-          </div>
-        ) : (
-          <p
-            aria-live="polite"
-            className="flex items-center gap-3 text-sm text-text-secondary"
-          >
-            <Spinner />
-            Loggar in…
-          </p>
-        )}
-      </main>
-    </div>
+      ) : (
+        <p
+          aria-live="polite"
+          className="flex items-center gap-3 text-sm text-text-secondary"
+        >
+          <Spinner />
+          Loggar in…
+        </p>
+      )}
+    </AuthRam>
   );
 }

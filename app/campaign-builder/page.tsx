@@ -22,6 +22,7 @@ import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
 import { tillgangligaOrter } from "@/app/_shared/locations";
 import {
   Alert, Button, ButtonLink, Card, Chip, EmptyState, Input, ToggleChip, cx,
+  selectedSurface, selectableSurface,
 } from "@/app/_shared/primitives";
 import { Textarea } from "@/app/_shared/Textarea";
 import { IconBuilder } from "@/app/_shared/icons";
@@ -326,7 +327,7 @@ function BriefForm(p: {
                 className={cx(
                   "cursor-pointer rounded-lg border px-3.5 py-3 text-left transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                  active ? "border-primary/30 bg-primary/10" : "border-border bg-surface hover:border-border-strong",
+                  active ? selectedSurface : selectableSurface,
                 )}
               >
                 <span className={cx("block text-sm font-medium", active ? "text-text-primary" : "text-text-secondary")}>

@@ -12,7 +12,7 @@
 // till att beställa en ny. Att visa fälten och först vid sparning säga
 // att länken gått ut vore att låta någon skriva i onödan.
 // ─────────────────────────────────────────────────────────────
-import Link from "next/link";
+import AuthRam from "@/app/_shared/AuthRam";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
@@ -84,23 +84,8 @@ export default function ResetPage() {
   }
 
   return (
-    <div className="app-light flex min-h-svh flex-col bg-background font-sans text-text-primary">
-      <header className="border-b border-border">
-        <div className="mx-auto flex h-14 max-w-5xl items-center px-4 sm:px-6 lg:px-10">
-          <Link href="/" className="flex items-center gap-2.5 text-text-primary">
-            <span
-              aria-hidden
-              className="flex h-7 w-7 items-center justify-center rounded bg-primary text-sm font-medium text-white"
-            >
-              M
-            </span>
-            <span className="text-sm font-medium">Marketing Copilot</span>
-          </Link>
-        </div>
-      </header>
-
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
-        <div className="w-full max-w-sm">
+    <AuthRam>
+      <div>
           {lage === "kontrollerar" && (
             <>
               <h1 className="text-[clamp(1.6rem,4vw,2rem)] font-semibold leading-tight tracking-tight">
@@ -184,8 +169,7 @@ export default function ResetPage() {
               </Button>
             </>
           )}
-        </div>
-      </main>
-    </div>
+      </div>
+    </AuthRam>
   );
 }
