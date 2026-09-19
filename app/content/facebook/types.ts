@@ -144,6 +144,8 @@ export interface FacebookQualityChecks {
   noBannedPhrases: boolean;
   /** Produkt och erbjudande ur underlaget står i texten. Avgörs deterministiskt. */
   mentionsProductAndOffer: boolean;
+  /** Ingen brådska eller knapphet som underlaget inte täcker. Avgörs deterministiskt. */
+  noInventedUrgency: boolean;
 }
 
 /** Användarvänlig huvudstatus — ersätter poängtalet som primär signal. */

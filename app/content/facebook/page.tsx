@@ -684,6 +684,7 @@ const CHECK_LABELS: Record<keyof FacebookQualityChecks, string> = {
   noForbiddenClaims: "Inga förbjudna påståenden", naturalSwedish: "Naturlig svenska",
   honestSocialProof: "Ärligt socialt bevis", noEmptyClosing: "Konkret avslut",
   noBannedPhrases: "Inga tomma fraser", mentionsProductAndOffer: "Produkt och erbjudande",
+  noInventedUrgency: "Ingen påhittad brådska",
 };
 
 /** Användarvänlig huvudstatus — den primära signalen (poängtalet är sekundärt). */

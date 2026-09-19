@@ -37,10 +37,12 @@ import {
   dedupeAlternatives,
   deriveUserStatus,
   missingCampaignTerms,
+  detectInventedUrgency,
   wordCount as wc,
   LENGTH_RANGE,
   type CampaignTerms,
   type StatusFlags,
+  type UrgencyBasis,
 } from "./quality";
 
 /* ── Modell- & kostnadskonfiguration (server-side, via env) ──
@@ -62,7 +64,7 @@ export interface RunMeta {
   models: { draft: string; review: string };
   usage: { promptTokens: number; completionTokens: number };
   ms: number;
-  /** Antal alternativ som togs bort (för lika eller fabricerat social proof). */
+  /** Antal alternativ som togs bort (för lika, fabricerat social proof eller påhittad brådska). */
   alternativesDropped: number;
   /** Antal tydliga AI-klichéer i den slutliga primärtexten. */
   clichesFound: number;
@@ -127,20 +129,46 @@ const ANGLE_GUIDANCE: Record<string, string> = {
   problem_solution: "Problem och lösning — börja i kundens situation, landa i lösningen.",
   quality: "Produktkvalitet — hantverk, material, hållbarhet, omsorg. Konkret, inte tomma superlativ.",
   local_service: "Lokal service — närhet, personligt bemötande, att ni finns på orten.",
-  urgency: "Brådska — äkta tidsskäl (säsong, deadline, begränsat). Aldrig påhittad panik.",
+  urgency: "Brådska — bara med äkta tidsskäl: SISTA DATUM ur underlaget, eller säsongen. Utan sista datum i underlaget: skriv om säsongen, aldrig om att erbjudandet tar slut.",
   social_proof: "Socialt bevis — förtroende genom att andra redan valt er. Hitta ALDRIG på omdömen/siffror.",
   behind_the_scenes: "Bakom kulisserna — visa människorna och arbetet. Bygger relation.",
   specialist_recommendation: "Du väljer själv den vinkel som passar mål, produkt och målgrupp bäst.",
 };
 
+// Inlägget skrivs i tre delar med var sitt ordmål. Med ett mål för hela
+// texten landade "normal" på 65–80 ord mot minimum 95 och skrevs om nästan
+// varje gång. Samma grepp fungerade i produkttexterna. Målen ligger över
+// LENGTH_RANGE med flit: modellen hamnar ungefär en femtedel under.
 const LENGTH_GUIDANCE: Record<FacebookLength, string> = {
-  short: "KORT: ungefär 50–100 ord. Komprimerat men fortfarande ett helt inlägg — aldrig tre lösryckta meningar.",
-  normal: "NORMAL: ungefär 100–220 ord. Utvecklat nog att kommunicera ett verkligt värde. Aldrig tre korta meningar.",
-  detailed: "UTFÖRLIG: ungefär 180–350 ord. Ge plats åt kontext, kundnytta och invändningshantering — men inget fyll.",
+  short: `KORT: ett komprimerat men helt inlägg, aldrig tre lösryckta meningar. Ordmål per del:
+- hook: 10–20 ord, en eller två meningar
+- varde: 35–60 ord, ett stycke
+- avslut: 10–25 ord`,
+  normal: `NORMAL: utvecklat nog att kommunicera ett verkligt värde. Ordmål per del:
+- hook: 20–35 ord, en eller två meningar
+- varde: 70–120 ord, två stycken
+- avslut: 20–35 ord`,
+  detailed: `UTFÖRLIG: plats åt kontext, kundnytta och invändningar, men inget fyll. Ordmål per del:
+- hook: 25–40 ord
+- varde: 130–200 ord, tre stycken
+- avslut: 25–45 ord`,
 };
 
+/** Delarna i ordning. Servern sätter ihop dem med en blankrad emellan. */
+export const POST_PARTS = ["hook", "varde", "avslut"] as const;
+
+/** Sätter ihop modellens delar till en inläggstext. `null` om delar saknas helt. */
+export function joinPostParts(input: unknown): string | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const o = input as Record<string, unknown>;
+  const parts = POST_PARTS
+    .map((k) => (typeof o[k] === "string" ? (o[k] as string).trim() : ""))
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join("\n\n") : null;
+}
+
 /* ── Systemprompt: utkast ────────────────────────────────── */
-const draftSystem = (editMemory = "") => `Du är en erfaren svensk marknadsförare som skriver organiska Facebook-inlägg åt riktiga svenska företag — inlägg företaget kan publicera direkt eller efter en liten justering. Du skriver som en skicklig människa som känner företaget, inte som en generell AI och inte som en amerikansk reklambyrå översatt till svenska.
+export const draftSystem = (editMemory = "") => `Du är en erfaren svensk marknadsförare som skriver organiska Facebook-inlägg åt riktiga svenska företag — inlägg företaget kan publicera direkt eller efter en liten justering. Du skriver som en skicklig människa som känner företaget, inte som en generell AI och inte som en amerikansk reklambyrå översatt till svenska.
 
 COPYPRINCIPER (följ dem, lista dem aldrig):
 1. Börja konkret — i en situation, en observation eller en rak fördel, inte i en lång ingress.
@@ -153,6 +181,15 @@ COPYPRINCIPER (följ dem, lista dem aldrig):
 8. Håll igen på säljretoriken. Ett lugnt, konkret påstående övertygar mer än tre superlativ.
 9. CTA:n ska vara naturlig och kopplad till kampanjens verkliga mål — inte en påklistrad slutkläm.
 10. Hitta ALDRIG på brådska, knapphet, rabatt, garanti, resultat, priser eller popularitet.
+
+BRÅDSKA OCH KNAPPHET — STRIKT REGEL: Att ett erbjudande tar slut är ett påstående om fakta. Skriv det bara när SISTA DATUM står i underlaget, och nämn då datumet. Att lagret är litet eller antalet begränsat får bara skrivas när underlaget självt säger det. Annars: ingen brådska alls.
+Förbjudet utan underlag, bland annat:
+- "innan erbjudandet tar slut" — antyder ett slutdatum som inte finns
+- "passa på", "missa inte", "sista chansen", "bara idag", "begränsad tid"
+- "så länge lagret räcker", "begränsat antal", "snart slut"
+Vill du ge ett tidsskäl utan slutdatum: använd säsongen ("inför grillsäsongen"), inte en påhittad deadline.
+
+TOMT BERÖM: Säg vad erbjudandet är, inte att det är bra. "Fantastiskt erbjudande" säger ingenting — "20 % på Mustang" säger allt. Samma sak med "otroligt pris", "grymt tillfälle" och liknande.
 
 HOOK: En stark hook är inte alltid en fråga. Välj den hooktyp som passar: konkret situation, observation, ett relevant problem, en tydlig nyhet, en rak produktfördel, en säsongsanknytning, en kontrast — eller en fråga när frågan faktiskt passar. Undvik clickbait och konstlad dramatik. De två alternativen bör helst inte alla ha samma hooktyp.
 
@@ -202,12 +239,17 @@ VARIANT = {
   "id": "kort-slug",
   "label": "kort etikett för varianten",
   "angle": "vinkelns svenska namn",
-  "postText": "hela inläggstexten med radbrytningar (\\n)",
+  "delar": { "hook": "öppningen", "varde": "kärnan, stycken åtskilda med \\n\\n", "avslut": "sista stycket med uppmaningen" },
   "callToAction": "uppmaningen som en mening",
   "imageBrief": { "concept": "...", "subject": "...", "composition": "...", "textOverlay": "valfritt", "avoid": ["..."] },
   "hashtags": ["utaninledande#", "..."]
 }
-"assumptions" och "missingInformation" ska vara tomma listor när inget behövs.`;
+"assumptions" och "missingInformation" ska vara tomma listor när inget behövs.
+
+DELAR: Varje inlägg skrivs i tre delar som egna fält. Vi sätter ihop dem med en blankrad emellan, så skriv dem så att de läses som ett inlägg. Ordmålen per del står under längdnivån i uppdraget och gäller varje del för sig:
+- hook: öppningen som får läsaren att stanna
+- varde: produkten, erbjudandet och vad kunden får ut
+- avslut: sista stycket, med uppmaningen. Uppmaningen är lugn och konkret: vad läsaren gör och var. Ingen brådska här heller — inte "passa på", "missa inte" eller "innan erbjudandet tar slut" — om inte SISTA DATUM står i uppdraget.`;
 
 /* ── Systemprompt: kvalitetsgranskare ────────────────────── */
 const REVIEW_SYSTEM = `Du är en kritisk svensk kvalitetsgranskare för organiska Facebook-inlägg. Du får ett företags underlag och ett föreslaget inlägg. Din enda uppgift är att bedöma om inlägget är publicerbart som det är.
@@ -217,7 +259,7 @@ Bedöm primärversionen mot:
 - audienceSpecific: talar tydligt till den angivna målgruppen.
 - clearHook: fångar uppmärksamhet utan clickbait.
 - clearCustomerValue: kundnyttan är tydlig.
-- credibleClaims: inga påhittade resultat/priser/omdömen/garantier. Erbjudande, pris och datum som står i UPPDRAG är bekräftade av användaren och ska stå i texten; be aldrig om att de tas bort.
+- credibleClaims: inga påhittade resultat/priser/omdömen/garantier. Erbjudande, pris och datum som står i UPPDRAG är bekräftade av användaren och ska stå i texten; be aldrig om att de tas bort. Brådska ("innan erbjudandet tar slut", "passa på", "så länge lagret räcker") utan SISTA DATUM i UPPDRAG är däremot påhittad: sätt då false. Tomt beröm som "fantastiskt erbjudande" gör naturalSwedish false.
 - correctTone: matchar företagets tonalitet.
 - clearCTA: en tydlig och rimlig nästa handling.
 - appropriateLength: rimlig längd för vald nivå (aldrig tre korta meningar när normal/utförlig valts).
@@ -316,7 +358,7 @@ function briefBlock(brief: FacebookBrief): string {
   return lines.join("\n");
 }
 
-function draftUserPrompt(brief: FacebookBrief, ctx: FacebookSpecialistContext): string {
+export function draftUserPrompt(brief: FacebookBrief, ctx: FacebookSpecialistContext): string {
   return `${contextBlock(ctx)}\n\n─────────\nUPPDRAG FÖR DET HÄR INLÄGGET:\n${briefBlock(brief)}\n\nSkriv utkastet enligt reglerna och svara med endast JSON.`;
 }
 
@@ -335,7 +377,15 @@ function reviseUserPrompt(
   // Samma uppdrag som utkastet fick. Förut fick revisionen bara företaget
   // och den nuvarande texten, inte produkt och erbjudande, och instruktionen
   // "lägg inte till erbjudanden". Då skrev den bort "20 % på Mustang".
-  return `${contextBlock(ctx)}\n\n─────────\nUPPDRAG FÖR DET HÄR INLÄGGET:\n${briefBlock(brief)}\n\n─────────\nDu ska förbättra EN Facebook-primärversion enligt granskarens instruktion. Behåll fakta, CTA-avsikt och tonalitet. Lägg inte till påståenden eller erbjudanden som inte står i underlaget. Produkten under VAD SOM MARKNADSFÖRS och ERBJUDANDE ska stå ordagrant i texten. Rör inte de förbjudna påståendena.\n\nNUVARANDE TEXT:\n${primary.postText}\n\nNUVARANDE HASHTAGS: ${primary.hashtags.join(" ") || "(inga)"} — behåll dem eller byt mot lika relevanta, 1–3 stycken.\n\nGRANSKARENS PROBLEM: ${review.issues.join(" | ") || "(se instruktion)"}\nREVISIONSINSTRUKTION: ${review.revisionSummary || "Höj kvaliteten enligt problemen."}\n\nSvara med ENDAST JSON för den förbättrade varianten:\n{ "id": "...", "label": "...", "angle": "...", "postText": "...", "callToAction": "...", "imageBrief": { "concept": "...", "subject": "...", "composition": "...", "textOverlay": "valfritt", "avoid": ["..."] }, "hashtags": ["..."] }`;
+  return `${contextBlock(ctx)}\n\n─────────\nUPPDRAG FÖR DET HÄR INLÄGGET:\n${briefBlock(brief)}\n\n─────────\nDu ska förbättra EN Facebook-primärversion enligt granskarens instruktion. Behåll fakta, CTA-avsikt och tonalitet. Lägg inte till påståenden eller erbjudanden som inte står i underlaget. Produkten under VAD SOM MARKNADSFÖRS och ERBJUDANDE ska stå ordagrant i texten. Rör inte de förbjudna påståendena.\n\nNUVARANDE TEXT:\n${primary.postText}\n\nNUVARANDE HASHTAGS: ${primary.hashtags.join(" ") || "(inga)"} — behåll dem eller byt mot lika relevanta, 1–3 stycken.\n\nGRANSKARENS PROBLEM: ${review.issues.join(" | ") || "(se instruktion)"}\nREVISIONSINSTRUKTION: ${review.revisionSummary || "Höj kvaliteten enligt problemen."}\n\nSvara med ENDAST JSON för den förbättrade varianten, med texten i tre delar och ordmålen per del ur längdnivån:\n{ "id": "...", "label": "...", "angle": "...", "delar": { "hook": "...", "varde": "...", "avslut": "..." }, "callToAction": "...", "imageBrief": { "concept": "...", "subject": "...", "composition": "...", "textOverlay": "valfritt", "avoid": ["..."] }, "hashtags": ["..."] }`;
+}
+
+/** Vad underlaget säger om tid och knapphet: sista datum, och uppdragets egna ord. */
+export function urgencyBasisFor(brief: FacebookBrief): UrgencyBasis {
+  return {
+    deadline: brief.deadline,
+    briefText: [brief.offer, brief.price, brief.additionalNotes].filter(Boolean).join(" "),
+  };
 }
 
 /** Produkt och erbjudande som texten måste nämna. Vald produkt och uppdragets
@@ -361,7 +411,8 @@ const genId = (p: string) => `${p}_${Date.now().toString(36)}_${(idSeed++).toStr
 function coerceVariant(raw: unknown, fallbackLabel: string): FacebookPostVariant | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  const postText = s(o.postText, CAP.POST_TEXT);
+  // Delarna i första hand, en hel text om modellen ändå skickar en.
+  const postText = s(joinPostParts(o.delar) ?? o.postText, CAP.POST_TEXT);
   if (postText.length < 20) return null; // ett fragment är inte ett inlägg
   const ib = (o.imageBrief && typeof o.imageBrief === "object" ? o.imageBrief : {}) as Record<string, unknown>;
   const hashtags = sList(o.hashtags, CAP.HASHTAG, CAP.MAX_HASHTAGS)
@@ -385,7 +436,7 @@ function coerceVariant(raw: unknown, fallbackLabel: string): FacebookPostVariant
   };
 }
 
-interface DraftShape {
+export interface DraftShape {
   recommendedAngle: string;
   angleReason: string;
   primary: FacebookPostVariant;
@@ -394,7 +445,7 @@ interface DraftShape {
   missingInformation: string[];
 }
 
-function coerceDraft(raw: unknown): DraftShape | null {
+export function coerceDraft(raw: unknown): DraftShape | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const primary = coerceVariant(o.primary, "Primär");
@@ -419,7 +470,7 @@ function allChecksTrue(): FacebookQualityChecks {
     companySpecific: true, audienceSpecific: true, clearHook: true, clearCustomerValue: true,
     credibleClaims: true, correctTone: true, clearCTA: true, appropriateLength: true,
     readableFormatting: true, noForbiddenClaims: true, naturalSwedish: true, honestSocialProof: true,
-    noEmptyClosing: true, noBannedPhrases: true, mentionsProductAndOffer: true,
+    noEmptyClosing: true, noBannedPhrases: true, mentionsProductAndOffer: true, noInventedUrgency: true,
   };
 }
 
@@ -428,7 +479,7 @@ function allChecksFalse(): FacebookQualityChecks {
     companySpecific: false, audienceSpecific: false, clearHook: false, clearCustomerValue: false,
     credibleClaims: false, correctTone: false, clearCTA: false, appropriateLength: false,
     readableFormatting: false, noForbiddenClaims: false, naturalSwedish: false, honestSocialProof: false,
-    noEmptyClosing: false, noBannedPhrases: false, mentionsProductAndOffer: false,
+    noEmptyClosing: false, noBannedPhrases: false, mentionsProductAndOffer: false, noInventedUrgency: false,
   };
 }
 
@@ -456,6 +507,7 @@ function coerceReview(raw: unknown): FacebookQualityReview | null {
     noBannedPhrases: cRaw.noBannedPhrases === false ? false : true,
     // Ägs helt av den deterministiska kontrollen, aldrig av granskarmodellen.
     mentionsProductAndOffer: true,
+    noInventedUrgency: true,
   };
   let score = typeof o.overallScore === "number" ? Math.round(o.overallScore) : 0;
   score = Math.max(0, Math.min(100, score));
@@ -498,6 +550,7 @@ function applyDeterministicChecks(
   forbidden: string[],
   verifiedProofCount: number,
   terms: CampaignTerms,
+  urgencyBasis: UrgencyBasis,
 ): { review: FacebookQualityReview; flags: StatusFlags } {
   const issues = [...review.issues];
   const checks = { ...review.checks };
@@ -525,6 +578,16 @@ function applyDeterministicChecks(
   checks.mentionsProductAndOffer = missingTerms.length === 0;
   if (missingTerms.length) {
     issues.unshift(`Nämner inte ${missingTerms.map((t) => `"${t}"`).join(" eller ")}. Produkt och erbjudande ur underlaget ska stå ordagrant i texten.`);
+    if (status !== "blocked") status = "needs_revision";
+  }
+
+  // Påhittad brådska: att erbjudandet tar slut, att lagret är litet. Är ett
+  // påstående om fakta och kräver underlag, precis som ett omdöme.
+  const urgencyHits = detectInventedUrgency(primary.postText, urgencyBasis);
+  checks.noInventedUrgency = urgencyHits.length === 0;
+  if (urgencyHits.length) {
+    checks.credibleClaims = false;
+    issues.unshift(`Påhittad brådska utan underlag (${urgencyHits.map((h) => `"${h.phrase}"`).join(", ")}). Ta bort den — sista datum finns inte i underlaget.`);
     if (status !== "blocked") status = "needs_revision";
   }
 
@@ -560,6 +623,7 @@ function applyDeterministicChecks(
     forbiddenClaim: hit != null,
     clicheCount: cliches.length,
     missingCampaignTerms: missingTerms,
+    inventedUrgency: urgencyHits.map((h) => h.phrase),
   };
 
   return { review: { ...review, status, checks, issues: issues.slice(0, CAP.MAX_ISSUES) }, flags };
@@ -648,7 +712,8 @@ export async function runFacebookSpecialist(
 
   // Deterministiska fakta väger tyngre än modellens gissning.
   const terms = campaignTermsFor(brief, ctx);
-  let det = applyDeterministicChecks(review, draft.primary, brief, forbidden, verifiedProofCount, terms);
+  const urgencyBasis = urgencyBasisFor(brief);
+  let det = applyDeterministicChecks(review, draft.primary, brief, forbidden, verifiedProofCount, terms, urgencyBasis);
   review = det.review;
 
   let primary = draft.primary;
@@ -683,7 +748,7 @@ export async function runFacebookSpecialist(
         // nya texten. Kvarstår ett allvarligt fel markeras det ALDRIG som klart.
         det = applyDeterministicChecks(
           { status: "ready", overallScore: review.overallScore, userStatus: "review", statusReason: "", checks: allChecksTrue(), issues: [] },
-          primary, brief, forbidden, verifiedProofCount, terms,
+          primary, brief, forbidden, verifiedProofCount, terms, urgencyBasis,
         );
         review = {
           ...det.review,
@@ -710,6 +775,13 @@ export async function runFacebookSpecialist(
       const proofText = detectFabricatedSocialProof(a.postText, 0).length > 0;
       return !proofLabel && !proofText;
     });
+    droppedAlts += before - alternatives.length;
+  }
+  // Påhittad brådska är lika mycket ett påhittat faktum i ett alternativ som i
+  // huvudtexten. Alternativen granskas inte, så de släpps i stället.
+  {
+    const before = alternatives.length;
+    alternatives = alternatives.filter((a) => detectInventedUrgency(a.postText, urgencyBasis).length === 0);
     droppedAlts += before - alternatives.length;
   }
   const deduped = dedupeAlternatives(primary, alternatives);

@@ -94,6 +94,9 @@ jobs:
       - name: Test — Facebook produkt och erbjudande
         run: npm run test:fbterms
 
+      - name: Test — Facebook längd, brådska och tomt beröm
+        run: npm run test:fbrules
+
       - name: Test — voice
         run: npm run test:voice
 
