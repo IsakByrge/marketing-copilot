@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────
 import { toFile } from "openai/uploads";
 import { guardAiRequest, safeError } from "@/lib/server/guard";
+import { classifyAiError } from "@/lib/server/aiError";
 import { getOpenAI, AI } from "@/lib/server/ai";
 
 export const runtime = "nodejs";
@@ -80,11 +81,9 @@ Krav:
     await guard.finish({ status: "ok", model: AI.IMAGE_MODEL });
     return Response.json({ image: `data:image/png;base64,${imageBase64}` });
   } catch (error) {
-    const name = error instanceof Error ? error.name : "UnknownError";
-    console.error(`IMAGE_EDIT ${requestId}: ${name}`);
-    await guard.finish({ status: "error", errorCategory: name, model: AI.IMAGE_MODEL });
-    const status = name === "AbortError" ? 504 : 500;
-    const message = name === "AbortError" ? "Bildredigeringen tog för lång tid. Försök igen." : "Kunde inte redigera bilden just nu.";
-    return safeError(message, status);
+    const failure = classifyAiError(error, "bilden");
+    console.error(`IMAGE_EDIT ${requestId}: ${failure.kind} ${failure.logTag}`);
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}`, model: AI.IMAGE_MODEL });
+    return safeError(failure.message, failure.httpStatus);
   }
 }

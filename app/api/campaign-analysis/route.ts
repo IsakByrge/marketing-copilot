@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { ANALYSIS_LIMITS, validateRecommendation } from "@/app/campaign-builder/analysis";
 import type { CampaignBrief } from "@/app/campaign-builder/types";
 import { guardAiRequest } from "@/lib/server/guard";
+import { classifyAiError } from "@/lib/server/aiError";
 import { getOpenAI, AI } from "@/lib/server/ai";
 
 export const runtime = "nodejs";
@@ -116,9 +117,9 @@ export async function POST(request: Request) {
     return NextResponse.json(recommendation);
   } catch (error) {
     // Logga bara feltyp + request-id — aldrig känslig företagsinformation.
-    const name = error instanceof Error ? error.name : "UnknownError";
-    console.error(`CAMPAIGN_ANALYSIS_ERROR ${requestId}: ${name}`);
-    await guard.finish({ status: "error", errorCategory: name });
-    return NextResponse.json({ error: "Analysen är inte tillgänglig just nu." }, { status: 500 });
+    const failure = classifyAiError(error, "analysen");
+    console.error(`CAMPAIGN_ANALYSIS_ERROR ${requestId}: ${failure.kind} ${failure.logTag}`);
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+    return NextResponse.json({ error: failure.message, kind: failure.kind }, { status: failure.httpStatus });
   }
 }

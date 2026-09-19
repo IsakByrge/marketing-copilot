@@ -7,6 +7,7 @@
 // till klienten (loggas server-side, generiskt svenskt fel returneras).
 // ─────────────────────────────────────────────────────────────
 import { guardAiRequest, safeError } from "@/lib/server/guard";
+import { classifyAiError } from "@/lib/server/aiError";
 import { getOpenAI, AI } from "@/lib/server/ai";
 import { buildImagePrompt, qualityParam, type ImageQuality } from "@/lib/server/imagePrompt";
 
@@ -67,11 +68,9 @@ export async function POST(request: Request) {
     await guard.finish({ status: "ok", model: AI.IMAGE_MODEL });
     return Response.json({ image: `data:image/png;base64,${imageBase64}` });
   } catch (error) {
-    const name = error instanceof Error ? error.name : "UnknownError";
-    console.error(`IMAGE_GEN ${requestId}: ${name}`);
-    await guard.finish({ status: "error", errorCategory: name, model: AI.IMAGE_MODEL });
-    const status = name === "AbortError" ? 504 : 500;
-    const message = name === "AbortError" ? "Bildgenereringen tog för lång tid. Försök igen." : "Kunde inte skapa bilden just nu.";
-    return safeError(message, status);
+    const failure = classifyAiError(error, "bilden");
+    console.error(`IMAGE_GEN ${requestId}: ${failure.kind} ${failure.logTag}`);
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}`, model: AI.IMAGE_MODEL });
+    return safeError(failure.message, failure.httpStatus);
   }
 }

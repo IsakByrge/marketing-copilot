@@ -9,6 +9,7 @@
 // texten, bara extrahera företagsinformation enligt schemat.
 // ─────────────────────────────────────────────────────────────
 import { guardAiRequest, safeError } from "@/lib/server/guard";
+import { classifyAiError } from "@/lib/server/aiError";
 import { safeFetchWebsite } from "@/lib/server/ssrf";
 import { callChatJson, AI } from "@/lib/server/ai";
 
@@ -164,11 +165,9 @@ Returnera exakt denna JSON:
     });
     return Response.json(profile);
   } catch (error) {
-    const name = error instanceof Error ? error.name : "UnknownError";
-    console.error(`ANALYZE_COMPANY ${requestId}: ${name}`);
-    await guard.finish({ status: "error", errorCategory: name });
-    const status = name === "AbortError" ? 504 : 500;
-    const message = name === "AbortError" ? "Analysen tog för lång tid. Försök igen." : "Kunde inte analysera företaget.";
-    return safeError(message, status);
+    const failure = classifyAiError(error, "analysen");
+    console.error(`ANALYZE_COMPANY ${requestId}: ${failure.kind} ${failure.logTag}`);
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+    return safeError(failure.message, failure.httpStatus);
   }
 }

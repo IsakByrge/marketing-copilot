@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { guardAiRequest, safeError } from "@/lib/server/guard";
+import { classifyAiError } from "@/lib/server/aiError";
 import { callChatJson, AI } from "@/lib/server/ai";
 import { editMemoryBlock } from "@/lib/server/editMemory";
 import { getCompanyBrainContext } from "@/lib/companyBrainServer";
@@ -228,12 +229,10 @@ ${pastPlans.map((p, i) => {
     return Response.json(plan);
 
   } catch (error) {
-    const name = error instanceof Error ? error.name : "UnknownError";
-    console.error(`GENERATE_PLAN ${requestId}: ${name}`);
-    await guard.finish({ status: "error", errorCategory: name });
-    const status = name === "AbortError" ? 504 : 500;
-    const message = name === "AbortError" ? "Det tog för lång tid att generera planen. Försök igen." : "Kunde inte generera marknadsplan.";
-    return safeError(message, status);
+    const failure = classifyAiError(error, "planen");
+    console.error(`GENERATE_PLAN ${requestId}: ${failure.kind} ${failure.logTag}`);
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+    return safeError(failure.message, failure.httpStatus);
   }
 }
 
