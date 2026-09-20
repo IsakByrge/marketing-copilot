@@ -12,7 +12,7 @@ import { coerceAnalyze } from "@/lib/strategist/validate";
 import { callJson, STRATEGIST_MODEL } from "@/lib/strategist/model";
 import { parseBrief } from "@/lib/strategist/request";
 import { guardAiRequest } from "@/lib/server/guard";
-import { classifyAiError } from "@/lib/server/aiError";
+import { classifyAiError, modelUsageFrom } from "@/lib/server/aiError";
 
 export const maxDuration = 60;
 
@@ -63,8 +63,12 @@ export async function POST(request: Request) {
     return Response.json({ status: "ok", analysis: out.value.analysis, followUpQuestions: out.value.followUpQuestions });
   } catch (error) {
     const failure = classifyAiError(error, "analysen");
+    // Bär felet modell och tokens (ModelJsonError) följer de med hit, så
+    // raden i ai_usage_events visar vilken modell som svarade och hur mycket
+    // den hann generera. Andra fel loggas precis som förut.
+    const usage = modelUsageFrom(error);
     console.error(`STRATEGIST_ANALYZE ${requestId}: ${failure.kind} ${failure.logTag}`);
-    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}`, ...usage });
     return Response.json({ status: "error", error: failure.message, kind: failure.kind }, { status: failure.httpStatus });
   }
 }

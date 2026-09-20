@@ -70,8 +70,14 @@ erbjudande, samt påhittad brådska.
 
 ### Kampanjstrategi
 `POST /api/strategist/analyze` → 0–4 följdfrågor → `POST /api/strategist/recommend`.
-Resultatet sparas i `campaign_strategies` och kan öppnas i Facebook-flödet via
-strategi-id.
+Resultatet sparas i `campaign_strategies` av klienten efter att routen svarat,
+och kan öppnas i Facebook-flödet via strategi-id.
+
+**Verifierat i prod 2026-09-20:** två fullständiga körningar av analyze →
+recommend lyckades, båda sparade strategin i `campaign_strategies`. Recommend
+använde 761 respektive 871 completion-tokens av taket 1800, och ingen
+repair-runda behövdes. Avhuggna svar var alltså inte orsaken till de
+körningarna, och taket ser inte ut att ligga nära vid normal användning.
 
 ---
 
@@ -136,13 +142,15 @@ deterministisk nivå, aldrig en procentsats.
 | Alla JSON-routes | `AI_CHAT_MODEL` | `gpt-4o-mini` |
 | Veckoplanen | `PLAN_MODEL` | `gpt-4o-mini` |
 | Bilder | `AI_IMAGE_MODEL` | `gpt-image-1` |
-| Strategen | `STRATEGIST_MODEL` | `gpt-4o` |
+| Strategen | `STRATEGIST_MODEL` | `gpt-4o` — **verifierad i prod 2026-09-20** |
 | Facebook utkast | `FACEBOOK_DRAFT_MODEL` | `gpt-4o` |
 | Facebook granskning | `FACEBOOK_REVIEW_MODEL` | `gpt-4o-mini` |
 
-**[OVERIFIERAT]**: vilka värden som faktiskt är satta i prod. Vercel svarade
-403 Forbidden på `filter_project_envs` — kontot får inte lista projektets
-miljövariabler. Tabellen visar alltså fallbacken i koden, inte driftläget.
+**[OVERIFIERAT]**: vilka värden som faktiskt är satta i prod, utom
+`STRATEGIST_MODEL`, som bekräftades som `gpt-4o` vid produktionskörningarna
+2026-09-20. Vercel svarar 403 Forbidden på `filter_project_envs` — kontot får
+inte lista projektets miljövariabler — så resten av tabellen visar fallbacken i
+koden, inte driftläget.
 
 **API-routes (14 st).** Med modell: `analyze-company`, `campaign-analysis`,
 `campaign-interview`, `content/facebook`, `create-content`, `edit-image`,

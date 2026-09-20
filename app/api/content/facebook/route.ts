@@ -17,7 +17,7 @@ import { runFacebookSpecialist, criticalFollowUp, type FacebookPhase } from "@/l
 import { editMemoryBlock } from "@/lib/server/editMemory";
 import { buildFacebookContext } from "@/lib/facebook/context";
 import { guardAiRequest } from "@/lib/server/guard";
-import { classifyAiError } from "@/lib/server/aiError";
+import { classifyAiError, modelUsageFrom } from "@/lib/server/aiError";
 import { AI } from "@/lib/server/ai";
 
 export const runtime = "nodejs";
@@ -103,11 +103,15 @@ export async function POST(request: Request) {
         // Förut sa det "Det gick inte att skapa inlägget just nu" även när
         // OpenAI-nyckeln var slut på saldo (buggrapport 2026-09-19).
         const failure = classifyAiError(error, "inlägget");
+        // Bär felet modell och tokens (ModelJsonError) följer de med hit, så
+        // raden i ai_usage_events visar vilken modell som svarade och hur mycket
+        // den hann generera. Andra fel loggas precis som förut.
+        const usage = modelUsageFrom(error);
         console.error(`FB_SPECIALIST ${requestId}: ${failure.kind} ${failure.logTag}`);
         try {
           controller.enqueue(line({ type: "error", error: failure.message, kind: failure.kind }));
         } catch { /* strömmen redan stängd */ }
-        await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+        await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}`, ...usage });
         controller.close();
       }
     },

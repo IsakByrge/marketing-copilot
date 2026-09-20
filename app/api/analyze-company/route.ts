@@ -9,7 +9,7 @@
 // texten, bara extrahera företagsinformation enligt schemat.
 // ─────────────────────────────────────────────────────────────
 import { guardAiRequest, safeError } from "@/lib/server/guard";
-import { classifyAiError } from "@/lib/server/aiError";
+import { classifyAiError, modelUsageFrom } from "@/lib/server/aiError";
 import { safeFetchWebsite } from "@/lib/server/ssrf";
 import { callChatJson, AI } from "@/lib/server/ai";
 
@@ -166,8 +166,12 @@ Returnera exakt denna JSON:
     return Response.json(profile);
   } catch (error) {
     const failure = classifyAiError(error, "analysen");
+    // Bär felet modell och tokens (ModelJsonError) följer de med hit, så
+    // raden i ai_usage_events visar vilken modell som svarade och hur mycket
+    // den hann generera. Andra fel loggas precis som förut.
+    const usage = modelUsageFrom(error);
     console.error(`ANALYZE_COMPANY ${requestId}: ${failure.kind} ${failure.logTag}`);
-    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}`, ...usage });
     return safeError(failure.message, failure.httpStatus);
   }
 }
