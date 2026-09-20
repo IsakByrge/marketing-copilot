@@ -11,6 +11,7 @@
 // tredubbla svarstiden bortom vår timeout.
 // ─────────────────────────────────────────────────────────────
 import OpenAI from "openai";
+import { parseModelJson } from "./modelJson";
 
 export const AI = {
   /** Textmodell för alla JSON-genererande routes. */
@@ -70,11 +71,21 @@ export async function callChatJson(
     },
     { timeout: AI.TIMEOUT_MS, signal: opts.signal },
   );
-  const raw = completion.choices[0]?.message?.content ?? "";
+  const choice = completion.choices[0];
+  const raw = choice?.message?.content ?? "";
+  const promptTokens = completion.usage?.prompt_tokens ?? 0;
+  const completionTokens = completion.usage?.completion_tokens ?? 0;
   return {
-    parsed: JSON.parse(raw),
+    // Delad parser: avhugget svar skiljs från ogiltig JSON (modelJson.ts).
+    parsed: parseModelJson({
+      content: raw,
+      finishReason: choice?.finish_reason ?? null,
+      model: opts.model ?? AI.CHAT_MODEL,
+      promptTokens,
+      completionTokens,
+    }),
     raw,
-    promptTokens: completion.usage?.prompt_tokens ?? 0,
-    completionTokens: completion.usage?.completion_tokens ?? 0,
+    promptTokens,
+    completionTokens,
   };
 }

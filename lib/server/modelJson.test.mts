@@ -1,14 +1,18 @@
-// Kör: npx tsx lib/strategist/modelJson.test.mts
+// Kör: npx tsx lib/server/modelJson.test.mts
 //
-// Diagnostik för STRATEGIST_RECOMMEND 500 i prod.
+// Delad parsning av modellgenererad JSON (lib/server/modelJson.ts).
 //
 // `response_format: json_object` garanterar giltig JSON — utom när
-// genereringen stoppas av token-taket. Då är svaret avhugget, och
-// JSON.parse kastar ett SyntaxError som blir ett generiskt 500 med
-// loggraden "fel:SyntaxError". Den raden går inte att skilja från
-// vilket annat internt fel som helst, så det gick inte att avgöra om
+// genereringen stoppas av token-taket. Då är svaret avhugget, och ett
+// rått JSON.parse kastar ett SyntaxError som blir ett generiskt 500 med
+// loggraden "fel:SyntaxError". Den raden går inte att skilja från vilket
+// annat internt fel som helst, så det gick inte att avgöra om
 // modellanropet lyckades och svaret kapades, eller om något annat gick
-// sönder.
+// sönder. Kom fram under felsökningen av STRATEGIST_RECOMMEND.
+//
+// Gäller nu alla flöden som ber modellen om JSON: callChatJson (plan,
+// produkttexter, create-content, analyze-company), Facebook-specialisten
+// och strategen.
 //
 // Testet visar det gamla beteendet och låser det nya: avhugget svar och
 // ogiltig JSON av annan anledning får var sin kategori, med finish_reason,
@@ -16,8 +20,8 @@
 //
 // Ren logik. Inget nät, ingen databas, ingen modell.
 import assert from "node:assert/strict";
-import { parseModelJson } from "./model";
-import { classifyAiError, ModelJsonError, modelUsageFrom } from "@/lib/server/aiError";
+import { parseModelJson } from "./modelJson";
+import { classifyAiError, ModelJsonError, modelUsageFrom } from "./aiError";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -72,7 +76,7 @@ test("avhugget svar får sin egen kategori, inte fel:SyntaxError", () => {
     assert.fail("skulle ha kastat");
   } catch (e) {
     const f = classifyAiError(e, "strategin");
-    assert.match(f.logTag, /^strategist_json_truncated/);
+    assert.match(f.logTag, /^model_json_truncated/);
     assert.match(f.logTag, /len=\d+/);
     // Statusen och texten till användaren är oförändrade — det här är
     // en diagnostisk ändring, inte en beteendeändring.
@@ -101,7 +105,7 @@ test("ogiltig JSON med finish_reason stop är en annan kategori", () => {
   } catch (e) {
     assert.ok(e instanceof ModelJsonError);
     assert.equal((e as ModelJsonError).reason, "invalid");
-    assert.match(classifyAiError(e, "strategin").logTag, /^strategist_json_invalid/);
+    assert.match(classifyAiError(e, "strategin").logTag, /^model_json_invalid/);
   }
 });
 

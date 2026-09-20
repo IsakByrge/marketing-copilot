@@ -21,6 +21,7 @@
 import OpenAI from "openai";
 import { voiceBlock, BANNED_PHRASES } from "../server/voice";
 import { factGuardBlock } from "@/lib/server/factGuard";
+import { parseModelJson } from "@/lib/server/modelJson";
 import type {
   FacebookBrief,
   FacebookSpecialistContext,
@@ -664,11 +665,21 @@ async function callJson(
     },
     { timeout: FB_TIMEOUT_MS, signal: opts.signal },
   );
-  const content = completion.choices[0]?.message?.content ?? "";
+  const choice = completion.choices[0];
+  const content = choice?.message?.content ?? "";
+  const promptTokens = completion.usage?.prompt_tokens ?? 0;
+  const completionTokens = completion.usage?.completion_tokens ?? 0;
   return {
-    parsed: JSON.parse(content),
-    promptTokens: completion.usage?.prompt_tokens ?? 0,
-    completionTokens: completion.usage?.completion_tokens ?? 0,
+    // Delad parser: avhugget svar skiljs från ogiltig JSON (modelJson.ts).
+    parsed: parseModelJson({
+      content,
+      finishReason: choice?.finish_reason ?? null,
+      model,
+      promptTokens,
+      completionTokens,
+    }),
+    promptTokens,
+    completionTokens,
   };
 }
 
