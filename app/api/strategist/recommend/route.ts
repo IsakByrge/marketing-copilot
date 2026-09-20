@@ -12,7 +12,7 @@ import { coerceRecommend } from "@/lib/strategist/validate";
 import { callJson, STRATEGIST_MODEL } from "@/lib/strategist/model";
 import { parseBrief, parseAnswers, parseAnalysis } from "@/lib/strategist/request";
 import { guardAiRequest } from "@/lib/server/guard";
-import { classifyAiError } from "@/lib/server/aiError";
+import { classifyAiError, modelUsageFrom, ModelJsonError } from "@/lib/server/aiError";
 
 export const maxDuration = 60;
 
@@ -66,8 +66,20 @@ export async function POST(request: Request) {
     return Response.json({ status: "ok", strategy: out.value });
   } catch (error) {
     const failure = classifyAiError(error, "strategin");
-    console.error(`STRATEGIST_RECOMMEND ${requestId}: ${failure.kind} ${failure.logTag}`);
-    await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}` });
+    // Modell och tokens följer med när felet bär dem (ModelJsonError), så
+    // raden i ai_usage_events visar att modellanropet faktiskt blev av.
+    // Utan det loggades AI.CHAT_MODEL som standard, fast strategen kör en
+    // annan modell, och tokenkolumnerna blev tomma.
+    const usage = modelUsageFrom(error);
+    const details = error instanceof ModelJsonError ? ` finish_reason=${error.finishReason ?? "okänt"}` : "";
+    console.error(`STRATEGIST_RECOMMEND ${requestId}: ${failure.kind} ${failure.logTag}${details}`);
+    await guard.finish({
+      status: "error",
+      errorCategory: `${failure.kind}:${failure.logTag}`,
+      model: usage.model ?? STRATEGIST_MODEL,
+      promptTokens: usage.promptTokens ?? null,
+      completionTokens: usage.completionTokens ?? null,
+    });
     return Response.json({ status: "error", error: failure.message, kind: failure.kind }, { status: failure.httpStatus });
   }
 }

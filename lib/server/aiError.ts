@@ -20,6 +20,64 @@
 
 export type AiErrorKind = "saldo" | "tidsgrans" | "fel";
 
+/**
+ * Modellen svarade, men svaret gick inte att läsa som JSON.
+ *
+ * `response_format: json_object` garanterar giltig JSON — utom när
+ * genereringen stoppas av token-taket. Då är svaret avhugget. Utan det
+ * här felet blev båda fallen ett `SyntaxError` och loggraden
+ * `fel:SyntaxError`, som inte säger om modellanropet lyckades och svaret
+ * kapades eller om något annat gick sönder (STRATEGIST_RECOMMEND 500).
+ *
+ * Bär bara metadata om svaret. Aldrig modellens text, aldrig underlaget.
+ */
+export class ModelJsonError extends Error {
+  /** Vilket flöde felet kom ur, för kategorin i loggen: "strategist". */
+  readonly source: string;
+  readonly reason: "truncated" | "invalid";
+  /** `finish_reason` från modellen: "length" betyder att taket tog slut. */
+  readonly finishReason: string | null;
+  /** Svarets längd i tecken. Innehållet självt sparas aldrig. */
+  readonly contentLength: number;
+  readonly model: string;
+  readonly promptTokens: number;
+  readonly completionTokens: number;
+
+  constructor(input: {
+    source: string;
+    finishReason: string | null;
+    contentLength: number;
+    model: string;
+    promptTokens: number;
+    completionTokens: number;
+  }) {
+    const reason = input.finishReason === "length" ? "truncated" : "invalid";
+    super(`Svaret gick inte att läsa som JSON (${reason}, finish_reason=${input.finishReason ?? "okänt"}, ${input.contentLength} tecken).`);
+    this.name = "ModelJsonError";
+    this.source = input.source;
+    this.reason = reason;
+    this.finishReason = input.finishReason;
+    this.contentLength = input.contentLength;
+    this.model = input.model;
+    this.promptTokens = input.promptTokens;
+    this.completionTokens = input.completionTokens;
+  }
+}
+
+/**
+ * Modell och tokenräkning ur ett fel som bär dem, så att raden i
+ * ai_usage_events blir komplett även när anropet slutade i ett fel.
+ * Tomt objekt för alla andra fel.
+ */
+export function modelUsageFrom(error: unknown): {
+  model?: string;
+  promptTokens?: number;
+  completionTokens?: number;
+} {
+  if (!(error instanceof ModelJsonError)) return {};
+  return { model: error.model, promptTokens: error.promptTokens, completionTokens: error.completionTokens };
+}
+
 export interface ClassifiedAiError {
   kind: AiErrorKind;
   /** HTTP-status för routes som svarar med JSON. Aldrig 429: klienten för
@@ -46,6 +104,17 @@ const HTTP: Record<AiErrorKind, number> = { saldo: 503, tidsgrans: 504, fel: 500
  * "planen", "bilden". Det står i meningen användaren läser.
  */
 export function classifyAiError(error: unknown, what: string): ClassifiedAiError {
+  // Ett oläsbart modellsvar är fortfarande ett fel hos oss (500, samma
+  // text till användaren), men kategorin säger vilket av de två fallen
+  // det är. Kort med flit: error_category kapas vid 60 tecken.
+  if (error instanceof ModelJsonError) {
+    return {
+      kind: "fel", httpStatus: HTTP.fel,
+      logTag: `${error.source}_json_${error.reason}:len=${error.contentLength}`,
+      message: `Något gick fel när ${what} skulle skapas. Försök igen. Händer det igen är det ett fel hos oss, inte i ditt underlag.`,
+    };
+  }
+
   const e = (error ?? {}) as {
     name?: string; status?: number; code?: string | null; type?: string | null;
     constructor?: { name?: string }; error?: { code?: string; type?: string };

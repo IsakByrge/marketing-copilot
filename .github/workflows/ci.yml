@@ -100,6 +100,9 @@ jobs:
       - name: Test — felbesked vid saldo, tidsgräns och fel
         run: npm run test:aierror
 
+      - name: Test — strategens JSON-svar (avhugget eller ogiltigt)
+        run: npm run test:strategistjson
+
       - name: Test — voice
         run: npm run test:voice
 
