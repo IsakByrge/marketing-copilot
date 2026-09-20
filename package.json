@@ -34,7 +34,8 @@
     "test:productkeywords": "tsx lib/productText/keywords.test.mts",
     "test:fbterms": "tsx lib/facebook/campaignTerms.test.mts",
     "test:fbrules": "tsx lib/facebook/postRules.test.mts",
-    "test:aierror": "tsx lib/server/aiError.test.mts"
+    "test:aierror": "tsx lib/server/aiError.test.mts",
+    "test:strategistjson": "tsx lib/strategist/modelJson.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
