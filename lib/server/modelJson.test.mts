@@ -156,4 +156,31 @@ test("modelUsageFrom ger tomt för andra fel", () => {
   assert.deepEqual(modelUsageFrom(null), {});
 });
 
+// Kontraktet routernas catch-block använder: `...modelUsageFrom(error)` i
+// argumentet till guard.finish(). Inga mockade routes — bara formen.
+
+test("finish-argumentet får modell och tokens vid ModelJsonError", () => {
+  try {
+    parseModelJson({ content: TRUNCATED, finishReason: "length", ...fields });
+    assert.fail("skulle ha kastat");
+  } catch (e) {
+    const f = classifyAiError(e, "inlägget");
+    const finishInput = { status: "error", errorCategory: `${f.kind}:${f.logTag}`, ...modelUsageFrom(e) };
+    assert.deepEqual(finishInput, {
+      status: "error",
+      errorCategory: "fel:model_json_truncated:len=" + TRUNCATED.length,
+      model: "gpt-4o",
+      promptTokens: 2411,
+      completionTokens: 1800,
+    });
+  }
+});
+
+test("vid andra fel sätts ingen modell, så guardens standard gäller som förut", () => {
+  const finishInput = { status: "error", errorCategory: "fel:SyntaxError", ...modelUsageFrom(new Error("x")) };
+  assert.ok(!("model" in finishInput));
+  assert.ok(!("promptTokens" in finishInput));
+  assert.ok(!("completionTokens" in finishInput));
+});
+
 console.log(`${passed} test ok`);
