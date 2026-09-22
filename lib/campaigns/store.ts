@@ -79,24 +79,6 @@ export async function getCampaign(id: string): Promise<StoreResult<Campaign | nu
   }
 }
 
-/** Kampanjer som körs på samma strategi — för "Kör igen"-referensen. */
-export async function listCampaignsForStrategy(strategyId: string): Promise<StoreResult<Campaign[]>> {
-  if (!UUID.test(strategyId)) return { ok: true, data: [] };
-  try {
-    const userId = await currentUserId();
-    if (!userId) return { ok: false, error: NOT_SIGNED_IN };
-    const { data, error } = await createClient()
-      .from("campaigns").select(CAMPAIGN_COLUMNS)
-      .eq("user_id", userId).eq("strategy_id", strategyId)
-      .order("created_at", { ascending: false });
-    if (error) { logError("byStrategy", error); return { ok: false, error: LOAD_ERROR }; }
-    return { ok: true, data: (data ?? []).map(normalizeCampaignRow).filter((c): c is Campaign => c !== null) };
-  } catch (e) {
-    logError("byStrategy", e);
-    return { ok: false, error: LOAD_ERROR };
-  }
-}
-
 /** Användarens sparade strategier, nyast först, och vilka som redan har en kampanj. */
 export async function listStrategiesForNewCampaign(): Promise<StoreResult<{ strategies: StrategyRow[]; usedStrategyIds: string[] }>> {
   try {
@@ -105,7 +87,7 @@ export async function listStrategiesForNewCampaign(): Promise<StoreResult<{ stra
     const sb = createClient();
     const [strats, used] = await Promise.all([
       sb.from("campaign_strategies").select(STRATEGY_COLUMNS)
-        .eq("user_id", userId).order("created_at", { ascending: false }).limit(30),
+        .eq("user_id", userId).order("created_at", { ascending: false }),
       sb.from("campaigns").select("strategy_id").eq("user_id", userId),
     ]);
     if (strats.error || used.error) {

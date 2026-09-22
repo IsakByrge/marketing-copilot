@@ -2,6 +2,7 @@
 // Körs fristående:  npx tsx scripts/strategyPrefill.integration.mts
 // Ingen testrunner krävs — kastar (exit 1) vid fel, skriver "OK" vid pass.
 import { mapStrategyToPrefill, type StrategyContextForForm } from "../lib/facebook/strategyPrefill";
+import { resolveLinkedStrategy, toStrategyOption, withLinkedFirst } from "../lib/facebook/strategyLink";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -87,6 +88,28 @@ console.log("D. Målmappning CampaignGoal → FacebookContentGoal:");
     check(`${key} → ${expected}`, mapStrategyToPrefill({ goalKey: key }).goal === expected);
   }
   check("okänd goalKey → ingen goal", mapStrategyToPrefill({ goalKey: "weird" }).goal === undefined);
+}
+
+// E. Direktlänk ?strategy=<id> — även för strategier äldre än de 20 senaste.
+console.log("E. Direktlänk till en strategi:");
+{
+  const recent = Array.from({ length: 20 }, (_, i) =>
+    toStrategyOption({ id: `s${i}`, title: `Strategi ${i}`, goal: "g", strategy_context: { goal: "g" } }));
+  check("utan ?strategy= → inget att välja", resolveLinkedStrategy(recent, null).kind === "none");
+  check("tom ?strategy= → inget att välja", resolveLinkedStrategy(recent, "  ").kind === "none");
+  const inList = resolveLinkedStrategy(recent, "s7");
+  check("id bland de 20 senaste → väljs direkt", inList.kind === "inList" && inList.match.id === "s7");
+  const older = resolveLinkedStrategy(recent, "gammal-id");
+  check("id utanför listan → separat uppslagning på exakt id", older.kind === "lookup" && older.id === "gammal-id");
+
+  const oldRow = toStrategyOption({ id: "gammal-id", title: "Verona – Vårkvällar", goal: "Sälja", strategy_context: { product: "Verona", goalKey: "sell-product" } });
+  const merged = withLinkedFirst(recent, oldRow);
+  check("hittad äldre strategi läggs först", merged[0].id === "gammal-id");
+  check("resten av listan ligger kvar", merged.length === 21 && merged[1].id === "s0");
+  check("ingen dubblett om den redan fanns", withLinkedFirst(recent, recent[3]).filter((s) => s.id === "s3").length === 1);
+  check("äldre strategi förifyller formuläret", applyToForm(oldRow.context).form.productOrTopic === "Verona");
+  check("strategy_context som inte är ett objekt → ingen kontext",
+    toStrategyOption({ id: "x", title: "", goal: "", strategy_context: "skräp" }).context === null);
 }
 
 console.log(failures === 0 ? "\nOK — alla assertions passerade." : `\nMISSLYCKADES — ${failures} assertions föll.`);

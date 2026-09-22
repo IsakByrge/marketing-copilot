@@ -422,7 +422,7 @@ längre för affärsdata — enda förekomsten i appkoden är
 
 1. Next.js 16.2.7 med App Router, React 19.2.4, TypeScript, Tailwind. Drift på Vercel, bygge från `main`.
 2. Rutt-skydd i `proxy.ts` — Next 16 har döpt om `middleware` till `proxy`; filen bevarar förnyade sessionskakor vid omdirigering.
-3. Supabase är enda källan för affärsdata: auth, åtta tabeller, RLS. Ingen `service_role`-nyckel i koden.
+3. Supabase är enda källan för affärsdata: auth, nio tabeller, RLS. Ingen `service_role`-nyckel i koden.
 4. OpenAI är enda AI-providern. Inga embeddings, ingen vektordatabas, ingen RAG.
 5. Ingen tool calling. Allt är JSON-läge plus egen validering av svaret.
 6. Servern äger varje prompt. Klienten skickar strukturerad data och id:n, aldrig prompttext.
@@ -449,4 +449,4 @@ längre för affärsdata — enda förekomsten i appkoden är
 27. Åtta sidfiler har raderats ur appen; ingen kvarvarande yta saknar väg i navigationen.
 28. Död kod finns kvar: `mockPlans.ts`, `generatedPlan.ts`, `lib/supabase.ts`, `theme.ts`, `themeLight.ts`.
 29. `content_drafts` skrivs men läses aldrig, och `/api/edit-image` har ingen anropare — två halvbyggda ändar.
-30. 25 testsviter körs i CI tillsammans med lint, typecheck och bygge; alla är rena logiktester utan nät och databas.
+30. 27 testsviter körs i CI tillsammans med lint, typecheck och bygge; alla är rena logiktester utan nät och databas.

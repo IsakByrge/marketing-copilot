@@ -132,14 +132,15 @@ function countPhrase(count: number, type: ResultType | null): string {
   return `${formatCount(count)} ${word}`;
 }
 
-/** En rad med det som finns: "3 600 kr spenderat · 27 köp · 18 630 kr omsättning · ROAS 5,2". */
+/** En rad med det som finns: "3 600 kr spenderat · 27 köp · 18 630 kr omsättning · ROAS 5,2 · beräknat". */
 export function ResultsLine({ r, className }: { r: CampaignResults; className?: string }) {
   const parts: ReactNode[] = [];
   if (r.spend_amount !== null) parts.push(<>{formatKr(r.spend_amount)} <span className="text-text-tertiary">spenderat</span></>);
   if (r.result_count !== null) parts.push(<>{countPhrase(r.result_count, r.result_type)}</>);
   if (r.revenue_amount !== null) parts.push(<>{formatKr(r.revenue_amount)} <span className="text-text-tertiary">omsättning</span></>);
   const ro = roas(r);
-  if (ro !== null) parts.push(<><span className="text-text-tertiary">ROAS</span> {formatRatio(ro)}</>);
+  // Beräknat, aldrig lagrat — märks lika tydligt här som i rutnätet.
+  if (ro !== null) parts.push(<><span className="text-text-tertiary">ROAS</span> {formatRatio(ro)} <span className="text-text-tertiary">· beräknat</span></>);
   if (parts.length === 0) return null;
   return (
     <p className={cx("text-sm tabular-nums text-text-primary", className)}>
