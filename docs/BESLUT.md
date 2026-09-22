@@ -100,8 +100,10 @@ RLS. (PR #3.)
 
 ## 5. Beslutat men inte byggt
 
-- **Kampanjstatus.** `/campaigns` visar planens förslag. Ingen datamodell spårar
-  aktiva kampanjer med status, datum och kanal. Sidan säger det själv.
+- **Kampanjer v1.** Datagrunden finns som migration (`campaigns`, se §6) men är
+  inte körd, och inget gränssnitt är byggt. `/campaigns` visar fortfarande
+  planens förslag. Designen är låst i `design/campaigns-v1-prototype`
+  (`f399a7e`).
 - **Läsning av sparade Facebook-utkast.** `content_drafts` skrivs men läses inte.
 - **Delad rate limit-räknare** (Supabase eller Redis) i stället för processminne.
   Noterad i säkerhetsrapporten, uppskjuten.
@@ -117,3 +119,25 @@ RLS. (PR #3.)
 - **Non-goals som står fast:** inte ett CRM, CMS eller BI-system, inte en
   innehållsfabrik, inte automatisk publicering som standard, ingen bred
   attribution före validerad efterfrågan.
+
+---
+
+## 6. Strategi och kampanj
+
+Beslutat 2026-09-22.
+
+- **Två begrepp.** `campaign_strategies` är en AI-genererad strategi.
+  `campaigns` är en faktisk körning av en strategi, med status planerad, pågår
+  eller avslutad. En kampanj kan inte finnas utan sin strategi
+  (`ON DELETE RESTRICT`).
+- **Minimal manuell resultatinformation.** Spenderat, omsättning, resultattyp
+  (köp, leads, bokningar, butiksbesök, annat), antal, notering och lärdom. Allt
+  är frivilligt och skrivs in av användaren. Ingen `metrics`-JSON, ingen
+  attribution, inga kanal- eller budgettabeller.
+- **Beräknade KPI:er lagras inte.** ROAS och kostnad per resultat räknas fram i
+  kod när underlaget finns, och visas som beräknade.
+- **Kör igen skapar en ny kampanj** med samma strategi, nya datum och tomma
+  resultat. Den gamla kampanjen öppnas inte igen och ingen lineage-kolumn
+  behövs. Förra resultatet och lärdomen visas som referens.
+- **Migrationen skapades med `supabase migration new`**, därför tidsstämpel i
+  filnamnet i stället för löpnummer.
