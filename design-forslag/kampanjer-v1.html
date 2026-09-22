@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kampanjer v1 — designprototyp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  DESIGNPROTOTYP. Ingen produktionskod. Statisk HTML/CSS.
+  Tokens kopierade från app/globals.css (@theme static) och
+  klasserna speglar app/_shared/primitives.tsx: Card, Button,
+  Chip, ToggleChip, Field, Input, Alert.
+-->
+<style>
+:root{
+  --bg:#FAF7F1; --surface:#FFFFFF; --sunken:#F3EFE6;
+  --primary:#125E4B; --primary-hover:#0E4C3D;
+  --primary-10:rgba(18,94,75,.10); --primary-05:rgba(18,94,75,.05); --primary-20:rgba(18,94,75,.20);
+  --t1:#1A1A18; --t2:#5C574E; --t3:#8A8377;
+  --border:#E8E1D5; --border-strong:#D8CFBE;
+  --success-surface:#E6EFEA;
+  --warning:#B54708; --warning-surface:#FFFAEB;
+  --r-sm:6px; --r:8px; --r-lg:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Geist",ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--t1);-webkit-font-smoothing:antialiased;line-height:1.5}
+button,input,textarea,select{font:inherit;color:inherit}
+svg{display:block;flex-shrink:0}
+
+/* ── Sidan runt prototypen ─────────────────────────────── */
+.doc{max-width:1240px;margin:0 auto;padding:48px 16px 120px}
+@media (min-width:640px){.doc{padding:56px 32px 120px}}
+.intro{max-width:680px;margin-bottom:56px}
+.intro h1{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.25}
+.intro p{margin-top:12px;font-size:15px;color:var(--t2);line-height:1.7}
+.state{margin-top:72px}
+.state-head{max-width:680px;margin-bottom:20px}
+.state-no{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--t3)}
+.state-head h2{margin-top:6px;font-size:20px;font-weight:600;letter-spacing:-.01em}
+.state-head p{margin-top:6px;font-size:14px;color:var(--t2);line-height:1.65}
+.scroll{overflow-x:auto;padding-bottom:8px}
+.phones{display:flex;gap:32px;align-items:flex-start;overflow-x:auto;padding-bottom:12px}
+.phone-col{flex-shrink:0}
+.phone-cap{margin-top:12px;font-size:13px;color:var(--t3);max-width:390px;line-height:1.6}
+
+/* ── Ramar ─────────────────────────────────────────────── */
+.desk{width:1180px;border:1px solid var(--border-strong);border-radius:var(--r-lg);overflow:hidden;background:var(--bg);display:flex;min-height:760px}
+.phone{width:390px;height:844px;border:1px solid var(--border-strong);border-radius:28px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative}
+.phone-body{flex:1;overflow-y:auto}
+
+/* ── AppShell ──────────────────────────────────────────── */
+.side{width:224px;flex-shrink:0;background:var(--sunken);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:10px;padding:20px}
+.mark{width:28px;height:28px;border-radius:var(--r-sm);background:var(--primary);color:#fff;font-size:14px;font-weight:500;display:flex;align-items:center;justify-content:center}
+.brand span{font-size:14px;font-weight:500}
+.nav{padding:8px 12px;flex:1}
+.nav a{display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:2px;border-radius:var(--r-sm);font-size:14px;color:var(--t2);text-decoration:none}
+.nav a.on{background:var(--surface);color:var(--primary);font-weight:500}
+.nav a.new{position:relative}
+.side-foot{border-top:1px solid var(--border);padding:12px}
+.side-foot p{font-size:12px;color:var(--t3);padding:0 8px 8px}
+.side-foot a{display:flex;align-items:center;gap:12px;padding:10px 12px;font-size:14px;color:var(--t2)}
+.desk-main{flex:1;min-width:0}
+
+.mtop{height:56px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--sunken);border-bottom:1px solid var(--border)}
+.mtop span{font-size:14px;font-weight:500}
+.mbar{flex-shrink:0;display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--border);background:var(--surface);padding:6px 4px 18px}
+.mbar a{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;font-size:11px;color:var(--t3);text-decoration:none}
+.mbar a.on{color:var(--primary);font-weight:500}
+
+/* ── Primitiver ────────────────────────────────────────── */
+.page{max-width:896px;margin:0 auto;padding:48px 40px}
+.mpage{padding:24px 16px 32px}
+.eyebrow,.label{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--t3)}
+.h1{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.25}
+.mpage .h1{font-size:24px}
+.lead{margin-top:8px;font-size:15px;color:var(--t2);line-height:1.6;max-width:36rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px}
+.card.sm{padding:16px}
+.card.tint{background:var(--primary-05);border-color:var(--primary-20)}
+.card.sunk{background:var(--sunken)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--r-sm);font-size:14px;font-weight:500;padding:10px 16px;border:1px solid transparent;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn.s{padding:6px 12px}
+.btn.p{background:var(--primary);color:#fff}
+.btn.p:hover{background:var(--primary-hover)}
+.btn.sec{background:var(--surface);border-color:var(--border);color:var(--t1)}
+.btn.sec:hover{border-color:var(--border-strong);background:var(--sunken)}
+.btn.g{background:transparent;color:var(--t2)}
+.btn.g:hover{background:var(--sunken);color:var(--t1)}
+.btn.full{width:100%;min-height:44px}
+.mpage .btn{min-height:44px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid;border-radius:999px;font-size:12px;font-weight:500;padding:2px 10px;line-height:18px}
+.chip.neutral{background:var(--sunken);color:var(--t2);border-color:var(--border)}
+.chip.primary{background:var(--primary-10);color:var(--primary);border-color:var(--primary-20)}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.tchip{display:inline-flex;align-items:center;border:1px solid var(--border);background:var(--surface);border-radius:999px;font-size:14px;padding:8px 14px;color:var(--t2)}
+.tchip.on{border-color:var(--primary);background:var(--primary-10);color:var(--primary);font-weight:500}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:14px;font-weight:500}
+.field label i{font-style:normal;font-weight:400;color:var(--t3)}
+.field .hint{font-size:12px;color:var(--t3)}
+.input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;font-size:16px}
+.input::placeholder{color:var(--t3)}
+.input.unit{display:flex;align-items:center;justify-content:space-between}
+.input.unit b{font-weight:400;color:var(--t3);font-size:14px}
+.input.empty{color:var(--t3)}
+textarea.input{resize:none;line-height:1.5;min-height:84px}
+.alert{background:var(--sunken);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px 16px;font-size:14px;color:var(--t2);line-height:1.6}
+.link{color:var(--primary);font-size:14px;font-weight:500;text-decoration:underline;text-underline-offset:4px}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--t2);text-decoration:none;margin-left:-4px}
+.muted{color:var(--t2)}
+.tert{color:var(--t3)}
+.small{font-size:13px}
+.xs{font-size:12px}
+.sep{height:1px;background:var(--border);margin:16px 0}
+ul.why{margin-top:8px;padding-left:18px;font-size:14px;color:var(--t2);line-height:1.6}
+ul.why li{margin-top:4px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.between{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.stack>*+*{margin-top:12px}
+.section+.section{margin-top:40px}
+.mpage .section+.section{margin-top:32px}
+.section>.label{margin-bottom:12px}
+
+/* ── Kampanjkort ───────────────────────────────────────── */
+.camp-title{font-size:17px;font-weight:500;line-height:1.35;color:var(--t1);text-decoration:none}
+.camp-title:hover{text-decoration:underline;text-underline-offset:3px}
+.meta{font-size:13px;color:var(--t3)}
+.dir{margin-top:6px;font-size:14px;color:var(--t2);line-height:1.55}
+.next{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.55}
+.next svg{margin-top:2px;color:var(--primary)}
+.res-line{font-size:14px;color:var(--t1);font-variant-numeric:tabular-nums}
+.res-line span{color:var(--t3)}
+.learn{font-size:14px;color:var(--t2);line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.learn b{font-weight:500;color:var(--t1)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* ── Resultat ──────────────────────────────────────────── */
+.figs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.fig{padding:14px 16px;border-bottom:1px solid var(--border)}
+.fig:nth-child(odd){border-right:1px solid var(--border)}
+.fig:nth-last-child(-n+2){border-bottom:0}
+.fig .k{font-size:12px;color:var(--t3)}
+.fig .v{margin-top:2px;font-size:20px;font-weight:500;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.fig.calc{background:var(--sunken)}
+.fig.calc .k::after{content:" · beräknat";}
+
+/* ── Ark (bottom sheet) ────────────────────────────────── */
+.scrim{position:absolute;inset:0;background:rgba(26,26,24,.30)}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:92%;overflow-y:auto;background:var(--surface);border-top:1px solid var(--border);border-radius:16px 16px 0 0}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;padding:12px 8px 12px 16px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
+.sheet-head p{font-size:15px;font-weight:500}
+.iconbtn{width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--t2);border-radius:var(--r-sm)}
+.sheet-body{padding:16px 16px 28px}
+.kept{display:flex;gap:10px;align-items:flex-start}
+.kept svg{margin-top:2px;color:var(--primary)}
+.pick{display:block;border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;text-decoration:none;color:inherit}
+.pick+.pick{margin-top:8px}
+.pick.on{border-color:var(--primary);background:var(--primary-10)}
+
+/* ── Navigation ────────────────────────────────────────── */
+.navcmp{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
+.navbox{width:224px;border:1px solid var(--border-strong);border-radius:var(--r-lg);overflow:hidden}
+.navbox .side{width:100%;border-right:0;min-height:0}
+.navbox h3,.mininav h3{font-size:13px;font-weight:500;color:var(--t2);margin-bottom:8px}
+.strike{text-decoration:line-through;color:var(--t3)!important}
+.flag{margin-left:auto;font-size:11px;font-weight:500;color:var(--primary)}
+.mininav{width:390px}
+.mininav .mbar{border:1px solid var(--border-strong);border-radius:var(--r-lg);padding-bottom:6px}
+.mersheet{margin-top:12px;border:1px solid var(--border-strong);border-radius:var(--r-lg);background:var(--surface);overflow:hidden}
+.mersheet .head{padding:12px 16px;border-bottom:1px solid var(--border);font-size:14px;font-weight:500}
+.mersheet a{display:flex;align-items:center;gap:12px;padding:12px 16px;font-size:14px;color:var(--t1);text-decoration:none}
+.mersheet a.hl{background:var(--sunken);color:var(--primary);font-weight:500}
+.verdict{max-width:680px;margin-top:24px}
+.verdict p{font-size:14px;color:var(--t2);line-height:1.7}
+.verdict p+p{margin-top:10px}
+.verdict b{color:var(--t1);font-weight:500}
+.ux{max-width:680px}
+.ux li{font-size:14px;color:var(--t2);line-height:1.7;margin-top:8px}
+.ux b{color:var(--t1);font-weight:500}
+</style>
+</head>
+<body>
+
+<!-- Ikoner: tunna linjer, samma vikt som app/_shared/icons.tsx -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-today" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></symbol>
+    <symbol id="i-content" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v4M12 16v4M4 12h4M16 12h4M7 7l2 2M15 15l2 2M7 17l2-2M15 9l2-2"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></symbol>
+    <symbol id="i-builder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 14 10M14 4v3M17.5 5.5l-2 2M20 10h-3"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.6L4 8.5"/><path d="M4 4v4.5h4.5M12 8v4l3 2"/></symbol>
+    <symbol id="i-company" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4a6 6 0 0 0-3.5 10.9V17h7v-2.1A6 6 0 0 0 12 4ZM9.5 20h5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-again" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5"/><path d="M20 4v4.5h-4.5"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.5"/><path d="M4 20v-4.5h4.5"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4"/></symbol>
+  </defs>
+</svg>
+
+<div class="doc">
+
+  <header class="intro">
+    <p class="eyebrow">Designprototyp · Kampanjer v1</p>
+    <h1>Kampanjer som arbetsyta: strategi, körning, resultat, lärdom, kör igen.</h1>
+    <p>Statisk skiss, inga riktiga data. Exemplet är en gasolhandlare med Verona-kaminen som huvudprodukt. Alla siffror är sådana som användaren själv skrivit in. ROAS och kostnad per köp räknas fram och märks som beräknade. Dagens datum i skissen är 22 september 2026, förutom i det avslutade läget som visas den 20 oktober.</p>
+  </header>
+
+  <!-- ═══════════ 1. DESKTOP-LISTA ═══════════ -->
+  <section class="state">
+    <div class="state-head">
+      <p class="state-no">1 · Kampanjer, desktop</p>
+      <h2>Listan grupperad efter läge</h2>
+      <p>Varje kort visar först vad som är nästa sak att göra, sedan eventuella resultat. Kort utan resultat visar inga tomma siffror, bara en uppmaning att lägga in dem.</p>
+    </div>
+    <div class="scroll">
+      <div class="desk">
+        <aside class="side">
+          <div class="brand"><span class="mark">M</span><span>Marketing Copilot</span></div>
+          <nav class="nav">
+            <a><svg width="17" height="17"><use href="#i-today"/></svg>Idag</a>
+            <a><svg width="17" height="17"><use href="#i-content"/></svg>Innehåll</a>
+            <a><svg width="17" height="17"><use href="#i-pencil"/></svg>Produkttexter</a>
+            <a><svg width="17" height="17"><use href="#i-sparkle"/></svg>Facebook</a>
+            <a class="on"><svg width="17" height="17"><use href="#i-flag"/></svg>Kampanjer</a>
+            <a><svg width="17" height="17"><use href="#i-history"/></svg>Historik</a>
+            <a><svg width="17" height="17"><use href="#i-company"/></svg>Vad jag vet</a>
+          </nav>
+          <div class="side-foot"><p>isak@exempel.se</p></div>
+        </aside>
+
+        <div class="desk-main">
+          <div class="page">
+            <header class="between" style="margin-bottom:40px">
+              <div>
+                <h1 class="h1">Kampanjer</h1>
+                <p class="lead">Det du kör, det du har planerat och det du har lärt dig.</p>
+              </div>
+              <a class="btn p" style="margin-top:4px"><svg width="16" height="16"><use href="#i-plus"/></svg>Ny kampanj</a>
+            </header>
+
+            <div class="section">
+              <p class="label">Pågår</p>
+              <div class="card">
+                <div class="between">
+                  <div>
+                    <div class="row"><span class="chip primary"><span class="dot"></span>Pågår</span><span class="meta">15 sep – 12 okt · dag 8 av 28</span></div>
+                    <p style="margin-top:10px"><a class="camp-title" style="font-size:19px">Verona – Höstvärme</a></p>
+                    <p class="dir">Sälj Verona som kvällsvärme på altanen, inte som reservvärme när strömmen går.</p>
+                  </div>
+                  <a class="btn sec s">Öppna</a>
+                </div>
+                <div class="sep"></div>
+                <div class="between" style="align-items:center">
+                  <div class="next"><svg width="16" height="16"><use href="#i-arrow"/></svg><span>Nästa steg: skapa veckans Facebook-inlägg från kampanjens strategi.</span></div>
+                  <a class="btn p s">Skapa inlägg</a>
+                </div>
+                <p class="res-line small" style="margin-top:12px"><span>Inlagt hittills:</span> 1&nbsp;850&nbsp;kr spenderat</p>
+              </div>
+            </div>
+
+            <div class="section">
+              <p class="label">Planerad</p>
+              <div class="card sm">
+                <div class="between">
+                  <div>
+                    <div class="row"><span class="chip neutral">Planerad</span><span class="meta">3 nov – 30 nov · startar om 6 veckor</span></div>
+                    <p style="margin-top:8px"><a class="camp-title">Fyll på inför vintern</a></p>
+                    <p class="dir">Påminn befintliga kunder om att byta flaska innan första kalla helgen.</p>
+                  </div>
+                  <a class="btn sec s">Öppna</a>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <p class="label">Avslutade</p>
+              <div class="stack">
+                <div class="card sm">
+                  <div class="between">
+                    <div style="min-width:0">
+                      <div class="row"><span class="chip neutral">Avslutad</span><span class="meta">14 apr – 18 maj</span></div>
+                      <p style="margin-top:8px"><a class="camp-title">Verona – Vårkvällar</a></p>
+                      <p class="res-line" style="margin-top:8px">4&nbsp;200&nbsp;kr <span>spenderat</span> · 38 <span>köp</span> · 19&nbsp;400&nbsp;kr <span>omsättning</span> · <span>ROAS</span> 4,6</p>
+                      <p class="learn" style="margin-top:8px"><b>Lärdom:</b> Bilder med folk runt kaminen sålde. Produktbilden på vit bakgrund gav klick men nästan inga köp.</p>
+                    </div>
+                    <a class="btn sec s"><svg width="15" height="15"><use href="#i-again"/></svg>Kör igen</a>
+                  </div>
+                </div>
+                <div class="card sm">
+                  <div class="between">
+                    <div>
+                      <div class="row"><span class="chip neutral">Avslutad</span><span class="meta">20 mar – 6 apr</span></div>
+                      <p style="margin-top:8px"><a class="camp-title">Påskgrillen – byt flaskan i tid</a></p>
+                      <p class="small tert" style="margin-top:8px">Inga resultat inlagda. <a class="link" style="font-size:13px">Lägg in dem</a> så har du något att jämföra med nästa gång.</p>
+                    </div>
+                    <a class="btn sec s"><svg width="15" height="15"><use href="#i-again"/></svg>Kör igen</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 2. MOBIL-LISTA + 6. NY KAMPANJ ═══════════ -->
+  <section class="state">
+    <div class="state-head">
+      <p class="state-no">2 · Kampanjer, mobil 390 px</p>
+      <h2>Samma lista i en kolumn</h2>
+      <p>Knappen Ny kampanj ligger direkt under rubriken och är full bredd. Avslutade kort blir kortare: en rad med resultat, en rad lärdom och Kör igen. Till höger visas vad Ny kampanj öppnar, alltså var Kampanjbyggaren hamnar.</p>
+    </div>
+    <div class="phones">
+      <div class="phone-col">
+        <div class="phone">
+          <div class="mtop"><span class="mark">M</span><span>Marketing Copilot</span></div>
+          <div class="phone-body">
+            <div class="mpage">
+              <h1 class="h1">Kampanjer</h1>
+              <p class="lead" style="font-size:14px">Det du kör, har planerat och har lärt dig.</p>
+              <a class="btn p full" style="margin-top:16px"><svg width="16" height="16"><use href="#i-plus"/></svg>Ny kampanj</a>
+
+              <div class="section" style="margin-top:28px">
+                <p class="label">Pågår</p>
+                <div class="card sm">
+                  <div class="row"><span class="chip primary"><span class="dot"></span>Pågår</span><span class="meta">dag 8 av 28</span></div>
+                  <p style="margin-top:8px"><a class="camp-title">Verona – Höstvärme</a></p>
+                  <p class="meta" style="margin-top:2px">15 sep – 12 okt</p>
+                  <p class="dir">Sälj Verona som kvällsvärme på altanen.</p>
+                  <div class="sep" style="margin:14px 0"></div>
+                  <div class="next"><svg width="16" height="16"><use href="#i-arrow"/></svg><span>Skapa veckans Facebook-inlägg.</span></div>
+                  <a class="btn p full" style="margin-top:12px">Skapa inlägg</a>
+                </div>
+              </div>
+
+              <div class="section">
+                <p class="label">Planerad</p>
+                <div class="card sm">
+                  <div class="row"><span class="chip neutral">Planerad</span><span class="meta">startar om 6 veckor</span></div>
+                  <p style="margin-top:8px"><a class="camp-title">Fyll på inför vintern</a></p>
+                  <p class="meta" style="margin-top:2px">3 nov – 30 nov</p>
+                </div>
+              </div>
+
+              <div class="section">
+                <p class="label">Avslutade</p>
+                <div class="stack">
+                  <div class="card sm">
+                    <p><a class="camp-title">Verona – Vårkvällar</a></p>
+                    <p class="meta" style="margin-top:2px">14 apr – 18 maj</p>
+                    <p class="res-line small" style="margin-top:10px">4&nbsp;200&nbsp;kr → 38 köp · <span>ROAS</span> 4,6</p>
+                    <p class="learn" style="margin-top:6px"><b>Lärdom:</b> Bilder med folk runt kaminen sålde.</p>
+                    <a class="btn sec full" style="margin-top:12px"><svg width="16" height="16"><use href="#i-again"/></svg>Kör igen</a>
+                  </div>
+                  <div class="card sm">
+                    <p><a class="camp-title">Påskgrillen – byt flaskan i tid</a></p>
+                    <p class="meta" style="margin-top:2px">20 mar – 6 apr · inga resultat inlagda</p>
+                    <div class="grid2" style="margin-top:12px">
+                      <a class="btn g" style="min-height:44px">Lägg in resultat</a>
+                      <a class="btn sec" style="min-height:44px"><svg width="16" height="16"><use href="#i-again"/></svg>Kör igen</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <nav class="mbar">
+            <a><svg width="20" height="20"><use href="#i-today"/></svg>Idag</a>
+            <a><svg width="20" height="20"><use href="#i-content"/></svg>Innehåll</a>
+            <a><svg width="20" height="20"><use href="#i-pencil"/></svg>Texter</a>
+            <a><svg width="20" height="20"><use href="#i-sparkle"/></svg>Facebook</a>
+            <a class="on"><svg width="20" height="20"><use href="#i-more"/></svg>Mer</a>
+          </nav>
+        </div>
+        <p class="phone-cap">Listan är skrollad till toppen. Mer är markerad eftersom Kampanjer ligger där (se Navigation).</p>
+      </div>
+
+      <div class="phone-col">
+        <div class="phone">
+          <div class="mtop"><span class="mark">M</span><span>Marketing Copilot</span></div>
+          <div class="phone-body" style="opacity:.5">
+            <div class="mpage"><h1 class="h1">Kampanjer</h1></div>
+          </div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="sheet-head"><p>Ny kampanj</p><span class="iconbtn"><svg width="18" height="18"><use href="#i-close"/></svg></span></div>
+            <div class="sheet-body">
+              <p class="label" style="margin-bottom:10px">Utgå från en sparad strategi</p>
+              <a class="pick">
+                <p style="font-size:15px;font-weight:500">Julgåvan: gasolgrill till altanen</p>
+                <p class="meta" style="margin-top:2px">Strategi från 19 sep · ännu ingen kampanj</p>
+              </a>
+              <a class="pick">
+                <p style="font-size:15px;font-weight:500">Företagskunder – fast leverans</p>
+                <p class="meta" style="margin-top:2px">Strategi från 2 sep · ännu ingen kampanj</p>
+              </a>
+              <p class="small tert" style="margin-top:10px">Välj en strategi, sätt datum och kampanjen blir planerad.</p>
+
+              <div class="sep" style="margin:20px 0"></div>
+              <p class="label" style="margin-bottom:10px">Eller börja från början</p>
+              <a class="btn sec full"><svg width="16" height="16"><use href="#i-builder"/></svg>Ta fram en ny strategi</a>
+              <p class="small tert" style="margin-top:8px">Samma frågor som idag i Kampanjbyggaren. När strategin är klar blir nästa steg "Gör till kampanj".</p>
+            </div>
+          </div>
+        </div>
+        <p class="phone-cap">Kompletterande läge: Ny kampanj. Kampanjbyggaren blir steget "strategi" i en kampanj och är inte längre ett eget menyval. Strategier som redan är kampanjer visas inte här.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 3–5. DETALJ AKTIV, AVSLUTAD, KÖR IGEN ═══════════ -->
+  <section class="state">
+    <div class="state-head">
+      <p class="state-no">3 · 4 · 5 · Kampanjdetalj och Kör igen</p>
+      <h2>En sida per kampanj, utan flikar</h2>
+      <p>Ordningen på sidan följer läget. När kampanjen pågår ligger strategin och nästa steg överst. När den är avslutad ligger lärdomen överst, sedan Kör igen och sist siffrorna. På desktop är det samma kolumn, centrerad och max 672 px bred.</p>
+    </div>
+    <div class="phones">
+
+      <!-- 3. AKTIV -->
+      <div class="phone-col">
+        <div class="phone">
+          <div class="mtop"><span class="mark">M</span><span>Marketing Copilot</span></div>
+          <div class="phone-body">
+            <div class="mpage">
+              <a class="back"><svg width="16" height="16"><use href="#i-back"/></svg>Kampanjer</a>
+              <div class="row" style="margin-top:16px"><span class="chip primary"><span class="dot"></span>Pågår</span><span class="meta">15 sep – 12 okt · dag 8 av 28</span></div>
+              <h1 class="h1" style="margin-top:10px">Verona – Höstvärme</h1>
+
+              <div class="card tint sm" style="margin-top:20px">
+                <p class="label">Strategisk riktning</p>
+                <p style="margin-top:8px;font-size:18px;font-weight:500;line-height:1.35;letter-spacing:-.01em">Sälj Verona som kvällsvärme på altanen, inte som reservvärme när strömmen går.</p>
+                <ul class="why">
+                  <li>Du har sagt att dina kunder är villaägare som vill förlänga utesäsongen.</li>
+                  <li>Reservvärme är ett köp man skjuter upp. Altankvällar i september är något man vill ha nu.</li>
+                </ul>
+                <a class="link" style="display:inline-block;margin-top:12px">Visa hela strategin</a>
+              </div>
+
+              <a class="btn p full" style="margin-top:16px"><svg width="16" height="16"><use href="#i-sparkle"/></svg>Skapa Facebook-inlägg</a>
+              <p class="small tert" style="margin-top:8px">Inlägget får kampanjens budskap, målgrupp och uppmaning ifyllda.</p>
+
+              <div class="section" style="margin-top:32px">
+                <p class="label">Resultat</p>
+                <p class="small muted" style="margin-top:-4px;margin-bottom:16px">Fyll i det du vet, när du vet det. Allt är frivilligt.</p>
+                <div class="stack" style="--g:16px">
+                  <div class="field">
+                    <label>Spenderat</label>
+                    <div class="input unit">1&nbsp;850<b>kr</b></div>
+                  </div>
+                  <div class="field" style="margin-top:16px">
+                    <label>Vad räknar du?</label>
+                    <div class="row" style="gap:8px">
+                      <span class="tchip on">Köp</span><span class="tchip">Leads</span><span class="tchip">Bokningar</span><span class="tchip">Butiksbesök</span><span class="tchip">Annat</span>
+                    </div>
+                  </div>
+                  <div class="grid2" style="margin-top:16px">
+                    <div class="field"><label>Antal köp</label><div class="input empty">–</div></div>
+                    <div class="field"><label>Omsättning</label><div class="input unit empty">–<b>kr</b></div></div>
+                  </div>
+                  <p class="alert" style="margin-top:14px">ROAS och kostnad per köp räknas fram när antal och omsättning finns.</p>
+                  <div class="field" style="margin-top:16px">
+                    <label>Notering <i>— valfritt</i></label>
+                    <textarea class="input" readonly>Många frågar i kommentarerna hur länge en 11 kg-flaska räcker.</textarea>
+                  </div>
+                  <a class="btn sec full" style="margin-top:16px">Spara resultat</a>
+                </div>
+              </div>
+
+              <div class="sep" style="margin:28px 0 16px"></div>
+              <a class="btn g full">Avsluta kampanjen</a>
+              <p class="xs tert" style="text-align:center;margin-top:4px">Då skriver du en lärdom och kan köra den igen.</p>
+            </div>
+          </div>
+        </div>
+        <p class="phone-cap"><b>3 · Aktiv.</b> Resultatet är ett formulär direkt på sidan, inget eget läge. Spenderat är ifyllt, resten är tomt. Det finns ingen tom ROAS-ruta, bara en rad om när den räknas fram.</p>
+      </div>
+
+      <!-- 4. AVSLUTAD -->
+      <div class="phone-col">
+        <div class="phone">
+          <div class="mtop"><span class="mark">M</span><span>Marketing Copilot</span></div>
+          <div class="phone-body">
+            <div class="mpage">
+              <a class="back"><svg width="16" height="16"><use href="#i-back"/></svg>Kampanjer</a>
+              <div class="row" style="margin-top:16px"><span class="chip neutral">Avslutad</span><span class="meta">15 sep – 12 okt 2026</span></div>
+              <h1 class="h1" style="margin-top:10px">Verona – Höstvärme</h1>
+
+              <div class="card tint sm" style="margin-top:20px">
+                <div class="between"><p class="label">Lärdom</p><a class="link" style="font-size:13px">Ändra</a></div>
+                <p style="margin-top:8px;font-size:16px;line-height:1.5">Bilder med folk runt kaminen på altanen drog nästan alla köp. Produktbilden på vit bakgrund gav klick men få köp. Nästa gång: kvällsvinkeln igen, och börja två veckor tidigare.</p>
+              </div>
+
+              <a class="btn p full" style="margin-top:16px"><svg width="16" height="16"><use href="#i-again"/></svg>Kör igen</a>
+              <p class="small tert" style="margin-top:8px">Samma strategi, nya datum. Lärdomen följer med som referens.</p>
+
+              <div class="section" style="margin-top:32px">
+                <div class="between" style="margin-bottom:12px"><p class="label">Resultat</p><a class="link" style="font-size:13px">Ändra</a></div>
+                <div class="figs">
+                  <div class="fig"><p class="k">Spenderat</p><p class="v">3&nbsp;600&nbsp;kr</p></div>
+                  <div class="fig"><p class="k">Köp</p><p class="v">27</p></div>
+                  <div class="fig"><p class="k">Omsättning</p><p class="v">18&nbsp;630&nbsp;kr</p></div>
+                  <div class="fig calc"><p class="k">ROAS</p><p class="v">5,2</p></div>
+                </div>
+                <p class="small muted" style="margin-top:10px">Kostnad per köp: 133&nbsp;kr <span class="tert">· beräknat</span></p>
+                <p class="xs tert" style="margin-top:4px">Siffror du själv lade in den 13 oktober.</p>
+              </div>
+
+              <div class="section">
+                <p class="label">Notering</p>
+                <p class="small muted" style="margin-top:-4px">Många frågade hur länge en 11 kg-flaska räcker. Värt ett eget inlägg nästa gång.</p>
+              </div>
+
+              <div class="section">
+                <p class="label">Strategin</p>
+                <div class="card sm sunk" style="margin-top:-2px">
+                  <p class="small" style="line-height:1.55">Sälj Verona som kvällsvärme på altanen, inte som reservvärme när strömmen går.</p>
+                  <a class="link" style="display:inline-block;margin-top:8px;font-size:13px">Visa hela strategin</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="phone-cap"><b>4 · Avslutad.</b> Lärdomen ligger överst eftersom det är den man tar med sig. Kör igen är sidans enda primärknapp. Fyra siffror, varav en beräknad och tydligt märkt.</p>
+      </div>
+
+      <!-- 5. KÖR IGEN -->
+      <div class="phone-col">
+        <div class="phone">
+          <div class="mtop"><span class="mark">M</span><span>Marketing Copilot</span></div>
+          <div class="phone-body" style="opacity:.5">
+            <div class="mpage">
+              <a class="back"><svg width="16" height="16"><use href="#i-back"/></svg>Kampanjer</a>
+              <h1 class="h1" style="margin-top:44px">Verona – Höstvärme</h1>
+            </div>
+          </div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="sheet-head"><p>Kör igen</p><span class="iconbtn"><svg width="18" height="18"><use href="#i-close"/></svg></span></div>
+            <div class="sheet-body">
+              <div class="field">
+                <label>Namn</label>
+                <div class="input">Verona – Höstvärme 2027</div>
+              </div>
+              <div class="grid2" style="margin-top:14px">
+                <div class="field"><label>Start</label><div class="input empty">åååå-mm-dd</div></div>
+                <div class="field"><label>Slut</label><div class="input empty">åååå-mm-dd</div></div>
+              </div>
+              <p class="xs tert" style="margin-top:6px">Förra gången: 15 sep – 12 okt.</p>
+
+              <div class="kept" style="margin-top:20px">
+                <svg width="16" height="16"><use href="#i-check"/></svg>
+                <div>
+                  <p style="font-size:14px;font-weight:500">Strategin återanvänds</p>
+                  <p class="small muted" style="margin-top:2px">Sälj Verona som kvällsvärme på altanen, inte som reservvärme.</p>
+                </div>
+              </div>
+
+              <div class="card sm sunk" style="margin-top:16px">
+                <p class="label">Från förra gången</p>
+                <p class="res-line small" style="margin-top:8px">3&nbsp;600&nbsp;kr → 27 köp · 18&nbsp;630&nbsp;kr · <span>ROAS</span> 5,2</p>
+                <p class="learn" style="margin-top:6px;-webkit-line-clamp:3"><b>Lärdom:</b> Bilder med folk runt kaminen drog nästan alla köp. Börja två veckor tidigare.</p>
+                <p class="xs tert" style="margin-top:10px">Visas som referens på den nya kampanjen. Den nya kampanjens resultat börjar tomma.</p>
+              </div>
+
+              <a class="btn p full" style="margin-top:20px">Skapa planerad kampanj</a>
+              <a class="btn g full" style="margin-top:4px">Justera strategin först</a>
+            </div>
+          </div>
+        </div>
+        <p class="phone-cap"><b>5 · Kör igen.</b> Ett ark med tre fält och en knapp. Ingen AI körs och det finns inga steg. Det enda man måste ange är datum. Justera strategin först öppnar strategin förifylld, och det är en senare version.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ NAVIGATION ═══════════ -->
+  <section class="state">
+    <div class="state-head">
+      <p class="state-no">Navigation</p>
+      <h2>Kampanjer ersätter Kampanjbyggaren</h2>
+    </div>
+    <div class="navcmp">
+      <div>
+        <h3 style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:8px">Desktop idag</h3>
+        <div class="navbox">
+          <div class="side">
+            <nav class="nav">
+              <a><svg width="17" height="17"><use href="#i-today"/></svg>Idag</a>
+              <a><svg width="17" height="17"><use href="#i-content"/></svg>Innehåll</a>
+              <a><svg width="17" height="17"><use href="#i-pencil"/></svg>Produkttexter</a>
+              <a><svg width="17" height="17"><use href="#i-sparkle"/></svg>Facebook</a>
+              <a class="strike"><svg width="17" height="17"><use href="#i-builder"/></svg>Kampanjbyggaren</a>
+              <a><svg width="17" height="17"><use href="#i-history"/></svg>Historik</a>
+              <a><svg width="17" height="17"><use href="#i-company"/></svg>Vad jag vet</a>
+            </nav>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:8px">Desktop, Kampanjer v1</h3>
+        <div class="navbox">
+          <div class="side">
+            <nav class="nav">
+              <a><svg width="17" height="17"><use href="#i-today"/></svg>Idag</a>
+              <a><svg width="17" height="17"><use href="#i-content"/></svg>Innehåll</a>
+              <a><svg width="17" height="17"><use href="#i-pencil"/></svg>Produkttexter</a>
+              <a><svg width="17" height="17"><use href="#i-sparkle"/></svg>Facebook</a>
+              <a class="on"><svg width="17" height="17"><use href="#i-flag"/></svg>Kampanjer</a>
+              <a><svg width="17" height="17"><use href="#i-history"/></svg>Historik</a>
+              <a><svg width="17" height="17"><use href="#i-company"/></svg>Vad jag vet</a>
+            </nav>
+          </div>
+        </div>
+      </div>
+      <div class="mininav">
+        <h3>Mobil, Kampanjer v1</h3>
+        <nav class="mbar">
+          <a><svg width="20" height="20"><use href="#i-today"/></svg>Idag</a>
+          <a><svg width="20" height="20"><use href="#i-content"/></svg>Innehåll</a>
+          <a><svg width="20" height="20"><use href="#i-pencil"/></svg>Texter</a>
+          <a><svg width="20" height="20"><use href="#i-sparkle"/></svg>Facebook</a>
+          <a class="on"><svg width="20" height="20"><use href="#i-more"/></svg>Mer</a>
+        </nav>
+        <div class="mersheet">
+          <p class="head">Mer</p>
+          <a class="hl"><svg width="18" height="18"><use href="#i-flag"/></svg>Kampanjer</a>
+          <a><svg width="18" height="18"><use href="#i-history"/></svg>Historik</a>
+          <a><svg width="18" height="18"><use href="#i-company"/></svg>Vad jag vet</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="verdict">
+      <p><b>Desktop:</b> Kampanjer tar Kampanjbyggarens plats i listan, med samma ikon som /campaigns har idag. /campaign-builder blir ett steg under Ny kampanj och får ingen egen menypost.</p>
+      <p><b>Mobil: Kampanjer ligger kvar under Mer, men som första rad.</b> De fyra fasta platserna är det man gör varje vecka. En liten handlare kör några kampanjer om året, och när en kampanj pågår är Facebook-inlägget det man öppnar varje vecka, och den platsen finns redan. Pågår en kampanj bör Idag visa ett kort till den. Det ger en snabbare väg in än en flik. Byt en fast plats först när det syns att Kampanjer öppnas oftare än Produkttexter.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════ UX-VAL ═══════════ -->
+  <section class="state">
+    <div class="state-head">
+      <p class="state-no">De viktigaste UX-valen</p>
+    </div>
+    <ul class="ux">
+      <li><b>Läget styr ordningen på sidan, inte flikar.</b> Pågående kampanj visar strategi och nästa steg först. Avslutad kampanj visar lärdom, sedan Kör igen, sedan siffror.</li>
+      <li><b>Siffror syns bara där de finns.</b> Inga tomma KPI-rutor. ROAS och kostnad per köp räknas fram och är märkta som beräknade.</li>
+      <li><b>Kör igen är ett ark, inte ett flöde.</b> Strategin återanvänds, förra resultatet och lärdomen visas som referens och ingenting kopieras till den nya kampanjen.</li>
+      <li><b>Kampanjbyggaren blir steget "strategi".</b> Den nås via Ny kampanj, inte som en egen produkt.</li>
+    </ul>
+  </section>
+
+</div>
+</body>
+</html>
