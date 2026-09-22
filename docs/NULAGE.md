@@ -25,9 +25,9 @@ Sju arbetande ytor, alla bakom inloggning:
 | Innehåll (`/innehall`) | Planens inlägg och nyhetsbrev, redigering, tummar, kopiering, bildgenerering | Klar |
 | Produkttexter (`/produkttexter`) | CSV in, texter skrivs artikel för artikel, CSV ut för import | Klar |
 | Facebook (`/content/facebook`) | Ett inlägg med två alternativ, granskat och kvalitetsmärkt | Klar |
-| Kampanjstrategi (`/campaign-builder`) | Underlag, analys, följdfrågor, rekommendation | Klar |
+| Kampanjstrategi (`/campaign-builder`) | Underlag, analys, följdfrågor, rekommendation, "Gör till kampanj" | Klar |
 | Historik (`/history`) | Tidigare veckoplaner | Klar |
-| Kampanjer (`/campaigns`) | Visar planens kampanjförslag | Halvbyggd, se avsnitt 8 |
+| Kampanjer (`/campaigns`, `/campaigns/[id]`) | Planerade, pågående och avslutade kampanjer, manuella resultat, lärdom, Kör igen | Klar (Campaigns v1), se avsnitt 8 |
 
 Appen har noll användare enligt `CLAUDE.md`. **[OVERIFIERAT]** — jag kan inte
 räkna rader i `auth.users` eller `companies` med anon-nyckeln, RLS döljer allt.
@@ -71,7 +71,19 @@ erbjudande, samt påhittad brådska.
 ### Kampanjstrategi
 `POST /api/strategist/analyze` → 0–4 följdfrågor → `POST /api/strategist/recommend`.
 Resultatet sparas i `campaign_strategies` av klienten efter att routen svarat,
-och kan öppnas i Facebook-flödet via strategi-id.
+och kan öppnas i Facebook-flödet via strategi-id. När strategin har ett sparat
+id kan den göras till en planerad kampanj direkt från resultatet
+("Gör till kampanj").
+
+### Kampanjer (Campaigns v1)
+`campaign_strategies` är strategin, `campaigns` är en körning av den. Ny kampanj
+utgår från en sparad strategi utan kampanj, eller från en ny strategi i
+Kampanjbyggaren. `company_id` och `strategy_id` tas från strategiraden. Status går
+bara framåt och bara när användaren väljer det: planerad → pågår → avslutad.
+Resultat (spenderat, resultattyp, antal, omsättning, notering) skrivs in manuellt;
+ROAS och kostnad per resultat räknas i `lib/campaigns/logic.ts` och lagras inte.
+Kör igen skapar en ny planerad rad med samma strategi och tomma resultat.
+Dataaccess i `lib/campaigns/store.ts`, browser-klienten, RLS som gräns.
 
 **Verifierat i prod 2026-09-20:** två fullständiga körningar av analyze →
 recommend lyckades, båda sparade strategin i `campaign_strategies`. Recommend
@@ -90,9 +102,10 @@ React 19.2.4). Skyddade prefix: `/dashboard`, `/onboarding`, `/campaign-builder`
 Inloggad besökare på `/login` skickas till `/auth/callback`.
 
 Menyn i `app/_shared/AppShell.tsx`, desktopordning: Idag, Innehåll,
-Produkttexter, Facebook, Kampanjbyggaren, Historik, Vad jag vet. På mobil ligger
-fyra i bottenraden (Idag, Innehåll, Produkttexter, Facebook) och resten bakom
-"Mer". `/campaigns` har ingen egen menypost och nås via "Mer".
+Produkttexter, Facebook, Kampanjer, Historik, Vad jag vet. På mobil ligger
+fyra i bottenraden (Idag, Innehåll, Produkttexter, Facebook) och bakom "Mer"
+Kampanjer, Historik och Vad jag vet. Kampanjbyggaren har ingen egen menypost;
+den nås via Ny kampanj, och Kampanjer är markerad medan man står i den.
 
 Publika sidor: `/` (landningssida med Veckans bräda), `/login`, `/auth/reset`,
 `/auth/callback`.
@@ -213,7 +226,8 @@ prod. RLS gör att anon-nyckeln inte ser några rader.
 
 ## 7. Databasstruktur
 
-Åtta tabeller, alla verifierade i prod:
+Nio tabeller. De åtta första verifierades i prod 2026-09-20; `campaigns` kom
+med migrationen från PR #20:
 
 | Tabell | Vad | Relation |
 |---|---|---|
@@ -223,6 +237,7 @@ prod. RLS gör att anon-nyckeln inte ser några rader.
 | `plan_text_edits` | Användarens redigerade plantext, en rad per `(plan, item_key)` | `plan_id` → `plans`, `user_id` |
 | `text_edits` | Par av AI-text och behållen text, för röstinlärning | `user_id`, `company_id` |
 | `campaign_strategies` | Sparad kampanjstrategi (`strategy_context`, `recommendation`) | `user_id`, `company_id` |
+| `campaigns` | En körning av en strategi: status, datum, manuella resultat, lärdom | `strategy_id` → `campaign_strategies` (restrict), `company_id` → `companies`, `user_id` |
 | `content_drafts` | Sparade Facebook-utkast (`brief`, `result`, `edited`, `edited_text`) | `user_id`, `company_id` |
 | `ai_usage_events` | En rad per modellanrop | `user_id`, `company_id` |
 
@@ -242,6 +257,7 @@ innan `plan_id` fanns.
 | `0006_add_plans_opportunities.sql` | `plans.opportunities` | Körd 2026-09-17 |
 | `0007_add_plans_intro.sql` | `plans.intro` | Körd |
 | `0008_add_content_feedback_plan_id.sql` | `content_feedback.plan_id`, ny unik nyckel, fyra RLS-policyer | Körd 2026-09-17 |
+| `20260922122058_add_campaigns.sql` | `campaigns` + fyra RLS-policyer (ägare, strategin i samma företag) | Körd efter merge av PR #20 |
 
 Körstatusen kommer ur projektminnet och PR #3/#4, inte ur databasen.
 **[OVERIFIERAT]** i den meningen att anon-nyckeln inte kan läsa
@@ -269,12 +285,15 @@ prod. `service_role`-nyckeln används inte någonstans i koden.
 - Facebook-inlägg med två alternativ, granskning, revision och bildbrief.
 - Produkttexter hela vägen från butikens export till importfil.
 - Kampanjstrategi som kan öppnas i Facebook-flödet.
+- Kampanjer v1: skapa från strategi, starta, lägga in resultat, avsluta med
+  lärdom och köra igen. Beräknade mått visas bara när underlaget finns.
 - Bildgenerering via `ImageMaker` på Facebook- och innehållssidan.
 
 **Halvbyggt:**
-- **`/campaigns` spårar inga kampanjer.** Sidan säger det själv: det finns ingen
-  datamodell för status, datum eller kanal. Den visar planens kampanjförslag,
-  märkta som förslag.
+- **Kampanjer vet inte vilket innehåll som hör till dem.** Facebook-länken från
+  en kampanj går via strategins id, och `content_drafts` har ingen koppling till
+  `campaigns`. Planens kampanjförslag visas bara under Innehåll, inte på
+  `/campaigns`.
 - **Sparade Facebook-utkast går inte att läsa.** `content_drafts` skrivs på
   Facebook-sidan (`insert`), men ingen kod någonstans läser tabellen. Utkastet
   försvinner ur gränssnittet när man lämnar sidan.

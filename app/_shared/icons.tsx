@@ -98,3 +98,7 @@ export const IconX = ({ size, ...p }: IconProps) => (
 export const IconSparkle = ({ size, ...p }: IconProps) => (
   <svg {...base(size)} {...p}><path d="M12 3l1.4 4.6L18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4L12 3Z" /><path d="M19 15.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6.6-1.9Z" /></svg>
 );
+
+export const IconRerun = ({ size, ...p }: IconProps) => (
+  <svg {...base(size)} {...p}><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5M20 4v4.5h-4.5" /><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.5M4 20v-4.5h4.5" /></svg>
+);

@@ -136,6 +136,9 @@ jobs:
       - name: Test — säsongsspärr
         run: npm run test:season
 
+      - name: Test — kampanjer (ROAS, Kör igen, status)
+        run: npm run test:campaigns
+
       # Smoke-test needs the built app running. Start it in the background,
       # wait until it answers, run the black-box route checks, then stop it.
       - name: Start production server

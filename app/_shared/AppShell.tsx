@@ -27,13 +27,15 @@ import { clearAppStorage } from "./appStorage";
 import { cx } from "./primitives";
 import {
   IconToday, IconContent, IconCompany, IconPencil, IconSparkle,
-  IconBuilder, IconHistory, IconLogout, IconCampaigns, IconMenu, IconClose,
+  IconHistory, IconLogout, IconCampaigns, IconMenu, IconClose,
 } from "./icons";
 
 interface Item {
   href: string;
   label: string;
   icon: (p: { size?: number }) => React.ReactElement;
+  /** Fler sökvägar som räknas som samma menyval. */
+  also?: string[];
 }
 
 /** Hela menyn, i den ordning desktop visar den. */
@@ -42,7 +44,10 @@ const ITEMS: Item[] = [
   { href: "/innehall", label: "Innehåll", icon: IconContent },
   { href: "/produkttexter", label: "Produkttexter", icon: IconPencil },
   { href: "/content/facebook", label: "Facebook", icon: IconSparkle },
-  { href: "/campaign-builder", label: "Kampanjbyggaren", icon: IconBuilder },
+  // Kampanjbyggaren är inte längre ett eget menyval: den är steget
+  // "strategi" under Kampanjer och nås via Ny kampanj. Därför markeras
+  // Kampanjer även när man står i /campaign-builder.
+  { href: "/campaigns", label: "Kampanjer", icon: IconCampaigns, also: ["/campaign-builder"] },
   { href: "/history", label: "Historik", icon: IconHistory },
   { href: "/company", label: "Vad jag vet", icon: IconCompany },
 ];
@@ -54,22 +59,22 @@ const MOBILE_ITEMS: Item[] = MOBILE_HREFS.map(
 );
 
 /**
- * Vad som ligger bakom "Mer".
- *
- * /campaigns har ingen post i desktopmenyn — dess kampanjförslag visas
- * redan under Innehåll — men sidan finns och nåddes tidigare BARA via
- * en länk på Historik. Var Historik oåtkomlig var Kampanjer det också.
- * Därför står den med här, med egen rad.
+ * Vad som ligger bakom "Mer". Kampanjer först: en liten handlare kör
+ * några kampanjer om året, så den får ingen fast plats i raden, men är
+ * det första man når bakom Mer.
  */
 const MER_ITEMS: Item[] = [
-  ITEMS.find((i) => i.href === "/campaign-builder")!,
+  ITEMS.find((i) => i.href === "/campaigns")!,
   ITEMS.find((i) => i.href === "/history")!,
-  { href: "/campaigns", label: "Kampanjer", icon: IconCampaigns },
   ITEMS.find((i) => i.href === "/company")!,
 ];
 
-function isActive(pathname: string, href: string): boolean {
+function matches(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
+}
+
+function isActive(pathname: string, item: Item): boolean {
+  return [item.href, ...(item.also ?? [])].some((h) => matches(pathname, h));
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -104,7 +109,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", vidTangent);
   }, [merOppen]);
 
-  const merAktiv = MER_ITEMS.some((i) => isActive(pathname, i.href));
+  const merAktiv = MER_ITEMS.some((i) => isActive(pathname, i));
 
   return (
     <div className="app-light min-h-svh bg-background font-sans text-text-primary">
@@ -123,8 +128,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-          {ITEMS.map(({ href, label, icon: Icon }) => {
-            const on = isActive(pathname, href);
+          {ITEMS.map((item) => {
+            const { href, label, icon: Icon } = item;
+            const on = isActive(pathname, item);
             return (
               <Link
                 key={href}
@@ -201,8 +207,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <nav className="px-2 py-2">
-              {MER_ITEMS.map(({ href, label, icon: Icon }) => {
-                const on = isActive(pathname, href);
+              {MER_ITEMS.map((item) => {
+                const { href, label, icon: Icon } = item;
+                const on = isActive(pathname, item);
                 return (
                   <Link
                     key={href}
@@ -241,8 +248,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-surface-sunken lg:hidden">
-        {MOBILE_ITEMS.map(({ href, label, icon: Icon }) => {
-          const on = isActive(pathname, href);
+        {MOBILE_ITEMS.map((item) => {
+          const { href, label, icon: Icon } = item;
+          const on = isActive(pathname, item);
           return (
             <Link
               key={href}

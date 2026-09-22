@@ -28,12 +28,15 @@ import { Textarea } from "@/app/_shared/Textarea";
 import { IconBuilder } from "@/app/_shared/icons";
 import { STRATEGIST_GOALS } from "@/lib/strategist/goals";
 import { saveStrategyV2 } from "@/lib/campaignStrategyStore";
+import { MakeCampaignSheet } from "@/app/campaigns/_components/MakeCampaignSheet";
 import type {
   StrategistBrief, StrategyAnalysis, FollowUpQuestion, FollowUpAnswer, StrategyV2,
 } from "@/lib/strategist/types";
 import type { CampaignGoal } from "@/app/campaign-builder/types";
 
 type Phase = "brief" | "analyzing" | "questions" | "recommending" | "result";
+/** Var den sparade strategin befinner sig. En kampanj kan bara skapas ur ett riktigt, sparat id. */
+type SaveState = "idle" | "saving" | "saved" | "failed";
 
 /* ── Nätverk ─────────────────────────────────────────────────── */
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -131,6 +134,10 @@ export default function MarketingStrategistPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [strategy, setStrategy] = useState<StrategyV2 | null>(null);
   const [savedStrategyId, setSavedStrategyId] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  // Varje ny rekommendation sparas som en ny rad. Räknaren ser till att ett
+  // sent svar från en tidigare sparning aldrig skriver över det senaste id:t.
+  const saveSeq = useRef(0);
 
   const goalTitle = useMemo(() => STRATEGIST_GOALS.find((g) => g.id === goalKey)?.title ?? "", [goalKey]);
   const canSubmitBrief = product.trim().length > 1 && !!goalKey;
@@ -154,7 +161,14 @@ export default function MarketingStrategistPage() {
       setStrategy(data.strategy);
       setPhase("result");
       // Spara best-effort → strategi-id för direktflödet till Facebook Specialist.
-      saveStrategyV2(data.strategy).then((id) => setSavedStrategyId(id));
+      const seq = ++saveSeq.current;
+      setSavedStrategyId(null);
+      setSaveState("saving");
+      saveStrategyV2(data.strategy).then((id) => {
+        if (seq !== saveSeq.current) return;
+        setSavedStrategyId(id);
+        setSaveState(id ? "saved" : "failed");
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Kunde inte skapa strategin.");
       setPhase("questions");
@@ -193,7 +207,7 @@ export default function MarketingStrategistPage() {
   }
 
   function reset() {
-    setPhase("brief"); setAnalysis(null); setQuestions([]); setAnswers({}); setStrategy(null); setSavedStrategyId(null); setError("");
+    setPhase("brief"); setAnalysis(null); setQuestions([]); setAnswers({}); setStrategy(null); setSavedStrategyId(null); setSaveState("idle"); saveSeq.current++; setError("");
   }
 
   /* ── Tomläge: ingen företagsprofil ─────────────────────────── */
@@ -247,7 +261,7 @@ export default function MarketingStrategistPage() {
         )}
 
         {phase === "result" && strategy && (
-          <ResultView strategy={strategy} savedStrategyId={savedStrategyId} onAdjust={() => setPhase(questions.length ? "questions" : "brief")} onRestart={reset} />
+          <ResultView strategy={strategy} savedStrategyId={savedStrategyId} saveState={saveState} onAdjust={() => setPhase(questions.length ? "questions" : "brief")} onRestart={reset} />
         )}
       </div>
     </AppShell>
@@ -486,9 +500,10 @@ const CONFIDENCE = {
   high: { t: "Hög säkerhet", tone: "success" },
 } as const;
 
-function ResultView({ strategy, savedStrategyId, onAdjust, onRestart }: {
-  strategy: StrategyV2; savedStrategyId: string | null; onAdjust: () => void; onRestart: () => void;
+function ResultView({ strategy, savedStrategyId, saveState, onAdjust, onRestart }: {
+  strategy: StrategyV2; savedStrategyId: string | null; saveState: SaveState; onAdjust: () => void; onRestart: () => void;
 }) {
+  const [makeCampaign, setMakeCampaign] = useState(false);
   const s = strategy.strategy;
   const a = strategy.analysis;
   const conf = CONFIDENCE[a.confidence] ?? CONFIDENCE.medium;
@@ -513,12 +528,25 @@ function ResultView({ strategy, savedStrategyId, onAdjust, onRestart }: {
 
       {/* Nästa steg — högst upp för snabb åtgärd */}
       <div className="flex flex-wrap items-center gap-2.5">
-        <ButtonLink href={savedStrategyId ? `/content/facebook?strategy=${encodeURIComponent(savedStrategyId)}` : "/content/facebook"}>
+        {/* Kampanjer → Ny kampanj → strategi → kampanj. Knappen väntar på det
+            faktiska sparade id:t; ingen kampanj skapas ur en osparad strategi. */}
+        <Button onClick={() => setMakeCampaign(true)} disabled={!savedStrategyId} loading={saveState === "saving"}>
+          Gör till kampanj
+        </Button>
+        <ButtonLink variant="secondary" href={savedStrategyId ? `/content/facebook?strategy=${encodeURIComponent(savedStrategyId)}` : "/content/facebook"}>
           Skapa Facebook-inlägg
         </ButtonLink>
         <Button variant="secondary" onClick={onAdjust}>Justera strategin</Button>
         <Button variant="secondary" onClick={onRestart}>Ny strategi</Button>
       </div>
+      {saveState === "failed" && (
+        <Alert tone="warning" title="Strategin sparades inte">
+          Den kan därför inte bli en kampanj eller väljas i Facebook-flödet. Försök med Justera strategin eller Ny strategi.
+        </Alert>
+      )}
+      {makeCampaign && savedStrategyId && (
+        <MakeCampaignSheet strategyId={savedStrategyId} onClose={() => setMakeCampaign(false)} />
+      )}
 
       {/* Strukturerad strategi */}
       <div className="grid gap-3 sm:grid-cols-2">
