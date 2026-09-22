@@ -256,7 +256,6 @@ ul.why li{margin-top:4px}
                     <p style="margin-top:10px"><a class="camp-title" style="font-size:19px">Verona – Höstvärme</a></p>
                     <p class="dir">Sälj Verona som kvällsvärme på altanen, inte som reservvärme när strömmen går.</p>
                   </div>
-                  <a class="btn sec s">Öppna</a>
                 </div>
                 <div class="sep"></div>
                 <div class="between" style="align-items:center">
@@ -276,7 +275,6 @@ ul.why li{margin-top:4px}
                     <p style="margin-top:8px"><a class="camp-title">Fyll på inför vintern</a></p>
                     <p class="dir">Påminn befintliga kunder om att byta flaska innan första kalla helgen.</p>
                   </div>
-                  <a class="btn sec s">Öppna</a>
                 </div>
               </div>
             </div>
@@ -424,7 +422,7 @@ ul.why li{margin-top:4px}
     <div class="state-head">
       <p class="state-no">3 · 4 · 5 · Kampanjdetalj och Kör igen</p>
       <h2>En sida per kampanj, utan flikar</h2>
-      <p>Ordningen på sidan följer läget. När kampanjen pågår ligger strategin och nästa steg överst. När den är avslutad ligger lärdomen överst, sedan Kör igen och sist siffrorna. På desktop är det samma kolumn, centrerad och max 672 px bred.</p>
+      <p>Ordningen på sidan följer läget. När kampanjen pågår ligger strategin och nästa steg överst. När den är avslutad kommer lärdomen först, sedan siffrorna och sist Kör igen. På desktop är det samma kolumn, centrerad och max 672 px bred.</p>
     </div>
     <div class="phones">
 
@@ -452,29 +450,10 @@ ul.why li{margin-top:4px}
               <p class="small tert" style="margin-top:8px">Inlägget får kampanjens budskap, målgrupp och uppmaning ifyllda.</p>
 
               <div class="section" style="margin-top:32px">
-                <p class="label">Resultat</p>
-                <p class="small muted" style="margin-top:-4px;margin-bottom:16px">Fyll i det du vet, när du vet det. Allt är frivilligt.</p>
-                <div class="stack" style="--g:16px">
-                  <div class="field">
-                    <label>Spenderat</label>
-                    <div class="input unit">1&nbsp;850<b>kr</b></div>
-                  </div>
-                  <div class="field" style="margin-top:16px">
-                    <label>Vad räknar du?</label>
-                    <div class="row" style="gap:8px">
-                      <span class="tchip on">Köp</span><span class="tchip">Leads</span><span class="tchip">Bokningar</span><span class="tchip">Butiksbesök</span><span class="tchip">Annat</span>
-                    </div>
-                  </div>
-                  <div class="grid2" style="margin-top:16px">
-                    <div class="field"><label>Antal köp</label><div class="input empty">–</div></div>
-                    <div class="field"><label>Omsättning</label><div class="input unit empty">–<b>kr</b></div></div>
-                  </div>
-                  <p class="alert" style="margin-top:14px">ROAS och kostnad per köp räknas fram när antal och omsättning finns.</p>
-                  <div class="field" style="margin-top:16px">
-                    <label>Notering <i>— valfritt</i></label>
-                    <textarea class="input" readonly>Många frågar i kommentarerna hur länge en 11 kg-flaska räcker.</textarea>
-                  </div>
-                  <a class="btn sec full" style="margin-top:16px">Spara resultat</a>
+                <p class="label">Resultat hittills</p>
+                <div class="card sm">
+                  <p class="res-line" style="font-size:16px">1&nbsp;850&nbsp;kr <span>spenderat</span></p>
+                  <a class="btn sec full" style="margin-top:12px">Uppdatera resultat</a>
                 </div>
               </div>
 
@@ -484,7 +463,54 @@ ul.why li{margin-top:4px}
             </div>
           </div>
         </div>
-        <p class="phone-cap"><b>3 · Aktiv.</b> Resultatet är ett formulär direkt på sidan, inget eget läge. Spenderat är ifyllt, resten är tomt. Det finns ingen tom ROAS-ruta, bara en rad om när den räknas fram.</p>
+        <p class="phone-cap"><b>3 · Aktiv.</b> Resultatet är en kort sammanfattning, inte ett formulär. Bara det som är inlagt visas, här spenderat. Uppdatera resultat öppnar arket till höger.</p>
+        <div class="card sm" style="width:390px;margin-top:12px">
+          <p class="xs tert" style="margin-bottom:10px">Samma block när inget är inlagt:</p>
+          <p class="label">Resultat</p>
+          <p class="small muted" style="margin-top:8px">Inga resultat inlagda ännu.</p>
+          <a class="btn sec full" style="margin-top:12px">Lägg in resultat</a>
+        </div>
+      </div>
+
+      <!-- 3b. RESULTAT-ARK -->
+      <div class="phone-col">
+        <div class="phone">
+          <div class="mtop"><span class="mark">M</span><span>Marketing Copilot</span></div>
+          <div class="phone-body" style="opacity:.5">
+            <div class="mpage">
+              <a class="back"><svg width="16" height="16"><use href="#i-back"/></svg>Kampanjer</a>
+              <h1 class="h1" style="margin-top:44px">Verona – Höstvärme</h1>
+            </div>
+          </div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="sheet-head"><p>Resultat</p><span class="iconbtn"><svg width="18" height="18"><use href="#i-close"/></svg></span></div>
+            <div class="sheet-body">
+              <p class="small muted" style="margin-bottom:16px">Fyll i det du vet, när du vet det. Allt är frivilligt.</p>
+              <div class="field">
+                <label>Spenderat</label>
+                <div class="input unit">1&nbsp;850<b>kr</b></div>
+              </div>
+              <div class="field" style="margin-top:16px">
+                <label>Vad räknar du?</label>
+                <div class="row" style="gap:8px">
+                  <span class="tchip on">Köp</span><span class="tchip">Leads</span><span class="tchip">Bokningar</span><span class="tchip">Butiksbesök</span><span class="tchip">Annat</span>
+                </div>
+              </div>
+              <div class="grid2" style="margin-top:16px">
+                <div class="field"><label>Antal köp</label><div class="input empty">–</div></div>
+                <div class="field"><label>Omsättning</label><div class="input unit empty">–<b>kr</b></div></div>
+              </div>
+              <p class="alert" style="margin-top:14px">ROAS och kostnad per köp räknas fram när antal och omsättning finns.</p>
+              <div class="field" style="margin-top:16px">
+                <label>Notering <i>— valfritt</i></label>
+                <textarea class="input" readonly>Många frågar i kommentarerna hur länge en 11 kg-flaska räcker.</textarea>
+              </div>
+              <a class="btn p full" style="margin-top:20px">Spara</a>
+            </div>
+          </div>
+        </div>
+        <p class="phone-cap"><b>3b · Uppdatera resultat.</b> Samma formulär som tidigare, men i ett ark. Kampanjsidan förblir en arbetsyta.</p>
       </div>
 
       <!-- 4. AVSLUTAD -->
@@ -502,9 +528,6 @@ ul.why li{margin-top:4px}
                 <p style="margin-top:8px;font-size:16px;line-height:1.5">Bilder med folk runt kaminen på altanen drog nästan alla köp. Produktbilden på vit bakgrund gav klick men få köp. Nästa gång: kvällsvinkeln igen, och börja två veckor tidigare.</p>
               </div>
 
-              <a class="btn p full" style="margin-top:16px"><svg width="16" height="16"><use href="#i-again"/></svg>Kör igen</a>
-              <p class="small tert" style="margin-top:8px">Samma strategi, nya datum. Lärdomen följer med som referens.</p>
-
               <div class="section" style="margin-top:32px">
                 <div class="between" style="margin-bottom:12px"><p class="label">Resultat</p><a class="link" style="font-size:13px">Ändra</a></div>
                 <div class="figs">
@@ -516,6 +539,9 @@ ul.why li{margin-top:4px}
                 <p class="small muted" style="margin-top:10px">Kostnad per köp: 133&nbsp;kr <span class="tert">· beräknat</span></p>
                 <p class="xs tert" style="margin-top:4px">Siffror du själv lade in den 13 oktober.</p>
               </div>
+
+              <a class="btn p full" style="margin-top:24px"><svg width="16" height="16"><use href="#i-again"/></svg>Kör igen</a>
+              <p class="small tert" style="margin-top:8px">Samma strategi, nya datum. Lärdomen följer med som referens.</p>
 
               <div class="section">
                 <p class="label">Notering</p>
@@ -532,7 +558,7 @@ ul.why li{margin-top:4px}
             </div>
           </div>
         </div>
-        <p class="phone-cap"><b>4 · Avslutad.</b> Lärdomen ligger överst eftersom det är den man tar med sig. Kör igen är sidans enda primärknapp. Fyra siffror, varav en beräknad och tydligt märkt.</p>
+        <p class="phone-cap"><b>4 · Avslutad.</b> Lärdom, sedan resultat, sedan Kör igen: beslutet kommer efter att man sett vad som fungerade och vad det gav. Kör igen är sidans enda primärknapp. Fyra siffror, varav en beräknad och tydligt märkt.</p>
       </div>
 
       <!-- 5. KÖR IGEN -->
@@ -575,11 +601,10 @@ ul.why li{margin-top:4px}
               </div>
 
               <a class="btn p full" style="margin-top:20px">Skapa planerad kampanj</a>
-              <a class="btn g full" style="margin-top:4px">Justera strategin först</a>
             </div>
           </div>
         </div>
-        <p class="phone-cap"><b>5 · Kör igen.</b> Ett ark med tre fält och en knapp. Ingen AI körs och det finns inga steg. Det enda man måste ange är datum. Justera strategin först öppnar strategin förifylld, och det är en senare version.</p>
+        <p class="phone-cap"><b>5 · Kör igen.</b> Ett ark med tre fält och en knapp. Ingen AI körs och det finns inga steg. Det enda man måste ange är datum. Strategin återanvänds exakt som den är.</p>
       </div>
 
     </div>
@@ -654,7 +679,7 @@ ul.why li{margin-top:4px}
       <p class="state-no">De viktigaste UX-valen</p>
     </div>
     <ul class="ux">
-      <li><b>Läget styr ordningen på sidan, inte flikar.</b> Pågående kampanj visar strategi och nästa steg först. Avslutad kampanj visar lärdom, sedan Kör igen, sedan siffror.</li>
+      <li><b>Läget styr ordningen på sidan, inte flikar.</b> Pågående kampanj visar strategi och nästa steg först. Avslutad kampanj visar lärdom, sedan siffror, sedan Kör igen.</li>
       <li><b>Siffror syns bara där de finns.</b> Inga tomma KPI-rutor. ROAS och kostnad per köp räknas fram och är märkta som beräknade.</li>
       <li><b>Kör igen är ett ark, inte ett flöde.</b> Strategin återanvänds, förra resultatet och lärdomen visas som referens och ingenting kopieras till den nya kampanjen.</li>
       <li><b>Kampanjbyggaren blir steget "strategi".</b> Den nås via Ny kampanj, inte som en egen produkt.</li>
