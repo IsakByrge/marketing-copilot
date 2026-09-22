@@ -27,7 +27,10 @@
 -- en användare alltså peka sin kampanj på någon annans strategi eller
 -- företag, och RESTRICT skulle då hindra den andra användaren från att
 -- ta bort sin egen strategi. WITH CHECK kräver därför att både
--- strategin och företaget ägs av samma användare.
+-- strategin och företaget ägs av samma användare, och att strategin
+-- hör till samma företag som kampanjen. Ytterkolumnerna är
+-- kvalificerade (campaigns.company_id) så att de inte binds till
+-- subqueryns tabell.
 --
 -- HUR DEN KÖRS (manuellt, körs INTE automatiskt av appen):
 -- 1. Supabase-projektets SQL Editor.
@@ -102,11 +105,14 @@ create policy "own campaigns - insert" on public.campaigns
     (select auth.uid()) = user_id
     and exists (
       select 1 from public.campaign_strategies s
-      where s.id = strategy_id and s.user_id = (select auth.uid())
+      where s.id = campaigns.strategy_id
+        and s.user_id = (select auth.uid())
+        and s.company_id = campaigns.company_id
     )
     and exists (
       select 1 from public.companies c
-      where c.id = company_id and c.user_id = (select auth.uid())
+      where c.id = campaigns.company_id
+        and c.user_id = (select auth.uid())
     )
   );
 
@@ -117,11 +123,14 @@ create policy "own campaigns - update" on public.campaigns
     (select auth.uid()) = user_id
     and exists (
       select 1 from public.campaign_strategies s
-      where s.id = strategy_id and s.user_id = (select auth.uid())
+      where s.id = campaigns.strategy_id
+        and s.user_id = (select auth.uid())
+        and s.company_id = campaigns.company_id
     )
     and exists (
       select 1 from public.companies c
-      where c.id = company_id and c.user_id = (select auth.uid())
+      where c.id = campaigns.company_id
+        and c.user_id = (select auth.uid())
     )
   );
 

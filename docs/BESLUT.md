@@ -102,8 +102,7 @@ RLS. (PR #3.)
 
 - **Kampanjer v1.** Datagrunden finns som migration (`campaigns`, se §6) men är
   inte körd, och inget gränssnitt är byggt. `/campaigns` visar fortfarande
-  planens förslag. Designen är låst i `design/campaigns-v1-prototype`
-  (`f399a7e`).
+  planens förslag. Designen för Campaigns v1 är beslutad och låst.
 - **Läsning av sparade Facebook-utkast.** `content_drafts` skrivs men läses inte.
 - **Delad rate limit-räknare** (Supabase eller Redis) i stället för processminne.
   Noterad i säkerhetsrapporten, uppskjuten.
