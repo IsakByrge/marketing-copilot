@@ -1,30 +1,25 @@
 // ─────────────────────────────────────────────────────────────
 // Landningssidan.
 //
-// Löftet är beslutet, inte texterna. Den gamla sidan sålde fem inlägg
-// och ett nyhetsbrev varje måndag — en volymutfästelse som vem som
-// helst med ChatGPT kan matcha. Det produkten är värd står i VISION.md:
-// "Här är vad ditt företag bör göra härnäst inom marknadsföring — och
-// varför."
+// Byggd mot den låsta målbilden. Kompositionen, proportionerna och
+// rytmen följer den; texterna gör det inte. Målbilden visar påhittade
+// löften — "Kom igång gratis", resultatpåståenden, räckvidd och
+// procenttal i kampanjfönstret, en kanalkoppling vi inte har och en
+// meny med Produkt/Pris/Om oss som inte finns. Inget av det är med.
+// Vi presenterar den produkt som faktiskt är byggd. Se VISION.md.
 //
-// Hjälten är EN komposition, inte två block under varandra. Copy till
-// vänster på 43 %, produkten till höger på 57 %, båda i första
-// vyhöjden på normal desktop. Bilden låg tidigare som en egen sektion
-// långt under texten; då blev rubriken ensam på en tom yta och
-// produkten något man scrollade till i stället för något man möttes av.
+// Fyra block: hjälte, tre steg, avslutande band, sidfot. Ingen
+// funktionskatalog, inga kundlogotyper, inga omdömen, inga siffror om
+// resultat eller antal användare — vi har noll användare, och allt
+// sådant vore påhittat.
 //
-// Under lg faller kompositionen isär i sin naturliga ordning: copy,
-// sedan fönstren staplade, inget perspektiv. Läsbarhet före effekt.
+// Hjälten är EN komposition: copy på 41 %, produkten på 59 %, båda i
+// första vyhöjden på desktop. Under lg faller den isär i sin naturliga
+// ordning — rubrik, ingress, knappar, produkt — utan perspektiv.
 //
-// Tre block efter hjälten, inte tolv: så fungerar det, avslut, sidfot.
-// Ingen funktionskatalog — vi säljer inte en påse verktyg. Inga
-// kundlogotyper, inga omdömen, inga siffror om resultat eller antal
-// användare. Vi har noll användare; allt sådant vore påhittat.
-//
-// Dekoren bakom produkten är två mycket svaga toner — en emerald och
-// en varm papperston. Ingen gradientfest, ingen glöd, ingen
-// AI-estetik, ingen stockbild. De finns för att bilden ska ha något
-// att vila mot, inte för att synas.
+// Bakom produkten ligger tre mycket mjuka former. De ramar in bilden
+// och ger djup; de ska anas, inte synas. Ingen glöd, ingen neon, ingen
+// stockbild.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { ButtonLink } from "@/app/_shared/primitives";
@@ -49,6 +44,10 @@ const STEG = [
 export default function Home() {
   return (
     <div className="app-light flex min-h-svh flex-col bg-background font-sans text-text-primary">
+      {/* ── Header ───────────────────────────────────────────
+          Kompakt, som målbilden. Men utan Produkt/Pris/Om oss: de
+          sidorna finns inte, och en meny ska inte lova rutter vi
+          saknar. */}
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8 lg:px-10">
           <span className="flex items-center gap-2.5">
@@ -78,18 +77,17 @@ export default function Home() {
       </header>
 
       <main className="flex-1">
-        {/* ── Hjälten ─────────────────────────────────────────
-            overflow-hidden på sektionen: bakre fönstret sticker ut åt
-            höger med flit, och utan spärren blir det vågrät rullning. */}
-        <section className="relative overflow-hidden border-b border-border">
-          {/* Dekor. Två radialer, båda nästan osynliga var för sig —
-              de ska ge ytan riktning, inte färg. */}
+        {/* ── Hjälten ───────────────────────────────────────── */}
+        <section className="relative overflow-hidden">
+          {/* Tre mjuka former. Två radialer som ger ytan riktning och en
+              stor organisk platta i papperston under produkten. Alla
+              under innehållet, alla nästan osynliga var för sig. */}
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "radial-gradient(70% 55% at 72% 30%, rgba(18,94,75,0.07) 0%, rgba(18,94,75,0) 68%)",
+                "radial-gradient(64% 52% at 70% 26%, rgba(18,94,75,0.10) 0%, rgba(18,94,75,0) 70%)",
             }}
           />
           <div
@@ -97,23 +95,25 @@ export default function Home() {
             className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "radial-gradient(45% 45% at 88% 78%, rgba(216,207,190,0.42) 0%, rgba(216,207,190,0) 70%)",
+                "radial-gradient(46% 46% at 92% 74%, rgba(216,207,190,0.55) 0%, rgba(216,207,190,0) 72%)",
             }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-[12%] top-[8%] hidden h-[34rem] w-[46rem] rounded-[46%_54%_52%_48%/42%_46%_54%_58%] bg-surface-sunken/55 lg:block"
           />
 
-          <div className="relative mx-auto w-full max-w-6xl px-5 pb-16 pt-14 sm:px-8 sm:pb-20 sm:pt-20 lg:grid lg:grid-cols-[minmax(0,45fr)_minmax(0,55fr)] lg:items-center lg:gap-10 lg:px-10 lg:pb-24 lg:pt-20 xl:gap-12">
+          <div className="relative mx-auto w-full max-w-6xl px-5 pb-16 pt-12 sm:px-8 sm:pb-20 sm:pt-16 lg:grid lg:grid-cols-[minmax(0,41fr)_minmax(0,59fr)] lg:items-center lg:gap-10 lg:px-10 lg:pb-20 lg:pt-16">
             {/* Copy */}
-            <div className="lg:py-6">
-              {/* Storleken är tagen så att "En tydligare väg framåt" ryms
-                  på en rad i spalten. Större och rubriken bröt i fyra
-                  ojämna rader, vilket åt upp den manuella radbrytningen. */}
-              <h1 className="text-[clamp(1.95rem,3vw,2.7rem)] font-semibold leading-[1.08] tracking-[-0.022em]">
-                En tydligare väg framåt
-                <br className="hidden sm:block" />{" "}
-                för din marknadsföring.
+            <div>
+              {/* Rubriken bryter naturligt i den smala spalten, som i
+                  målbilden. Ingen tvingad radbrytning: den låste
+                  brytpunkten till en bredd spalten inte längre har. */}
+              <h1 className="max-w-[13ch] text-[clamp(2.3rem,4.2vw,3.35rem)] font-semibold leading-[1.04] tracking-[-0.025em]">
+                En tydligare väg framåt för din marknadsföring.
               </h1>
 
-              <p className="mt-6 max-w-md text-[clamp(1rem,1.35vw,1.1rem)] leading-relaxed text-text-secondary">
+              <p className="mt-6 max-w-md text-[clamp(1rem,1.2vw,1.075rem)] leading-relaxed text-text-secondary">
                 Marketing Copilot lär känna ditt företag, prioriterar vad som är viktigast och
                 hjälper dig genomföra det — steg för steg.
               </p>
@@ -122,6 +122,8 @@ export default function Home() {
                 <ButtonLink href="/login?mode=signup" className="justify-center sm:justify-start">
                   Kom igång
                 </ButtonLink>
+                {/* Målbilden har en play-ikon här. Den utelämnas: det
+                    finns ingen film, och knappen scrollar till stegen. */}
                 <ButtonLink
                   href="#sa-fungerar-det"
                   variant="secondary"
@@ -133,75 +135,63 @@ export default function Home() {
             </div>
 
             {/* Produkten ─────────────────────────────────────
-                Perspektivet sitter här, på wrappern. Fönstren själva
-                vet ingenting om lutning.
+                Perspektivet sitter här, på wrappern, och fönstren får
+                SAMMA rotation — bara läge och skala skiljer dem åt. Det
+                är skillnaden mot två kort som roterats var för sig.
 
-                På lg ligger kampanjfönstret absolut placerat bakom och
-                uppe till höger. Under lg är det ett vanligt block under
-                Idag-fönstret, utan transform: en lutad bild på 375px är
-                bara svårläst. */}
-            <div className="relative mt-14 lg:mt-0 lg:[perspective:2000px]">
-              {/* Utrymmet ovanför Idag ligger som PADDING på wrappern, inte
-                  som marginal på barnet. En marginal på första barnet
-                  kollapsar ut genom föräldern, och då följer wrapperns
-                  överkant med nedåt — kampanjfönstrets top-0 hamnade rakt
-                  bakom Idag i stället för ovanför det. Padding kollapsar
-                  inte, och absolut placering utgår från padding-boxen. */}
-              <div className="relative lg:pt-[8rem] lg:[transform-style:preserve-3d]">
-                {/* Främre: Idag. Står först i DOM:en, så den kommer
-                    först både på mobil och för skärmläsare.
+                Utrymmet ovanför Idag ligger som PADDING på den inre
+                wrappern, inte som marginal på barnet: en marginal på
+                första barnet kollapsar ut genom föräldern, och då följer
+                wrapperns överkant med nedåt så att kampanjfönstrets
+                top-0 hamnar rakt bakom Idag.
 
-                    Marginalen uppåt på lg är det som gör kampanjfönstret
-                    läsbart: i stället för att lyfta det bakre fönstret ur
-                    sektionen skjuts det främre ned, så att bandet ovanför
-                    rymmer hela kampanjen — list, namn, status och
-                    stapelrad. */}
-                <div className="relative z-10 lg:[transform:rotateX(7deg)_rotateY(-13deg)_rotateZ(0.5deg)]">
+                Ingen translateZ. Den drar elementet mot perspektivets
+                origo — wrapperns mitt — och flyttar fönstret ur läge när
+                wrappern växer. */}
+            <div className="relative mt-14 lg:mt-0 lg:-mr-[6%] lg:[perspective:1700px] xl:-mr-[9%]">
+              {/* Bandet ovanför Idag är måttsatt efter kampanjfönstrets
+                  egen höjd — list, namn, status, stapelrad och bildtext.
+                  Räcker det inte syns bara en titelrad, och då är det
+                  inget fönster utan en kant. */}
+              <div className="relative pb-12 lg:pb-16 lg:pt-[9.5rem]">
+                {/* Främre: Idag. Störst, först i DOM:en. */}
+                <div className="relative z-10 lg:[transform:rotateX(4deg)_rotateY(-9deg)_rotateZ(0.6deg)]">
                   <IdagFonster />
                 </div>
 
                 {/* Bakre: kampanjen. Vanligt block under Idag på mobil;
-                    från lg lyfts den ur flödet, bakom och uppe till
-                    höger, så att den sticker ut som ett andra djup.
-
-                    Förskjutningen uppåt är tilltagen så att bandet ovanför
-                    Idag-fönstret rymmer list, kampanjnamn, status och en
-                    bit av stapelraden. Låg den närmare syntes bara en
-                    titelrad, och då är det inget fönster — bara en kant. */}
-                {/* Ingen translateZ här. Den drar elementet mot
-                    perspektivets origo — wrapperns mitt — och när wrappern
-                    växte hamnade kampanjfönstret rakt bakom Idag i stället
-                    för ovanför. Djupet bärs av z-index, skuggan och att
-                    rotationen är kraftigare än det främre fönstrets. */}
-                <div className="mt-5 lg:absolute lg:top-0 lg:right-[-14%] lg:z-0 lg:mt-0 lg:w-[56%] lg:[transform:rotateX(9deg)_rotateY(-16deg)_rotateZ(1.6deg)_scale(0.96)]">
+                    från lg lyft ur flödet, bakom och uppe till höger.
+                    Samma rotation som Idag, nedskalad — den hör till
+                    samma komposition, den ligger bara längre bort. */}
+                <div className="mt-4 lg:absolute lg:top-0 lg:right-[-4%] lg:z-0 lg:mt-0 lg:w-[62%] lg:[transform:rotateX(4deg)_rotateY(-9deg)_rotateZ(0.6deg)_scale(0.94)]">
                   <KampanjFonster />
                 </div>
 
-                {/* Handskriven notering. Står ovanför Idag-fönstrets
-                    övre vänstra hörn och pekar ned och in mot det
-                    rekommenderade nästa steget — utanför fönstret, så
-                    den aldrig lägger sig över texten. Bara från lg,
-                    där det finns marginal att ställa den i. */}
+                {/* Handskriven notering — sidans enda. Står under
+                    kompositionen till vänster och pekar upp mot det
+                    rekommenderade nästa steget, som i målbilden. Fri
+                    yta runt om, så den aldrig lägger sig över text.
+                    Cormorant är redan registrerad; inget nytt typsnitt. */}
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute left-[-3%] top-[4.5rem] z-20 hidden items-start gap-1 lg:flex"
+                  className="pointer-events-none absolute bottom-0 left-[3%] z-20 hidden items-end gap-1.5 lg:flex"
                 >
-                  <span className="whitespace-nowrap text-[17px] italic leading-none text-text-tertiary [font-family:var(--font-cormorant)]">
+                  <span className="whitespace-nowrap text-[17px] italic leading-none text-text-secondary [font-family:var(--font-cormorant)]">
                     Det viktigaste först.
                   </span>
                   <svg
-                    width="38"
-                    height="46"
-                    viewBox="0 0 38 46"
+                    width="44"
+                    height="40"
+                    viewBox="0 0 44 40"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth={1.3}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="-mt-1 text-border-strong"
+                    className="mb-1 text-text-tertiary"
                   >
-                    <path d="M2 3c13 3 22 13 25 28" />
-                    <path d="M19 30l9 3 1-8" />
+                    <path d="M2 38c6-14 16-24 39-31" />
+                    <path d="M31 3l10 4-3 9" />
                   </svg>
                 </div>
               </div>
@@ -209,54 +199,60 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── Så fungerar det ─────────────────────────────────
-            Lugn med flit: hjälten gör det visuella jobbet. Hierarkin
-            ligger i storlek och luft, inte i kort och ikoner. */}
-        <section id="sa-fungerar-det" className="scroll-mt-16 bg-surface-sunken">
-          <div className="mx-auto w-full max-w-6xl px-5 py-24 sm:px-8 sm:py-28 lg:px-10 lg:py-32">
-            <div className="max-w-2xl">
+        {/* ── Så fungerar det ───────────────────────────────── */}
+        <section
+          id="sa-fungerar-det"
+          className="scroll-mt-16 border-t border-border bg-surface-sunken"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-20 lg:px-10">
+            <div className="max-w-2xl sm:mx-auto sm:text-center">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
                 Så fungerar det
               </p>
-              <h2 className="mt-5 text-[clamp(1.6rem,3.2vw,2.35rem)] font-semibold leading-[1.15] tracking-[-0.018em]">
+              <h2 className="mt-4 text-[clamp(1.5rem,2.8vw,2.1rem)] font-semibold leading-[1.15] tracking-[-0.018em]">
                 Tre steg, i den ordning arbetet faktiskt sker.
               </h2>
             </div>
 
-            <ol className="mt-16 grid gap-12 sm:grid-cols-3 sm:gap-10 lg:mt-20 lg:gap-16">
+            <ol className="mt-12 grid gap-10 sm:grid-cols-3 sm:gap-8 lg:mt-14 lg:gap-12">
               {STEG.map((s, i) => (
                 <li key={s.rubrik}>
-                  <span className="block text-[clamp(1.75rem,2.6vw,2.15rem)] font-semibold leading-none tabular-nums text-primary/35">
-                    {String(i + 1).padStart(2, "0")}
+                  <span
+                    aria-hidden
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/25 bg-surface text-[13px] font-semibold tabular-nums text-primary"
+                  >
+                    {i + 1}
                   </span>
-                  <div className="mt-5 border-t border-border-strong pt-5">
-                    <h3 className="text-[clamp(1.05rem,1.5vw,1.2rem)] font-medium leading-snug tracking-tight">
-                      {s.rubrik}
-                    </h3>
-                    <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
-                      {s.text}
-                    </p>
-                  </div>
+                  <h3 className="mt-4 text-[17px] font-medium leading-snug tracking-tight">
+                    {s.rubrik}
+                  </h3>
+                  <p className="mt-2 text-[14px] leading-relaxed text-text-secondary">{s.text}</p>
                 </li>
               ))}
             </ol>
           </div>
         </section>
 
-        {/* ── Avslut ──────────────────────────────────────────
-            Kort. Ett påstående och en knapp. */}
+        {/* ── Avslutande band ───────────────────────────────── */}
         <section className="border-t border-border">
-          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24 lg:px-10">
-            <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
-              <p className="max-w-lg text-[clamp(1.4rem,2.8vw,1.9rem)] font-semibold leading-[1.2] tracking-[-0.015em]">
-                Nästa steg behöver inte vara en gissning.
-              </p>
-              <ButtonLink
-                href="/login?mode=signup"
-                className="shrink-0 justify-center sm:justify-start"
-              >
-                Kom igång
-              </ButtonLink>
+          <div className="mx-auto w-full max-w-6xl px-5 py-14 sm:px-8 sm:py-16 lg:px-10">
+            <div className="relative overflow-hidden rounded-xl border border-primary/15 bg-primary/[0.05] px-6 py-10 sm:px-10 sm:py-12">
+              {/* Samma mjuka formspråk som bakom produkten, en form. */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-20 -top-24 h-[24rem] w-[24rem] rounded-[52%_48%_45%_55%/48%_44%_56%_52%] bg-surface-sunken/60"
+              />
+              <div className="relative flex flex-col gap-7 sm:flex-row sm:items-center sm:justify-between sm:gap-10">
+                <p className="max-w-lg text-[clamp(1.35rem,2.5vw,1.8rem)] font-semibold leading-[1.2] tracking-[-0.015em]">
+                  Nästa steg behöver inte vara en gissning.
+                </p>
+                <ButtonLink
+                  href="/login?mode=signup"
+                  className="shrink-0 justify-center sm:justify-start"
+                >
+                  Kom igång
+                </ButtonLink>
+              </div>
             </div>
           </div>
         </section>
