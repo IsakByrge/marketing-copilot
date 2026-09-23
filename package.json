@@ -28,6 +28,7 @@
     "test:planvalidate": "tsx lib/server/planValidate.test.mts",
     "test:season": "tsx lib/server/season.test.mts",
     "test:campaigns": "tsx lib/campaigns/logic.test.mts",
+    "test:today": "tsx lib/today/nextStep.test.mts",
     "test:producthtml": "tsx lib/productText/html.test.mts",
     "test:productpipeline": "tsx lib/productText/pipeline.test.mts",
     "test:productsource": "tsx lib/productText/source.test.mts",

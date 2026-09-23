@@ -10,14 +10,17 @@
 // Ärliga tomlägen: finns ingen data visas inget, aldrig en påhittad
 // siffra. Se VISION.md.
 // ─────────────────────────────────────────────────────────────
-import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
 import { Button, ButtonLink, Card, Alert, EmptyState, Skeleton } from "@/app/_shared/primitives";
 import { useAccountData } from "@/app/_shared/useAccountData";
 import UsagePanel from "@/app/_shared/UsagePanel";
 import { firstNameFromEmail } from "@/app/_shared/user";
+import { IconArrowRight } from "@/app/_shared/icons";
 import { isoWeek, greeting, isPlanStale, opportunityWhen } from "@/lib/server/voice";
+import { todayIso, type Campaign } from "@/lib/campaigns/logic";
+import { listCampaigns } from "@/lib/campaigns/store";
+import { nextStep, type NextStep } from "@/lib/today/nextStep";
 import { createClient } from "@/lib/supabase-browser";
 
 /** Dubbelklick, ett andra fönster eller otålighet ska inte kosta en
@@ -33,10 +36,70 @@ function Label({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Det rekommenderade steget. Ett kort, aldrig flera — visas två blir
+ * ytan en meny igen och sidan har inte svarat på frågan den ställer.
+ *
+ * Emerald-ramen och den enda primärknappen på sidan är det som gör
+ * skillnaden mot genvägarna under.
+ */
+function NextStepCard({
+  steg, onAction, working,
+}: {
+  steg: NextStep;
+  onAction: () => void;
+  working: boolean;
+}) {
+  return (
+    <Card className="border-primary/30 p-5 sm:p-6">
+      <div className="flex gap-3">
+        <IconArrowRight size={18} className="mt-1 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[19px] font-semibold leading-snug tracking-tight">{steg.title}</h2>
+          <p className="mt-1.5 text-[15px] leading-relaxed text-text-secondary">{steg.why}</p>
+          <div className="mt-5">
+            {steg.href ? (
+              <ButtonLink href={steg.href} className="w-full sm:w-auto">{steg.cta}</ButtonLink>
+            ) : (
+              <Button onClick={onAction} loading={working} className="w-full sm:w-auto">
+                {steg.cta}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const { profile, plan, setPlan, loaded, email } = useAccountData();
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Kampanjerna kommer efter planen och blockerar aldrig sidan. Null
+  // betyder "hämtas ännu": rekommendationen bygger då på planen och byts
+  // ut när svaret kommer. Går hämtningen inte igenom blir det en tom
+  // lista, inte en felruta — kampanjerna är underlag för rekommendationen,
+  // inte sidans innehåll, och store.ts har redan loggat felet.
+  const [campaigns, setCampaigns] = useState<Campaign[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listCampaigns().then((res) => {
+      if (!cancelled) setCampaigns(res.ok ? res.data : []);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const steg = useMemo(
+    () => nextStep({
+      campaigns,
+      plan: plan ? { createdAt: plan.createdAt, postCount: plan.posts?.length ?? 0 } : null,
+      today: todayIso(),
+    }),
+    [campaigns, plan],
+  );
 
   const name = firstNameFromEmail(email) ?? profile?.companyName?.split(" ")[0];
 
@@ -156,8 +219,12 @@ export default function DashboardPage() {
                   </h1>
 
                   {/* Förslaget står kvar tills ett nytt skapas. Utan den här
-                      raden ser en text från i våras ut som veckans. */}
-                  {gammaltForslag && (
+                      raden ser en text från i våras ut som veckans.
+
+                      Tystnar när rekommendationen redan är "skapa veckans
+                      förslag": då står samma sak två gånger, och den som
+                      bär knappen får säga det. */}
+                  {gammaltForslag && steg?.id !== "plan-stale" && (
                     <Alert
                       tone="warning"
                       title={`Det här förslaget är från vecka ${forslagetsVecka}`}
@@ -176,12 +243,6 @@ export default function DashboardPage() {
                       ? plan.intro
                       : "Förslaget bygger på det du fyllt i under Vad jag vet."}
                   </p>
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    <ButtonLink href="/innehall">Se innehållet</ButtonLink>
-                    <Button variant="secondary" onClick={generatePlan} loading={generating}>
-                      Nytt förslag
-                    </Button>
-                  </div>
                 </>
               ) : (
                 <>
@@ -192,14 +253,6 @@ export default function DashboardPage() {
                     Jag utgår från det du fyllt i under Vad jag vet. Ju konkretare det står där,
                     desto mindre generiskt blir förslaget.
                   </p>
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    <Button onClick={generatePlan} loading={generating}>
-                      Skapa veckans förslag
-                    </Button>
-                    <ButtonLink href="/company" variant="secondary">
-                      Fyll på företagskunskapen
-                    </ButtonLink>
-                  </div>
                 </>
               )}
             </header>
@@ -209,34 +262,40 @@ export default function DashboardPage() {
             )}
 
             <div className="space-y-10">
+              {steg && (
+                <NextStepCard
+                  steg={steg}
+                  onAction={generatePlan}
+                  working={generating}
+                />
+              )}
+
+              {/* Genvägarna som tidigare var sidans huvudinnehåll. De ligger
+                  kvar, men nedtonade: den som redan vet vad hen vill göra ska
+                  komma dit, utan att konkurrera med rekommendationen ovanför.
+                  Den genväg steget redan pekar på visas inte två gånger. */}
               <section>
-                <Label>Gör något nu</Label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    {
-                      href: "/produkttexter",
-                      title: "Produkttexter",
-                      body: "Skriv beskrivningar för produkterna i webbshoppen.",
-                    },
-                    {
-                      href: "/innehall",
-                      title: "Innehåll",
-                      body: postCount
-                        ? `${postCount} inlägg och ett nyhetsbrev väntar.`
-                        : "Inlägg och nyhetsbrev dyker upp här.",
-                    },
-                  ].map((a) => (
-                    <Link
-                      key={a.href}
-                      href={a.href}
-                      className="group rounded-lg border border-border bg-surface p-5 transition-colors hover:border-border-strong"
-                    >
-                      <p className="font-medium transition-colors group-hover:text-primary">
-                        {a.title}
-                      </p>
-                      <p className="mt-1 text-sm leading-relaxed text-text-secondary">{a.body}</p>
-                    </Link>
-                  ))}
+                <Label>Annat du kan göra</Label>
+                <div className="flex flex-wrap gap-2">
+                  {steg?.href !== "/innehall" && (
+                    <ButtonLink href="/innehall" variant="secondary" size="sm">
+                      {postCount ? `Innehåll (${postCount} inlägg)` : "Innehåll"}
+                    </ButtonLink>
+                  )}
+                  <ButtonLink href="/produkttexter" variant="secondary" size="sm">
+                    Produkttexter
+                  </ButtonLink>
+                  <ButtonLink href="/campaigns" variant="secondary" size="sm">
+                    Kampanjer
+                  </ButtonLink>
+                  <ButtonLink href="/company" variant="secondary" size="sm">
+                    Vad jag vet
+                  </ButtonLink>
+                  {steg?.action !== "generate-plan" && (
+                    <Button variant="secondary" size="sm" onClick={generatePlan} loading={generating}>
+                      Nytt förslag
+                    </Button>
+                  )}
                 </div>
               </section>
 
