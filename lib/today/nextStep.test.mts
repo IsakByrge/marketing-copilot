@@ -53,11 +53,10 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
 /* ── Resultat inlagda tar bort regeln ─────────────────── */
 {
   const c = campaign({ id: "a", status: "active", ends_on: "2026-09-26", spend_amount: 1200 });
-  const step = run({ campaigns: [c] });
-  assert(step?.id === "campaign-content", "med resultat inlagda faller regeln till nästa kampanjsteg");
+  assert(run({ campaigns: [c] })?.id === "content", "med resultat inlagda finns inget kampanjsteg kvar att föreslå");
 
   const nollad = campaign({ id: "a", status: "active", ends_on: "2026-09-26", spend_amount: 0 });
-  assert(run({ campaigns: [nollad] })?.id === "campaign-content", "spenderat 0 räknas som inlagt, samma regel som på kampanjsidan");
+  assert(run({ campaigns: [nollad] })?.id === "content", "spenderat 0 räknas som inlagt, samma regel som på kampanjsidan");
 }
 
 /* ── Tröskeln ─────────────────────────────────────────── */
@@ -65,23 +64,21 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
   const precis = campaign({ id: "a", status: "active", ends_on: "2026-09-26" });
   const strax = campaign({ id: "b", status: "active", ends_on: "2026-09-27" });
   assert(run({ campaigns: [precis] })?.id === "campaign-results", `exakt ${RESULTS_DUE_DAYS} dagar kvar träffar regeln`);
-  assert(run({ campaigns: [strax] })?.id === "campaign-content", `${RESULTS_DUE_DAYS + 1} dagar kvar gör det inte`);
+  assert(run({ campaigns: [strax] })?.id === "content", `${RESULTS_DUE_DAYS + 1} dagar kvar gör det inte`);
 }
 
-/* ── 2. Vanlig aktiv kampanj ──────────────────────────── */
+/* ── En pågående kampanj är i sig inget steg ──────────── */
 {
+  // Produkten vet inte om inlägget redan är skrivet — kampanjer och
+  // producerat innehåll är inte kopplade. Alltså föreslås ingenting.
   const c = campaign({ id: "a", status: "active", starts_on: "2026-09-16", ends_on: "2026-10-13" });
   const step = run({ campaigns: [c] });
-  assert(step?.id === "campaign-content", "en pågående kampanj ger innehållssteget");
-  assert(step?.href === "/content/facebook?strategy=s-a", "innehållssteget går till Facebook-flödet med strategins id");
-  assert(step?.why === "Kampanjen pågår — dag 8 av 28.", "varför-texten använder kampanjsidans egen tidsrad");
-
-  // Utanför perioden ger timingNote null — då faller texten tillbaka på perioden.
-  const utanfor = campaign({ id: "b", status: "active", starts_on: "2026-10-01", ends_on: "2026-10-20" });
-  assert(run({ campaigns: [utanfor] })?.why === "Kampanjen pågår 1 okt – 20 okt.", "utan tidsrad anges perioden i stället");
+  assert(step?.id === "content", "en pågående kampanj på egen hand ger inget kampanjsteg");
+  assert(step?.href !== undefined && !step.href.startsWith("/content/facebook"), "inget steg skickar till Facebook-flödet");
+  assert(run({ campaigns: [c], plan: null })?.id === "plan-missing", "utan plan faller den vidare till planregeln, inte till ett inläggssteg");
 }
 
-/* ── 3. Avslutad kampanj utan lärdom ──────────────────── */
+/* ── 2. Avslutad kampanj utan lärdom ──────────────────── */
 {
   const c = campaign({ id: "a", status: "ended", ends_on: "2026-09-10" });
   const step = run({ campaigns: [c] });
@@ -94,7 +91,7 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
   assert(run({ campaigns: [campaign({ id: "c", status: "ended", learning: "   " })] })?.id === "campaign-learning", "blanksteg räknas inte som en lärdom");
 }
 
-/* ── 4. Planerad kampanj vars startdatum passerat ─────── */
+/* ── 3. Planerad kampanj vars startdatum passerat ─────── */
 {
   const c = campaign({ id: "a", status: "planned", starts_on: "2026-09-20" });
   const step = run({ campaigns: [c] });
@@ -106,7 +103,7 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
   assert(run({ campaigns: [framtida] })?.id === "content", "en planerad kampanj i framtiden är inget att göra i dag");
 }
 
-/* ── 5. Plan saknas eller är stale ────────────────────── */
+/* ── 4. Plan saknas eller är stale ────────────────────── */
 {
   const utanPlan = run({ campaigns: [], plan: null });
   assert(utanPlan?.id === "plan-missing", "utan plan rekommenderas veckans förslag");
@@ -123,7 +120,7 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
   assert(run({ plan: { postCount: 5 } })?.id === "content", "plan utan datum behandlas som färsk");
 }
 
-/* ── 6. Fallback ──────────────────────────────────────── */
+/* ── 5. Fallback ──────────────────────────────────────── */
 {
   const step = run();
   assert(step?.id === "content", "utan kampanjer och med färsk plan föreslås veckans innehåll");
@@ -141,10 +138,10 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
   const planerad = campaign({ id: "p", status: "planned", starts_on: "2026-09-18" });
   const utanPlan = { plan: null };
 
-  assert(run({ campaigns: [planerad, avslutad, aktiv, resultat], ...utanPlan })?.id === "campaign-results", "resultat slår aktiv, avslutad, planerad och plan");
-  assert(run({ campaigns: [planerad, avslutad, aktiv], ...utanPlan })?.id === "campaign-content", "aktiv slår avslutad, planerad och plan");
-  assert(run({ campaigns: [planerad, avslutad], ...utanPlan })?.id === "campaign-learning", "avslutad slår planerad och plan");
-  assert(run({ campaigns: [planerad], ...utanPlan })?.id === "campaign-start", "planerad slår plan");
+  assert(run({ campaigns: [planerad, avslutad, aktiv, resultat], ...utanPlan })?.id === "campaign-results", "resultat slår avslutad, planerad och plan");
+  assert(run({ campaigns: [planerad, avslutad, aktiv], ...utanPlan })?.id === "campaign-learning", "avslutad slår planerad och plan");
+  assert(run({ campaigns: [planerad, aktiv], ...utanPlan })?.id === "campaign-start", "planerad slår plan");
+  assert(run({ campaigns: [aktiv], ...utanPlan })?.id === "plan-missing", "en pågående kampanj utan öppen uppgift lämnar över till planen");
   assert(run({ campaigns: [], ...utanPlan })?.id === "plan-missing", "utan kampanjer bestämmer planen");
 
   // Flera kandidater i samma regel: den som slutar först brådskar mest.
@@ -177,7 +174,6 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
   // påhittade procentsatser, poäng och prognoser innan de hinner byggas in.
   const fall: Array<{ input: NextStepInput; tillatna: number[] }> = [
     { input: { campaigns: [campaign({ id: "a", status: "active", ends_on: "2026-09-26" })], plan: null, today: TODAY }, tillatna: [3] },
-    { input: { campaigns: [campaign({ id: "a", status: "active", starts_on: "2026-09-16", ends_on: "2026-10-13" })], plan: null, today: TODAY }, tillatna: [8, 28] },
     { input: { campaigns: [campaign({ id: "a", status: "planned", starts_on: "2026-09-20" })], plan: null, today: TODAY }, tillatna: [3] },
     { input: { campaigns: [], plan: { postCount: 5, createdAt: "2026-09-09T08:00:00Z" }, today: TODAY }, tillatna: [37] },
     { input: { campaigns: [], plan: { postCount: 5, createdAt: `${TODAY}T08:00:00Z` }, today: TODAY }, tillatna: [5] },
@@ -196,7 +192,6 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
   const forbjudet = /%|poäng|sannolik|troligen|viktigast|prognos|beräknas ge|förväntas/i;
   const varianter: NextStepInput[] = [
     { campaigns: [campaign({ id: "a", status: "active", ends_on: "2026-09-26" })], plan: null, today: TODAY },
-    { campaigns: [campaign({ id: "a", status: "active" })], plan: null, today: TODAY },
     { campaigns: [campaign({ id: "a", status: "ended" })], plan: null, today: TODAY },
     { campaigns: [campaign({ id: "a", status: "planned", starts_on: "2026-09-01" })], plan: null, today: TODAY },
     { campaigns: [], plan: null, today: TODAY },
@@ -213,7 +208,6 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
 {
   const varianter: NextStepInput[] = [
     { campaigns: [campaign({ id: "a", status: "active", ends_on: "2026-09-26" })], plan: null, today: TODAY },
-    { campaigns: [campaign({ id: "a", status: "active" })], plan: null, today: TODAY },
     { campaigns: [campaign({ id: "a", status: "ended" })], plan: null, today: TODAY },
     { campaigns: [campaign({ id: "a", status: "planned", starts_on: "2026-09-01" })], plan: null, today: TODAY },
     { campaigns: [], plan: null, today: TODAY },

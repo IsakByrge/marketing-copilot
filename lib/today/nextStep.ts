@@ -13,22 +13,26 @@
 //      antal, status. Ingen bedömning, ingen prognos, ingen poäng,
 //      ingen procentsats. Se VISION.md.
 //
+// Av samma skäl finns ingen regel som föreslår innehåll till en
+// pågående kampanj. Produkten vet inte om användaren redan har skrivit
+// inlägget: kampanjer och producerat innehåll är inte kopplade, och
+// content_drafts läses med flit inte. En sådan regel hade upprepat
+// "skapa ett inlägg" hela kampanjperioden igenom, även när det var
+// gjort. Ett kampanjsteg föreslås bara när datan visar att något
+// faktiskt saknas — tomma resultatfält, tom lärdom, passerat startdatum.
+//
 // Reglerna är avsiktligt få och läses uppifrån och ned: den första
 // som träffar vinner. Att ändra ordningen ska vara en radändring.
 //
 // Importerna är relativa med flit — testsviterna körs med tsx, som
 // inte löser tsconfig-alias. Samma mönster som resten av lib/.
 // ─────────────────────────────────────────────────────────────
-import {
-  daysBetween, formatPeriod, groupCampaigns, hasAnyResult, timingNote,
-  type Campaign,
-} from "../campaigns/logic";
+import { daysBetween, groupCampaigns, hasAnyResult, type Campaign } from "../campaigns/logic";
 import { isPlanStale, isoWeek } from "../server/voice";
 
 /** Vilken regel som träffade. Finns för testernas och felsökningens skull. */
 export type NextStepId =
   | "campaign-results"
-  | "campaign-content"
   | "campaign-learning"
   | "campaign-start"
   | "plan-missing"
@@ -69,8 +73,11 @@ export interface NextStepInput {
 
 /**
  * Hur nära slutet en pågående kampanj utan resultat går före allt annat.
- * Tre dagar: tillräckligt sent för att siffrorna ska vara meningsfulla,
- * tillräckligt tidigt för att hinna innan kampanjen är över.
+ *
+ * Tre dagar är en första produktregel, inte ett mätt eller härlett värde.
+ * Den står här som en konstant just för att vara lätt att ändra: vad som
+ * är rätt avstånd vet vi först när någon har kört kampanjer i produkten
+ * och sagt om påminnelsen kom för tidigt eller för sent.
  */
 export const RESULTS_DUE_DAYS = 3;
 
@@ -123,28 +130,7 @@ function resultsDue(active: Campaign[], today: string): NextStep | null {
 }
 
 /**
- * 2. Pågående kampanj — nästa konkreta steg är innehåll.
- *
- * Facebook-flödet tar strategins id, precis som knappen på /campaigns.
- */
-function activeCampaign(active: Campaign[], today: string): NextStep | null {
-  const c = byEndDateAsc(active)[0];
-  if (!c) return null;
-
-  const tid = timingNote(c, today);
-  return {
-    id: "campaign-content",
-    title: `Skapa ett inlägg för ${c.title}`,
-    why: tid
-      ? `Kampanjen pågår — ${tid}.`
-      : `Kampanjen pågår ${formatPeriod(c.starts_on, c.ends_on, today)}.`,
-    cta: "Skriv inlägget",
-    href: `/content/facebook?strategy=${encodeURIComponent(c.strategy_id)}`,
-  };
-}
-
-/**
- * 3. Avslutad kampanj utan lärdom.
+ * 2. Avslutad kampanj utan lärdom.
  *
  * Inget datum i texten: status sätts för hand och behöver inte infalla
  * samma dag som ends_on, så "avslutades den X" vore en gissning.
@@ -164,7 +150,7 @@ function missingLearning(ended: Campaign[]): NextStep | null {
   };
 }
 
-/** 4. Planerad kampanj vars startdatum har passerat. */
+/** 3. Planerad kampanj vars startdatum har passerat. */
 function overdueStart(planned: Campaign[], today: string): NextStep | null {
   for (const c of planned) {
     const sedan = daysBetween(c.starts_on, today);
@@ -183,7 +169,7 @@ function overdueStart(planned: Campaign[], today: string): NextStep | null {
   return null;
 }
 
-/** 5. Veckoplanen saknas eller är från en annan vecka. */
+/** 4. Veckoplanen saknas eller är från en annan vecka. */
 function weeklyPlan(plan: NextStepPlan | null, today: string): NextStep | null {
   if (!plan) {
     return {
@@ -212,7 +198,7 @@ function weeklyPlan(plan: NextStepPlan | null, today: string): NextStep | null {
   return null;
 }
 
-/** 6. Annars: veckans innehåll, när det finns något att göra där. */
+/** 5. Annars: veckans innehåll, när det finns något att göra där. */
 function weeklyContent(plan: NextStepPlan | null): NextStep | null {
   if (!plan || plan.postCount <= 0) return null;
 
@@ -237,7 +223,6 @@ export function nextStep({ campaigns, plan, today }: NextStepInput): NextStep | 
   if (groups) {
     const step =
       resultsDue(groups.active, today)
-      ?? activeCampaign(groups.active, today)
       ?? missingLearning(groups.ended)
       ?? overdueStart(groups.planned, today);
     if (step) return step;
