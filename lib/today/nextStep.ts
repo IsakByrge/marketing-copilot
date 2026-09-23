@@ -47,7 +47,7 @@ export interface NextStep {
   cta: string;
   /** Navigering … */
   href?: string;
-  /** … eller en handling sidan utför själv. Samma mönster som overviewLogic. */
+  /** … eller en handling sidan utför själv, som att skapa veckans plan. */
   action?: "generate-plan";
 }
 
