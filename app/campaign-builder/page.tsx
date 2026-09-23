@@ -21,7 +21,7 @@ import AppShell from "@/app/_shared/AppShell";
 import { useCompanyBrain } from "@/app/_shared/useCompanyBrain";
 import { tillgangligaOrter } from "@/app/_shared/locations";
 import {
-  Alert, Button, ButtonLink, Card, Chip, EmptyState, Input, ToggleChip, cx,
+  Alert, Button, ButtonLink, Card, EmptyState, Input, ToggleChip, cx,
   selectedSurface, selectableSurface,
 } from "@/app/_shared/primitives";
 import { Textarea } from "@/app/_shared/Textarea";
@@ -494,11 +494,11 @@ function List({ items, muted }: { items: string[]; muted?: boolean }) {
   );
 }
 
-const CONFIDENCE = {
-  low: { t: "Låg säkerhet", tone: "warning" },
-  medium: { t: "Medelhög säkerhet", tone: "primary" },
-  high: { t: "Hög säkerhet", tone: "success" },
-} as const;
+// Här låg CONFIDENCE: chippet "Låg / Medelhög / Hög säkerhet" ur
+// analysis.confidence. Det var modellens skattning av sin egen strategi,
+// visad som ett mått — precis den förtroendegrad VISION.md förbjuder.
+// Fältet ligger kvar i datamodellen och i AI-kontraktet; det renderas
+// bara inte. Rekommendationens "Varför" bär beslutet i stället.
 
 function ResultView({ strategy, savedStrategyId, saveState, onAdjust, onRestart }: {
   strategy: StrategyV2; savedStrategyId: string | null; saveState: SaveState; onAdjust: () => void; onRestart: () => void;
@@ -506,14 +506,12 @@ function ResultView({ strategy, savedStrategyId, saveState, onAdjust, onRestart 
   const [makeCampaign, setMakeCampaign] = useState(false);
   const s = strategy.strategy;
   const a = strategy.analysis;
-  const conf = CONFIDENCE[a.confidence] ?? CONFIDENCE.medium;
   return (
     <div className="fade-up flex flex-col gap-4">
       {/* Beslut först: rekommenderad riktning */}
       <Card className="border-primary/20 bg-primary/5">
-        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="mb-2.5">
           <SectionLabel>Rekommenderad riktning</SectionLabel>
-          <Chip tone={conf.tone}>{conf.t}</Chip>
         </div>
         <p className="text-[clamp(1.25rem,3.4vw,1.6rem)] font-medium leading-[1.3] tracking-tight">
           {a.recommendedFocus}

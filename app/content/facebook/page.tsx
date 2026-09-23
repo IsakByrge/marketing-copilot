@@ -977,12 +977,15 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
         </div>
       </section>
 
-      {/* Kvalitetsstatus — status + motivering är primärt, poängtalet sekundärt */}
+      {/* Kvalitetsstatus — status och motivering, aldrig ett betyg.
+          Granskningens poängtal stod här som "internt 87/100". Det var
+          modellens omdöme om sig själv, och VISION.md säger motivering
+          i stället för poäng. Siffran finns kvar i qualityReview för
+          den kod som räknar på den; användaren får skälet. */}
       <section className="mt-8">
         <div className="flex flex-wrap items-center gap-2.5">
           <SectionLabel>Kvalitetskontroll</SectionLabel>
           <StatusBadge status={result.qualityReview.userStatus} />
-          <span className="text-xs text-text-tertiary">internt {result.qualityReview.overallScore}/100</span>
         </div>
         {result.qualityReview.statusReason && (
           <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-text-secondary">{result.qualityReview.statusReason}</p>
@@ -1008,27 +1011,12 @@ function ResultView({ result, companyName, companyId, lastBrief, onBack, onRegen
         )}
       </section>
 
-      {/* Antaganden & luckor */}
-      {(result.assumptions.length > 0 || result.missingInformation.length > 0) && (
-        <section className="mt-8">
-          {result.assumptions.length > 0 && (
-            <div className="mb-3.5">
-              <SectionLabel>Antaganden</SectionLabel>
-              <ul className="mt-2.5 list-disc pl-[18px] text-sm leading-relaxed text-text-tertiary">
-                {result.assumptions.map((a, i) => <li key={i}>{a}</li>)}
-              </ul>
-            </div>
-          )}
-          {result.missingInformation.length > 0 && (
-            <div>
-              <SectionLabel>Skulle höjt kvaliteten</SectionLabel>
-              <ul className="mt-2.5 list-disc pl-[18px] text-sm leading-relaxed text-text-tertiary">
-                {result.missingInformation.map((m, i) => <li key={i}>{m}</li>)}
-              </ul>
-            </div>
-          )}
-        </section>
-      )}
+      {/* Här låg "Antaganden" och "Skulle höjt kvaliteten": modellens
+          självrapportering om vad den gissat och vad den saknade. Det
+          beskriver AI:ns arbete, inte användarens, och hör inte hemma
+          under ett färdigt inlägg. Fälten finns kvar i svaret
+          (result.assumptions, result.missingInformation) — de renderas
+          bara inte. Luckor i företagskunskapen hör hemma på /company. */}
     </div>
   );
 }
