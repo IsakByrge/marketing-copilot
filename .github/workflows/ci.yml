@@ -139,6 +139,9 @@ jobs:
       - name: Test — kampanjer (ROAS, Kör igen, status)
         run: npm run test:campaigns
 
+      - name: Test — Idag (nästa steg och motivering)
+        run: npm run test:today
+
       # Smoke-test needs the built app running. Start it in the background,
       # wait until it answers, run the black-box route checks, then stop it.
       - name: Start production server
