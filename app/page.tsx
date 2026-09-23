@@ -89,7 +89,7 @@ export default function Home() {
             className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "radial-gradient(70% 55% at 72% 30%, rgba(18,94,75,0.07) 0%, rgba(18,94,75,0) 68%)",
+                "radial-gradient(72% 58% at 72% 30%, rgba(18,94,75,0.13) 0%, rgba(18,94,75,0) 70%)",
             }}
           />
           <div
@@ -97,17 +97,23 @@ export default function Home() {
             className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "radial-gradient(45% 45% at 88% 78%, rgba(216,207,190,0.42) 0%, rgba(216,207,190,0) 70%)",
+                "radial-gradient(50% 50% at 86% 76%, rgba(216,207,190,0.68) 0%, rgba(216,207,190,0) 72%)",
             }}
           />
 
-          <div className="relative mx-auto w-full max-w-6xl px-5 pb-16 pt-14 sm:px-8 sm:pb-20 sm:pt-20 lg:grid lg:grid-cols-[minmax(0,45fr)_minmax(0,55fr)] lg:items-center lg:gap-10 lg:px-10 lg:pb-24 lg:pt-20 xl:gap-12">
+          {/* Behållaren får växa på xl. Produkten är hjälten, och på en
+              bred skärm såg kompositionen ut som en liten dashboardbild
+              bredvid texten i stället för tvärtom. */}
+          <div className="relative mx-auto w-full max-w-6xl px-5 pb-16 pt-14 sm:px-8 sm:pb-20 sm:pt-20 lg:grid lg:grid-cols-[minmax(0,45fr)_minmax(0,55fr)] lg:items-center lg:gap-8 lg:px-10 lg:pb-20 lg:pt-16 xl:gap-10 2xl:max-w-7xl">
             {/* Copy */}
             <div className="lg:py-6">
               {/* Storleken är tagen så att "En tydligare väg framåt" ryms
-                  på en rad i spalten. Större och rubriken bröt i fyra
-                  ojämna rader, vilket åt upp den manuella radbrytningen. */}
-              <h1 className="text-[clamp(1.95rem,3vw,2.7rem)] font-semibold leading-[1.08] tracking-[-0.022em]">
+                  på en rad i spalten. Taket är låst till 2,5rem eftersom
+                  vw fortsätter växa med skärmen medan spalten står still
+                  mot max-w-6xl — vid 1440 bröt rubriken i fyra ojämna
+                  rader av just det skälet. Först på 2xl, när behållaren
+                  faktiskt blir bredare, får den gå upp. */}
+              <h1 className="text-[clamp(1.95rem,3.1vw,2.5rem)] font-semibold leading-[1.08] tracking-[-0.022em] 2xl:text-[2.8rem]">
                 En tydligare väg framåt
                 <br className="hidden sm:block" />{" "}
                 för din marknadsföring.
@@ -140,14 +146,23 @@ export default function Home() {
                 uppe till höger. Under lg är det ett vanligt block under
                 Idag-fönstret, utan transform: en lutad bild på 375px är
                 bara svårläst. */}
-            <div className="relative mt-14 lg:mt-0 lg:[perspective:2000px]">
+            {/* Negativ högermarginal: produkten breddar sig förbi sin spalt
+                i stället för att krympas in i den. Sektionen klipper, så
+                det bakre fönstrets sista bit får gå ut ur bild — det är
+                meningen att den fortsätter utanför.
+
+                Bleeden trappas med skärmbredden, inte tvärtom. Vid exakt
+                1280 ligger behållaren närmast kanten och marginalen utanför
+                är som minst; tas för mycket där klipps FRÄMRE fönstrets
+                hörn, och det ska alltid synas helt. */}
+            <div className="relative mt-14 lg:mt-0 lg:-mr-[10%] lg:[perspective:2200px] xl:-mr-[16%] 2xl:-mr-[24%]">
               {/* Utrymmet ovanför Idag ligger som PADDING på wrappern, inte
                   som marginal på barnet. En marginal på första barnet
                   kollapsar ut genom föräldern, och då följer wrapperns
                   överkant med nedåt — kampanjfönstrets top-0 hamnade rakt
                   bakom Idag i stället för ovanför det. Padding kollapsar
                   inte, och absolut placering utgår från padding-boxen. */}
-              <div className="relative lg:pt-[8rem] lg:[transform-style:preserve-3d]">
+              <div className="relative lg:pt-[10rem] lg:[transform-style:preserve-3d]">
                 {/* Främre: Idag. Står först i DOM:en, så den kommer
                     först både på mobil och för skärmläsare.
 
@@ -173,7 +188,7 @@ export default function Home() {
                     växte hamnade kampanjfönstret rakt bakom Idag i stället
                     för ovanför. Djupet bärs av z-index, skuggan och att
                     rotationen är kraftigare än det främre fönstrets. */}
-                <div className="mt-5 lg:absolute lg:top-0 lg:right-[-14%] lg:z-0 lg:mt-0 lg:w-[56%] lg:[transform:rotateX(9deg)_rotateY(-16deg)_rotateZ(1.6deg)_scale(0.96)]">
+                <div className="mt-5 lg:absolute lg:top-0 lg:right-[-6%] lg:z-0 lg:mt-0 lg:w-[62%] lg:[transform:rotateX(9deg)_rotateY(-16deg)_rotateZ(1.6deg)_scale(0.96)]">
                   <KampanjFonster />
                 </div>
 
@@ -186,7 +201,7 @@ export default function Home() {
                   aria-hidden
                   className="pointer-events-none absolute left-[-3%] top-[4.5rem] z-20 hidden items-start gap-1 lg:flex"
                 >
-                  <span className="whitespace-nowrap text-[17px] italic leading-none text-text-tertiary [font-family:var(--font-cormorant)]">
+                  <span className="whitespace-nowrap text-[17px] italic leading-none text-text-secondary [font-family:var(--font-cormorant)]">
                     Det viktigaste först.
                   </span>
                   <svg
@@ -198,7 +213,7 @@ export default function Home() {
                     strokeWidth={1.3}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="-mt-1 text-border-strong"
+                    className="-mt-1 text-text-tertiary"
                   >
                     <path d="M2 3c13 3 22 13 25 28" />
                     <path d="M19 30l9 3 1-8" />
