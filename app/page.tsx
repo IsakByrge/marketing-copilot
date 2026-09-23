@@ -1,45 +1,50 @@
 // ─────────────────────────────────────────────────────────────
 // Landningssidan.
 //
-// Hjälten är veckans plan, inte rubriken. Ett ensamt exempelkort visade
-// att verktyget kan skriva en text; bräden visar en hel vecka med olika
-// roller på olika dagar, vilket är det man faktiskt betalar för.
-// Rubriken är därför nedtonad — den ska inte konkurrera med det den
-// beskriver.
+// Löftet är beslutet, inte texterna. Den gamla sidan sålde fem inlägg
+// och ett nyhetsbrev varje måndag — en volymutfästelse som vem som
+// helst med ChatGPT kan matcha. Det produkten är värd står i VISION.md:
+// "Här är vad ditt företag bör göra härnäst inom marknadsföring — och
+// varför." Rubriken säger det nu, och produktbilden visar det.
 //
-// Rytmen är avsiktligt tresteg: rubrik stor och halvfet, brödtext
-// mindre och i sekundärton, etiketter små versaler. Tidigare låg de tre
-// för nära varandra i både storlek och vikt.
+// Fyra block, inte tolv: hjälte, produktbild, så fungerar det, avslut.
+// Ingen funktionskatalog — vi säljer inte en påse verktyg. Inga
+// kundlogotyper, inga omdömen, inga siffror om resultat eller antal
+// användare. Vi har noll användare; allt sådant vore påhittat.
 //
-// Inga gradienter, ingen glöd, inga ikoner, inga emoji. Inga siffror om
-// resultat och inga kundcitat — det finns inget underlag för vare sig
-// det ena eller det andra. Se VISION.md.
+// Luften gör jobbet. Inga gradienter, ingen glöd, inga badges, ingen
+// emoji. Emerald förekommer på knappen, i lutningens skugga och i en
+// enda ram — inte som yta.
+//
+// Produktbilden lutar på desktop med ren CSS-transform. Det är enda
+// stället på hela sidan med perspektiv, och den rätas upp helt under
+// lg: en lutad bild på 375px är bara svårläst.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
-import { ButtonLink, Chip } from "@/app/_shared/primitives";
-import VeckansBrada from "@/app/_shared/VeckansBrada";
+import { ButtonLink } from "@/app/_shared/primitives";
+import ProduktPreview from "@/app/_marketing/ProduktPreview";
 
-/** De tre stegen. Siffror och text, inga ikoner. */
+/** Tre steg som följer arbetsgången, inte funktionslistan. */
 const STEG = [
   {
-    rubrik: "Berätta om företaget en gång",
-    text: "Vad ni säljer, vilka som köper och hur ni låter. Det gör du en gång, sedan ligger det kvar.",
+    rubrik: "Lär känna ditt företag",
+    text: "Marketing Copilot bygger förståelse för verksamheten, erbjudandet och vad som är viktigt just nu.",
   },
   {
-    rubrik: "Få veckans texter varje måndag",
-    text: "Fem inlägg, ett nyhetsbrev och ett par kampanjförslag, satta efter säsong och vad du vill sälja just nu.",
+    rubrik: "Prioriterar nästa steg",
+    text: "Du får en tydlig rekommendation om vad som är viktigast att göra härnäst — och varför.",
   },
   {
-    rubrik: "Ändra det du vill och publicera",
-    text: "Texterna går att använda som de är. Skriver du om något lär sig verktyget hur du uttrycker dig.",
+    rubrik: "Hjälper dig genomföra det",
+    text: "Gå från beslut till kampanj, innehåll och uppföljning utan att börja från noll varje gång.",
   },
 ];
 
 export default function Home() {
   return (
     <div className="app-light flex min-h-svh flex-col bg-background font-sans text-text-primary">
-      <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-10">
+      <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8 lg:px-10">
           <span className="flex items-center gap-2.5">
             <span
               aria-hidden
@@ -47,85 +52,158 @@ export default function Home() {
             >
               M
             </span>
-            <span className="text-sm font-medium">Marketing Copilot</span>
+            <span className="whitespace-nowrap text-sm font-medium tracking-tight">
+              Marketing Copilot
+            </span>
           </span>
-          <Link
-            href="/login"
-            className="inline-flex min-h-11 items-center rounded px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-surface hover:text-text-primary sm:min-h-0"
-          >
-            Logga in
-          </Link>
+
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Link
+              href="/login"
+              className="inline-flex min-h-11 items-center whitespace-nowrap rounded px-2 text-sm text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:min-h-0 sm:px-3 sm:py-2"
+            >
+              Logga in
+            </Link>
+            {/* Knappen ryms även på 375px, så den står kvar där. Den låg
+                först bakom `hidden sm:inline-flex`, men ButtonLink sätter
+                redan sin egen display-utility och de två hamnar i samma
+                lager — vilken som vann avgjordes av ordningen i den
+                genererade CSS:en, inte av avsikten. */}
+            <ButtonLink href="/login?mode=signup" size="sm">
+              Kom igång
+            </ButtonLink>
+          </div>
         </div>
       </header>
 
       <main className="flex-1">
-        {/* ── Hjälte ──────────────────────────────────────────── */}
-        <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:px-10 lg:py-16">
-          {/* grid-cols-1 och min-w-0 ar inte dekoration. En auto-spalt
-              vaxer till sitt max-content, och den vagrata braden bidrar
-              med alla fem korten - 1448px bred spalt pa en 390px skarm,
-              vilket klippte rubriken pa mitten. min-w-0 later spalten
-              krympa och lamnar rullningen till braden dar den hor hemma. */}
-          <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-center lg:gap-14">
-            <div className="min-w-0">
-              <h1 className="max-w-md text-[clamp(1.75rem,3.2vw,2.25rem)] font-semibold leading-[1.15] tracking-tight">
-                Fem inlägg och ett nyhetsbrev, varje måndag.
-              </h1>
-              <p className="mt-4 max-w-sm text-[15px] leading-relaxed text-text-secondary">
-                Skrivna utifrån vad ditt företag gör och vilka kunderna är. Du ändrar det du vill
-                och publicerar.
-              </p>
-              <ButtonLink href="/login?mode=signup" className="mt-6">
-                Kom igång
-              </ButtonLink>
-            </div>
+        {/* ── Hjälte ──────────────────────────────────────────
+            Vänsterställd i en smal spalt. Centrerad hjälte över hela
+            bredden är formatet varenda mall använder; den här sidan ska
+            inte se ut som en mall. */}
+        <section className="mx-auto w-full max-w-6xl px-5 pb-4 pt-16 sm:px-8 sm:pt-24 lg:px-10 lg:pt-28">
+          <h1 className="max-w-3xl text-[clamp(2.1rem,5.2vw,3.5rem)] font-semibold leading-[1.08] tracking-[-0.02em]">
+            En tydligare väg framåt
+            <br className="hidden sm:block" />{" "}
+            för din marknadsföring.
+          </h1>
 
-            <div className="min-w-0">
-              <div className="mb-4 flex items-center gap-2.5">
-                <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                  Veckans plan
-                </h2>
-                <Chip>Exempel</Chip>
+          <p className="mt-6 max-w-xl text-[clamp(1rem,1.6vw,1.15rem)] leading-relaxed text-text-secondary">
+            Marketing Copilot lär känna ditt företag, prioriterar vad som är viktigast och
+            hjälper dig genomföra det — steg för steg.
+          </p>
+
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <ButtonLink href="/login?mode=signup" className="justify-center sm:justify-start">
+              Kom igång
+            </ButtonLink>
+            <ButtonLink
+              href="#sa-fungerar-det"
+              variant="secondary"
+              className="justify-center sm:justify-start"
+            >
+              Se hur det fungerar
+            </ButtonLink>
+          </div>
+        </section>
+
+        {/* ── Produktbild ─────────────────────────────────────
+            overflow-hidden på sektionen, inte på bilden: rotateY skjuter
+            ut hörnen några pixlar, och utan spärren ger det vågrät
+            rullning på smala skärmar. */}
+        <section className="overflow-hidden pb-20 pt-10 sm:pb-24 lg:pb-28 lg:pt-16">
+          <div className="mx-auto w-full max-w-5xl px-5 sm:px-8 lg:px-10">
+            <div className="relative">
+              {/* Handskriven notering — sidans enda. Kursiv Geist och en
+                  ritad pil; ingen ny typsnittsberoende för ett element.
+                  Bara från lg, där det finns marginal att ställa den i. */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -top-2 left-0 z-10 hidden -translate-x-[58%] -translate-y-full items-end gap-1 lg:flex"
+              >
+                <span className="whitespace-nowrap text-[16px] italic leading-none text-text-tertiary [font-family:var(--font-cormorant)]">
+                  Det viktigaste först.
+                </span>
+                <svg
+                  width="46"
+                  height="34"
+                  viewBox="0 0 46 34"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.3}
+                  strokeLinecap="round"
+                  className="mb-[-6px] text-border-strong"
+                >
+                  <path d="M2 2c10 14 22 22 39 26" strokeDasharray="0" />
+                  <path d="M33 30l8 -1 -3 -7" />
+                </svg>
               </div>
-              <VeckansBrada />
+
+              {/* Lutningen. Statisk transform — ingen animation, inget
+                  bibliotek, ingenting att räkna om vid scroll. Rätas upp
+                  helt under lg. */}
+              <div className="[transform:none] lg:[transform:perspective(1800px)_rotateX(6deg)_rotateY(-7deg)_rotateZ(0.4deg)]">
+                <ProduktPreview />
+              </div>
             </div>
           </div>
         </section>
 
-        {/* ── Så fungerar det ─────────────────────────────────── */}
-        <section className="border-t border-border bg-surface-sunken">
-          <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 lg:px-10 lg:py-16">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-              Så fungerar det
+        {/* ── Så fungerar det ─────────────────────────────────
+            Siffror och text. Inga ikoner, inga kort — tre kolumner luft
+            med en tunn linje över varje. */}
+        <section
+          id="sa-fungerar-det"
+          className="scroll-mt-16 border-t border-border bg-surface-sunken"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24 lg:px-10">
+            <h2 className="max-w-xl text-[clamp(1.5rem,3vw,2rem)] font-semibold leading-tight tracking-[-0.015em]">
+              Så fungerar Marketing Copilot
             </h2>
-            <ol className="mt-7 grid gap-8 sm:grid-cols-3 sm:gap-10">
+
+            <ol className="mt-12 grid gap-10 sm:grid-cols-3 sm:gap-8 lg:gap-12">
               {STEG.map((s, i) => (
-                <li key={s.rubrik}>
-                  <span className="text-2xl font-semibold leading-none text-primary">{i + 1}</span>
-                  <h3 className="mt-3 text-[15px] font-medium leading-snug">{s.rubrik}</h3>
-                  <p className="mt-1.5 text-[13px] leading-relaxed text-text-secondary">{s.text}</p>
+                <li key={s.rubrik} className="border-t border-border-strong pt-5">
+                  <span className="text-[13px] font-semibold tabular-nums text-primary">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <h3 className="mt-3 text-[17px] font-medium leading-snug tracking-tight">
+                    {s.rubrik}
+                  </h3>
+                  <p className="mt-2.5 text-[14px] leading-relaxed text-text-secondary">
+                    {s.text}
+                  </p>
                 </li>
               ))}
             </ol>
           </div>
         </section>
 
-        {/* ── Avslut ──────────────────────────────────────────── */}
+        {/* ── Avslut ──────────────────────────────────────────
+            Kort. Ett påstående och en knapp. */}
         <section className="border-t border-border">
-          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 lg:px-10 lg:py-20">
-            <div className="flex flex-wrap items-center justify-between gap-6">
-              <p className="max-w-lg text-[clamp(1.25rem,2.4vw,1.6rem)] font-semibold leading-snug tracking-tight">
-                Nästa måndag kan veckans texter ligga färdiga.
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24 lg:px-10">
+            <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
+              <p className="max-w-lg text-[clamp(1.4rem,2.8vw,1.9rem)] font-semibold leading-[1.2] tracking-[-0.015em]">
+                Nästa steg behöver inte vara en gissning.
               </p>
-              <ButtonLink href="/login?mode=signup">Kom igång</ButtonLink>
+              <ButtonLink href="/login?mode=signup" className="shrink-0 justify-center sm:justify-start">
+                Kom igång
+              </ButtonLink>
             </div>
           </div>
         </section>
       </main>
 
       <footer className="border-t border-border">
-        <div className="mx-auto max-w-6xl px-4 py-6 text-sm text-text-tertiary sm:px-6 lg:px-10">
-          Marketing Copilot
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-8 text-sm text-text-tertiary sm:px-8 lg:px-10">
+          <span>Marketing Copilot</span>
+          <Link
+            href="/login"
+            className="inline-flex min-h-11 items-center rounded transition-colors hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:min-h-0"
+          >
+            Logga in
+          </Link>
         </div>
       </footer>
     </div>

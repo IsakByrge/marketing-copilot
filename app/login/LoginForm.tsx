@@ -118,15 +118,21 @@ export default function LoginForm() {
     return msg;
   }
 
+  // Bara text. Lägena, fälten, anropen och felöversättningarna är
+  // oförändrade — inloggningen fungerar exakt som förut.
+  //
+  // "Veckans texter väntar" sålde den gamla positioneringen: produkten
+  // som textmaskin. Rubriken hälsar nu i stället, och ingressen pekar
+  // på det produkten faktiskt gör.
   const rubrik =
     mode === "signup" ? "Skapa konto"
       : mode === "forgot" ? "Glömt lösenordet?"
-        : "Veckans texter väntar.";
+        : "Välkommen tillbaka";
 
   const ingress =
     mode === "signup" ? "E-post och lösenord räcker. Inget kort, ingen uppsägningstid."
       : mode === "forgot" ? "Skriv din e-postadress, så skickar vi en länk där du kan välja ett nytt lösenord."
-        : "Logga in så ligger de kvar där du lämnade dem.";
+        : "Logga in så tar vi vid där du slutade.";
 
   return (
     <div>
