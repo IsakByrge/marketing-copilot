@@ -234,15 +234,11 @@ export default function DashboardPage() {
                       som utgår från var ni är nu.
                     </Alert>
                   )}
-                  {/* Modellen skriver ingressen sjalv som del av planen.
-                      Tidigare byggdes den i koden av plan.tags, vilket gav
-                      en inklistrad lista i en mall. Saknas faltet - alla
-                      planer skapade fore andringen - visas reservtexten. */}
-                  <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
-                    {plan.intro?.trim()
-                      ? plan.intro
-                      : "Förslaget bygger på det du fyllt i under Vad jag vet."}
-                  </p>
+                  {/* Här stod plan.intro: ännu ett stycke prosa om veckans
+                      tema, under en rubrik som redan säger samma sak. Två
+                      textblock före rekommendationen sköt ned det enda på
+                      sidan som kräver en handling. Fältet ligger kvar i
+                      planen — det renderas bara inte här. */}
                 </>
               ) : (
                 <>
@@ -299,24 +295,31 @@ export default function DashboardPage() {
                 </div>
               </section>
 
+              {/* På radarn — vad som kommer, att skanna på två sekunder.
+                  Låg visuell tyngd med flit: raderna får aldrig konkurrera
+                  med rekommendationen ovanför. Varje möjlighet bar tidigare
+                  ett kort med hela sin relevance-text — tre stycken prosa
+                  utan en enda handling. Motiveringen ligger kvar i planen.
+                  Etikett och innehåll delas som på /history. */}
               {opportunities.length > 0 && (
                 <section>
-                  <Label>Värt att förbereda</Label>
-                  <div className="space-y-3">
-                    {opportunities.slice(0, 3).map((o, i) => (
-                      <Card key={i} padding="sm">
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <p className="font-medium">{o.title}</p>
-                          {opportunityWhen(o.date) && (
-                            <span className="text-xs text-text-tertiary">{opportunityWhen(o.date)}</span>
+                  <Label>På radarn</Label>
+                  <ul className="border-y border-border">
+                    {opportunities.slice(0, 3).map((o, i) => {
+                      const nar = opportunityWhen(o.date);
+                      return (
+                        <li
+                          key={i}
+                          className="flex flex-col gap-0.5 border-b border-border py-2.5 last:border-0 sm:flex-row sm:items-baseline sm:gap-4"
+                        >
+                          {nar && (
+                            <span className="text-xs text-text-tertiary sm:w-28 sm:shrink-0">{nar}</span>
                           )}
-                        </div>
-                        <p className="mt-1 text-sm leading-relaxed text-text-secondary">
-                          {o.relevance}
-                        </p>
-                      </Card>
-                    ))}
-                  </div>
+                          <span className="text-sm leading-snug">{o.title}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </section>
               )}
 
