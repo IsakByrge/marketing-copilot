@@ -33,6 +33,7 @@ import {
   type FacebookUserStatus, type FacebookImageBrief,
 } from "./types";
 import { mapStrategyToPrefill, type StrategyContextForForm } from "@/lib/facebook/strategyPrefill";
+import { resolveLinkedStrategy, toStrategyOption, withLinkedFirst } from "@/lib/facebook/strategyLink";
 
 /* ── Strömmande generering (NDJSON) ──────────────────────── */
 type Phase = "reading" | "drafting" | "reviewing" | "revising" | "done";
@@ -343,17 +344,29 @@ export default function FacebookSpecialistPage() {
           if (wanted) setStrategyLinkError("Kunde inte öppna kampanjstrategin från länken. Välj en strategi manuellt nedan.");
           return;
         }
-        const list = data.map((r) => ({
-          id: r.id as string, title: r.title as string, goal: r.goal as string,
-          context: (r.strategy_context && typeof r.strategy_context === "object"
-            ? r.strategy_context as StrategyContextForForm : null),
-        }));
-        setStrategies(list);
-        if (!wanted) return;
-        const match = list.find((s) => s.id === wanted);
-        if (match) {
-          setUnderlag("strategy"); setStrategyId(match.id); applyStrategyPrefill(match.context);
+        const list = data.map(toStrategyOption);
+        const linked = resolveLinkedStrategy(list, wanted);
+        if (linked.kind === "none") { setStrategies(list); return; }
+        if (linked.kind === "inList") {
+          setStrategies(list);
+          setUnderlag("strategy"); setStrategyId(linked.match.id); applyStrategyPrefill(linked.match.context);
+          return;
+        }
+        // Länken pekar på en strategi som är äldre än de 20 senaste — typiskt
+        // från en kampanj eller "Kör igen". Hämta just den raden. RLS är
+        // gränsen; user_id-filtret är defensivt utöver den.
+        const { data: row } = await sb
+          .from("campaign_strategies")
+          .select("id,title,goal,strategy_context")
+          .eq("id", linked.id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (row) {
+          const option = toStrategyOption(row);
+          setStrategies(withLinkedFirst(list, option));
+          setUnderlag("strategy"); setStrategyId(option.id); applyStrategyPrefill(option.context);
         } else {
+          setStrategies(list);
           // Id saknas i användarens lista: borttagen, annat konto eller ogiltigt id.
           // Krascha inte — visa ett begripligt meddelande och fall tillbaka till manuellt val.
           setStrategyLinkError("Vi hittade inte kampanjstrategin från länken — den kan ha tagits bort eller tillhöra ett annat konto. Välj en strategi manuellt nedan.");

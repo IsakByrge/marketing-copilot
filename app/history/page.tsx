@@ -41,17 +41,6 @@ export default function HistoryPage() {
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-secondary">
             Varje veckoförslag som skapats, i tidsordning.
           </p>
-          {/* /campaigns har ingen egen menypost. Det har ar vagen dit. */}
-          {/* Understruken: som ren ghost-knapp ser raden ut som brodtext
-              och slutar lasa som en lank. */}
-          <ButtonLink
-            href="/campaigns"
-            variant="ghost"
-            size="sm"
-            className="mt-4 -ml-3 font-normal underline underline-offset-4"
-          >
-            Se kampanjförslagen samlade
-          </ButtonLink>
         </header>
 
         {!loaded ? (
