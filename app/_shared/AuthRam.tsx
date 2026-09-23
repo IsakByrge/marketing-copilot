@@ -6,11 +6,13 @@
 // ingenting annats; höger är en lugn emeraldyta med ett påstående om
 // produkten.
 //
-// Högerspalten stod tidigare full av exempelkort — en hel veckoplan
-// att läsa igenom bredvid två fält man kom hit för att fylla i. Den
-// konkurrerade med formuläret och sålde dessutom fel sak. Nu är den
-// nästan tom: en mening, en tunn linje, ett ordmärke. Ytan ska ge
-// produktkänsla, inte vara en annons.
+// Högerspalten stod först full av exempelkort — en hel veckoplan att
+// läsa igenom bredvid två fält man kom hit för att fylla i. Sedan blev
+// den en platt grön rektangel, vilket var tystare men också dödare.
+// Nu bär den samma språk som landningssidans hjälte: emerald i botten,
+// två mycket svaga varma toner ovanpå och en enda stor organisk form i
+// kontur. Ingen gradientfest, ingen glöd — formerna ska ge ytan djup,
+// inte mönster.
 //
 // Inget omdöme, inget namn, inget företag, ingen siffra — vi har inga
 // kunder att citera, och påhittade vore värre än inga. Se VISION.md.
@@ -27,7 +29,7 @@ import Link from "next/link";
 
 export default function AuthRam({ children }: { children: React.ReactNode }) {
   return (
-    <div className="app-light min-h-svh bg-background font-sans text-text-primary lg:grid lg:grid-cols-[1fr_0.85fr] xl:grid-cols-2">
+    <div className="app-light min-h-svh bg-background font-sans text-text-primary lg:grid lg:grid-cols-[1fr_0.9fr] xl:grid-cols-2">
       {/* ── Formuläret ──────────────────────────────────────── */}
       <div className="flex min-h-svh flex-col px-5 py-8 sm:px-10 lg:px-14 lg:py-12">
         <Link
@@ -50,23 +52,38 @@ export default function AuthRam({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* ── Emeraldytan ─────────────────────────────────────── */}
-      <aside className="relative hidden overflow-hidden bg-primary px-14 py-14 lg:flex lg:flex-col lg:justify-between">
-        {/* Enda dekorationen: en mjuk ljuskägla i övre hörnet, så den
-            stora ytan inte blir en platt färgplatta. Ingen gradientfest,
-            ingen glöd, inget mönster. */}
+      <aside className="relative hidden overflow-hidden bg-primary lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-14">
+        {/* Varm ljuskägla uppe till höger — samma papperston som
+            bakgrunden på den ljusa sidan, så ytorna hör ihop. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-24 -top-24 h-[28rem] w-[28rem] rounded-full"
+          className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(circle, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 70%)",
+              "radial-gradient(58% 48% at 82% 14%, rgba(250,247,241,0.16) 0%, rgba(250,247,241,0) 68%)",
           }}
+        />
+        {/* Djup nedtill vänster, så ytan inte blir platt. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(60% 55% at 8% 92%, rgba(10,52,42,0.45) 0%, rgba(10,52,42,0) 70%)",
+          }}
+        />
+        {/* En enda organisk form, bara som kontur. Den ska anas. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-28 top-[18%] h-[26rem] w-[26rem] rounded-[58%_42%_47%_53%/44%_52%_48%_56%] border border-white/10"
         />
 
         <div className="relative" />
 
-        <p className="relative max-w-md text-[clamp(1.5rem,2.3vw,2rem)] font-medium leading-[1.25] tracking-[-0.015em] text-white">
-          Marknadsföring blir enklare när nästa steg är tydligt.
+        <p className="relative max-w-md text-[clamp(1.55rem,2.4vw,2.05rem)] font-medium leading-[1.24] tracking-[-0.015em] text-white">
+          Marknadsföring blir enklare
+          <br />
+          när nästa steg är tydligt.
         </p>
 
         <div className="relative">
