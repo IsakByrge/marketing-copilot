@@ -163,11 +163,7 @@ export function KampanjFonster() {
             />
           ))}
         </div>
-        {/* Dold från lg. Där ligger fönstret bakom Idag och bildtexten
-            hamnar precis i skarven — en halv rad text som skärs av mitt
-            i läser som ett fel, inte som djup. På mobil står fönstret
-            fritt och texten gör nytta. */}
-        <p className="mt-2 text-[10px] leading-relaxed text-text-tertiary lg:hidden">
+        <p className="mt-2 text-[10px] leading-relaxed text-text-tertiary">
           Fyra körningar av samma strategi
         </p>
       </div>

@@ -52,7 +52,7 @@ export default function AuthRam({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* ── Emeraldytan ─────────────────────────────────────── */}
-      <aside className="relative hidden overflow-hidden bg-primary lg:flex lg:flex-col lg:justify-center lg:px-14 lg:py-14">
+      <aside className="relative hidden overflow-hidden bg-primary lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-14">
         {/* Varm ljuskägla uppe till höger — samma papperston som
             bakgrunden på den ljusa sidan, så ytorna hör ihop. */}
         <div
@@ -78,16 +78,18 @@ export default function AuthRam({ children }: { children: React.ReactNode }) {
           className="pointer-events-none absolute -right-28 top-[18%] h-[26rem] w-[26rem] rounded-[58%_42%_47%_53%/44%_52%_48%_56%] border border-white/10"
         />
 
-        {/* Bara påståendet. Raden under sa "din marknadschef i
-            verktygsform" och blev en andra röst bredvid den första;
-            budskapet bär sig självt. Linjen är kvar som ett litet märke
-            som inleder det. */}
-        <div className="relative max-w-md">
-          <div aria-hidden className="mb-7 h-px w-12 bg-white/30" />
-          <p className="text-[clamp(1.55rem,2.4vw,2.05rem)] font-medium leading-[1.24] tracking-[-0.015em] text-white">
-            Marknadsföring blir enklare
-            <br />
-            när nästa steg är tydligt.
+        <div className="relative" />
+
+        <p className="relative max-w-md text-[clamp(1.55rem,2.4vw,2.05rem)] font-medium leading-[1.24] tracking-[-0.015em] text-white">
+          Marknadsföring blir enklare
+          <br />
+          när nästa steg är tydligt.
+        </p>
+
+        <div className="relative">
+          <div aria-hidden className="mb-5 h-px w-12 bg-white/25" />
+          <p className="text-[13px] leading-relaxed text-white/70">
+            Marketing Copilot — din marknadschef i verktygsform.
           </p>
         </div>
       </aside>
