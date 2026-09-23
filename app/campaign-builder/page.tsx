@@ -506,6 +506,15 @@ function ResultView({ strategy, savedStrategyId, saveState, onAdjust, onRestart 
   const [makeCampaign, setMakeCampaign] = useState(false);
   const s = strategy.strategy;
   const a = strategy.analysis;
+
+  // Fällan ska aldrig stå tom: finns inget att visa renderas den inte.
+  const harDetaljer =
+    Boolean(s.urgency)
+    || s.channelPriority.length > 0
+    || s.risks.length > 0
+    || s.improvementOpportunities.length > 0
+    || strategy.companyBrainReferences.length > 0;
+
   return (
     <div className="fade-up flex flex-col gap-4">
       {/* Beslut först: rekommenderad riktning */}
@@ -546,7 +555,8 @@ function ResultView({ strategy, savedStrategyId, saveState, onAdjust, onRestart 
         <MakeCampaignSheet strategyId={savedStrategyId} onClose={() => setMakeCampaign(false)} />
       )}
 
-      {/* Strukturerad strategi */}
+      {/* Kärnan — det man faktiskt arbetar med när strategin ska bli
+          innehåll. Fem fält, alltid öppna. */}
       <div className="grid gap-3 sm:grid-cols-2">
         <Block label="Kampanjmål">{s.primaryGoal}</Block>
         <Block label="Primär målgrupp">
@@ -559,46 +569,58 @@ function ResultView({ strategy, savedStrategyId, saveState, onAdjust, onRestart 
         </Block>
         <Block label="Huvudbudskap">{s.mainMessage}</Block>
         <Block label="Primär CTA">{s.primaryCta}</Block>
-        {s.urgency && <Block label="Anledning att agera nu">{s.urgency}</Block>}
       </div>
 
-      {s.channelPriority.length > 0 && (
-        <Block label="Rekommenderad kanalordning">
-          <div className="flex flex-col gap-2.5">
-            {s.channelPriority.map((c, i) => (
-              <div key={i} className="flex gap-2.5">
-                <span className="shrink-0 text-sm font-semibold text-primary">{i + 1}.</span>
-                <div>
-                  <strong className="font-medium capitalize text-text-primary">{c.channel}</strong>
-                  <span className="text-text-tertiary"> — {c.reason}</span>
+      {/* Resten av strategin, ett tryck bort. Den stod öppen på samma nivå
+          som kärnan, så beslutet drunknade i sitt eget underlag. Native
+          <details> som i ReviewPane — ingen ny komponent, inget state.
+
+          s.kpis och s.assumptions renderas inte längre någonstans:
+          mätetalen antyder en uppföljning produkten inte gör, antagandena
+          är modellens självrapportering. Båda ligger kvar i StrategyCore
+          och i AI-kontraktet, orörda. */}
+      {harDetaljer && (
+        <details className="rounded-lg border border-border bg-surface-sunken">
+          <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm text-text-secondary sm:min-h-0 sm:py-3">
+            Visa hela strategin
+          </summary>
+          <div className="flex flex-col gap-3 border-t border-border p-4">
+            {s.urgency && <Block label="Anledning att agera nu">{s.urgency}</Block>}
+
+            {s.channelPriority.length > 0 && (
+              <Block label="Rekommenderad kanalordning">
+                <div className="flex flex-col gap-2.5">
+                  {s.channelPriority.map((c, i) => (
+                    <div key={i} className="flex gap-2.5">
+                      <span className="shrink-0 text-sm font-semibold text-primary">{i + 1}.</span>
+                      <div>
+                        <strong className="font-medium capitalize text-text-primary">{c.channel}</strong>
+                        <span className="text-text-tertiary"> — {c.reason}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
+              </Block>
+            )}
+
+            {s.risks.length > 0 && (
+              <Card padding="sm" className="border-warning/20 bg-warning-surface">
+                <SectionLabel>Risker &amp; svagheter</SectionLabel>
+                <List items={s.risks} />
+              </Card>
+            )}
+
+            {s.improvementOpportunities.length > 0 && (
+              <Block label="Förbättringsmöjligheter"><List items={s.improvementOpportunities} /></Block>
+            )}
+
+            {strategy.companyBrainReferences.length > 0 && (
+              <p className="text-xs leading-relaxed text-text-tertiary">
+                Byggt på företagskunskap: {strategy.companyBrainReferences.join(" · ")}
+              </p>
+            )}
           </div>
-        </Block>
-      )}
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {s.risks.length > 0 && (
-          <Card padding="sm" className="border-warning/20 bg-warning-surface">
-            <SectionLabel>Risker &amp; svagheter</SectionLabel>
-            <List items={s.risks} />
-          </Card>
-        )}
-        {s.improvementOpportunities.length > 0 && <Block label="Förbättringsmöjligheter"><List items={s.improvementOpportunities} /></Block>}
-        {s.kpis.length > 0 && <Block label="Mätetal (KPI)"><List items={s.kpis} /></Block>}
-        {s.assumptions.length > 0 && (
-          <Card padding="sm" className="bg-surface-sunken">
-            <SectionLabel>Antaganden</SectionLabel>
-            <List items={s.assumptions} muted />
-          </Card>
-        )}
-      </div>
-
-      {strategy.companyBrainReferences.length > 0 && (
-        <p className="text-xs leading-relaxed text-text-tertiary">
-          Byggt på företagskunskap: {strategy.companyBrainReferences.join(" · ")}
-        </p>
+        </details>
       )}
     </div>
   );
