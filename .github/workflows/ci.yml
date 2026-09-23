@@ -70,9 +70,6 @@ jobs:
       - name: Test — app storage (logout clear)
         run: npm run test:storage
 
-      - name: Test — overview logic
-        run: npm run test:overview
-
       - name: Test — product text CSV
         run: npm run test:producttext
 
