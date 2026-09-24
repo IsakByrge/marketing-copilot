@@ -61,6 +61,36 @@ export async function listCampaigns(): Promise<StoreResult<Campaign[]>> {
   }
 }
 
+/**
+ * Alla körningar av en strategi — samma strategy_id, samma användare.
+ *
+ * En fråga, samma kolumner och samma normalisering som listCampaigns.
+ * campaigns_strategy_idx täcker filtret. Filtreringen på status och
+ * kronologin ligger i logic.ts, inte här: den här funktionen hämtar
+ * raderna, den bestämmer inte vad de betyder.
+ *
+ * Ogiltigt id ger en tom lista, inte ett fel — det är inte ett
+ * anslutningsproblem, det finns bara inget att hämta.
+ */
+export async function listRunsForStrategy(strategyId: string): Promise<StoreResult<Campaign[]>> {
+  if (!UUID.test(strategyId)) return { ok: true, data: [] };
+  try {
+    const userId = await currentUserId();
+    if (!userId) return { ok: false, error: NOT_SIGNED_IN };
+    const { data, error } = await createClient()
+      .from("campaigns").select(CAMPAIGN_COLUMNS)
+      .eq("user_id", userId)
+      .eq("strategy_id", strategyId)
+      .order("starts_on", { ascending: false });
+    if (error) { logError("runs", error); return { ok: false, error: LOAD_ERROR }; }
+    const list = (data ?? []).map(normalizeCampaignRow).filter((c): c is Campaign => c !== null);
+    return { ok: true, data: list };
+  } catch (e) {
+    logError("runs", e);
+    return { ok: false, error: LOAD_ERROR };
+  }
+}
+
 /** data: null betyder "finns inte" (fel id, borttagen eller någon annans). */
 export async function getCampaign(id: string): Promise<StoreResult<Campaign | null>> {
   if (!UUID.test(id)) return { ok: true, data: null };

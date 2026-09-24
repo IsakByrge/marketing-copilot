@@ -10,11 +10,13 @@ import { Alert, Button, Card, Chip, Field, Input, ToggleChip, cx } from "@/app/_
 import { Textarea } from "@/app/_shared/Textarea";
 import { IconCheck } from "@/app/_shared/icons";
 import {
-  RESULT_TYPES, RESULT_TYPE_LABELS, STATUS_LABELS, NOTE_MAX, TITLE_MAX,
-  costPerLabel, costPerResult, countLabel, formatCount, formatKr, formatKrRounded, formatPeriod,
-  formatRatio, parseResultsForm, readStrategy, resultsFormFrom, roas, validateCampaignForm,
+  MAX_SYNLIGA_KORNINGAR, RESULT_TYPES, RESULT_TYPE_LABELS, STATUS_LABELS, NOTE_MAX, TITLE_MAX,
+  costPerLabel, costPerResult, countLabel, endedRuns, formatCount, formatKr, formatKrRounded,
+  formatPeriod, formatRatio, hasAnyResult, parseResultsForm, readStrategy, resultsFormFrom, roas,
+  runComparison, validateCampaignForm,
   type Campaign, type CampaignForm, type CampaignFormErrors, type CampaignResults,
-  type ResultType, type ResultsForm, type ResultsFormErrors, type StrategyView,
+  type ComparisonMetric, type ResultType, type ResultsForm, type ResultsFormErrors,
+  type StrategyView,
 } from "@/lib/campaigns/logic";
 import type { StoreResult } from "@/lib/campaigns/store";
 import { Sheet } from "./Sheet";
@@ -146,6 +148,117 @@ export function ResultsLine({ r, className }: { r: CampaignResults; className?: 
     <p className={cx("text-sm tabular-nums text-text-primary", className)}>
       {parts.map((p, i) => <span key={i}>{i > 0 && " · "}{p}</span>)}
     </p>
+  );
+}
+
+/* ── Tidigare körningar ─────────────────────────────────── */
+
+/**
+ * Jämförelsemåttet för EN körning, färdigformaterat. Null när körningen
+ * saknar underlaget — då visas dess egna siffror i stället, aldrig ett
+ * påhittat mått.
+ *
+ * ROAS får ett × här. Sifferrutnätet skriver "5,0" under etiketten
+ * "ROAS", men i löpande text läser "gick från 4,0 till 5,0" fel.
+ */
+function matvarde(r: Campaign, metric: ComparisonMetric): string | null {
+  if (metric === "roas") {
+    const v = roas(r);
+    return v === null ? null : `${formatRatio(v)}×`;
+  }
+  const v = costPerResult(r);
+  return v === null ? null : formatKrRounded(v);
+}
+
+/**
+ * Kampanjens historik: de senaste avslutade körningarna av samma
+ * strategi, nyast först, med sina lärdomar.
+ *
+ * BARA avslutade. En planerad eller pågående kampanj med samma strategi
+ * är inget utfall — den varken visas eller gör att sektionen dyker upp.
+ * Finns bara den här körningen renderas ingenting alls.
+ *
+ * Kompakt med flit: högst tre körningar, ingen "visa alla", inga
+ * kolumner. Det här är kampanjens lärande, inte en analysvy.
+ *
+ * Jämförelseraden konstaterar vad som hände. Inget "bättre", inget
+ * "förbättrades", ingen tröskel — talen står för sig själva.
+ */
+export function TidigareKorningar({
+  runs, currentId, today,
+}: {
+  runs: Campaign[]; currentId: string; today: string;
+}) {
+  const avslutade = endedRuns(runs);
+  if (avslutade.length < 2) return null;
+
+  const jamforelse = runComparison(runs);
+  const synliga = avslutade.slice(0, MAX_SYNLIGA_KORNINGAR);
+
+  return (
+    <section className="mt-8">
+      <SectionLabel className="mb-3">Tidigare körningar</SectionLabel>
+
+      {jamforelse && (
+        <p className="mb-4 text-[15px] leading-relaxed tabular-nums">
+          {jamforelse.label} gick från{" "}
+          {jamforelse.metric === "roas"
+            ? `${formatRatio(jamforelse.from)}×`
+            : formatKrRounded(jamforelse.from)}{" "}
+          till{" "}
+          {jamforelse.metric === "roas"
+            ? `${formatRatio(jamforelse.to)}×`
+            : formatKrRounded(jamforelse.to)}
+          .
+        </p>
+      )}
+
+      <div className="border-t border-border">
+        {synliga.map((k, i) => {
+          // Måttet i högerkant visas BARA på de två körningar
+          // runComparison faktiskt ställde mot varandra — de två första i
+          // endedRuns. Stod det även på den tredje såg jämförelseraden ut
+          // att gälla alla tre. Äldre körningar är historik och visar sina
+          // egna siffror.
+          const matt = jamforelse && i < 2 ? matvarde(k, jamforelse.metric) : null;
+          return (
+            <div key={k.id} className="border-b border-border py-3.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <p className="text-[13px] text-text-tertiary">
+                  {formatPeriod(k.starts_on, k.ends_on, today)}
+                  {k.id === currentId && (
+                    <span className="text-text-secondary"> · Denna körning</span>
+                  )}
+                </p>
+                {matt && (
+                  <p className="text-sm font-medium tabular-nums">
+                    <span className="font-normal text-text-tertiary">{jamforelse!.label}</span> {matt}
+                  </p>
+                )}
+              </div>
+
+              {/* Saknas jämförelsemåttet visas körningens egna siffror —
+                  fakta, inget härlett. Finns inga alls sägs det rakt ut. */}
+              {!matt &&
+                (hasAnyResult(k) ? (
+                  <ResultsLine r={k} className="mt-1.5 text-[13px]" />
+                ) : (
+                  <p className="mt-1.5 text-[13px] text-text-tertiary">Inga resultat inlagda.</p>
+                ))}
+
+              <p
+                className={cx(
+                  "mt-2 text-sm leading-relaxed",
+                  k.learning?.trim() ? "whitespace-pre-line text-text-secondary" : "text-text-tertiary",
+                )}
+              >
+                {k.learning?.trim() || "Ingen lärdom sparad."}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

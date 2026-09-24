@@ -19,10 +19,12 @@ import { Alert, Button, ButtonLink, Card, EmptyState, Skeleton } from "@/app/_sh
 import { IconCampaigns, IconRerun, IconSparkle } from "@/app/_shared/icons";
 import { hasAnyResult, timingNote, todayIso, type Campaign } from "@/lib/campaigns/logic";
 import {
-  endCampaign, getCampaign, rerunCampaign, startCampaign, updateCampaignResults, updateLearning,
+  endCampaign, getCampaign, listRunsForStrategy, rerunCampaign, startCampaign,
+  updateCampaignResults, updateLearning,
 } from "@/lib/campaigns/store";
 import {
-  LearningSheet, RerunSheet, ResultFigures, ResultsLine, ResultsSheet, SectionLabel, StatusLine, StrategyBlock,
+  LearningSheet, RerunSheet, ResultFigures, ResultsLine, ResultsSheet, SectionLabel, StatusLine,
+  StrategyBlock, TidigareKorningar,
 } from "../_components/parts";
 
 type SheetKind = "results" | "end" | "learning" | "rerun" | null;
@@ -56,6 +58,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [actionError, setActionError] = useState("");
   const today = todayIso();
 
+  // Körningarna av samma strategi. Hämtas efter kampanjen och blockerar
+  // ingenting: de är underlag för en sektion, inte sidans innehåll. Går
+  // hämtningen inte igenom blir listan tom och sektionen uteblir — ingen
+  // felruta för något sekundärt. store.ts har redan loggat felet.
+  const [runs, setRuns] = useState<Campaign[]>([]);
+
   useEffect(() => {
     let cancelled = false;
     getCampaign(id).then((res) => {
@@ -64,6 +72,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       if (!res.data) { setState("missing"); return; }
       setCampaign(res.data);
       setState("ready");
+      listRunsForStrategy(res.data.strategy_id).then((r) => {
+        if (!cancelled && r.ok) setRuns(r.data);
+      });
     });
     return () => { cancelled = true; };
   }, [id]);
@@ -239,6 +250,16 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 </Card>
               )}
             </section>
+
+            {/* Den hämtade listan kan vara några sekunder gammal: har
+                användaren just ändrat resultat eller lärdom här ligger
+                färsk data i `c`. Raden byts ut mot den, så jämförelsen
+                aldrig räknar på ett gammalt värde. */}
+            <TidigareKorningar
+              runs={runs.map((r) => (r.id === c.id ? c : r))}
+              currentId={c.id}
+              today={today}
+            />
 
             <Button onClick={() => setSheet("rerun")} className="mt-6 w-full sm:w-auto sm:self-start">
               <IconRerun size={16} />
