@@ -32,6 +32,7 @@ import { IconCheck } from "@/app/_shared/icons";
 import { useAccountData, type MarketingPlan } from "@/app/_shared/useAccountData";
 import ImageMaker from "@/app/_shared/ImageMaker";
 import { isoWeek } from "@/lib/server/voice";
+import { planContentHref } from "@/lib/facebook/planPrefill";
 import { createClient } from "@/lib/supabase-browser";
 
 type Rating = "up" | "down";
@@ -460,12 +461,15 @@ export default function ContentPage() {
                         quickResult.title,
                       )}
                     />
+                    {/* Snabbskapandet har bara ett ämne — ingen produkt,
+                        ingen uppmaning, ingen roll. Samma byggare, färre
+                        fält. */}
                     <ButtonLink
                       size="sm"
                       variant="ghost"
-                      href={`/content/facebook?amne=${encodeURIComponent(quickTopic.slice(0, 400))}`}
+                      href={planContentHref({ amne: quickTopic })}
                     >
-                      Gör om ordentligt
+                      Förfina för Facebook
                     </ButtonLink>
                   </div>
                 </div>
@@ -573,13 +577,22 @@ export default function ContentPage() {
                               />
                               {/* Veckoplanens inlägg är snabba utkast. Specialisten
                                   granskar kvalitet och ger tre vinklar — den här
-                                  knappen tar med ämnet dit utan omskrivning. */}
+                                  knappen tar med det planen redan vet dit, så att
+                                  produkt, uppmaning och vinkel inte anges på nytt.
+                                  Vilka fält som är säkra att skicka avgörs i
+                                  planPrefill, inte här. */}
                               <ButtonLink
                                 size="sm"
                                 variant="ghost"
-                                href={`/content/facebook?amne=${encodeURIComponent(`${p.title}. ${p.text}`.slice(0, 400))}`}
+                                href={planContentHref({
+                                  amne: `${p.title}. ${p.text}`,
+                                  rubrik: p.title,
+                                  produkt: p.produkt,
+                                  handling: p.cta,
+                                  roll: p.roll,
+                                })}
                               >
-                                Gör om ordentligt
+                                Förfina för Facebook
                               </ButtonLink>
                               <span className="ml-auto flex gap-2">
                                 <Button

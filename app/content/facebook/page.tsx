@@ -32,6 +32,7 @@ import {
   type FacebookSpecialistResult, type FacebookPostVariant, type FacebookQualityChecks,
   type FacebookUserStatus, type FacebookImageBrief,
 } from "./types";
+import { planPrefill, readPlanParams } from "@/lib/facebook/planPrefill";
 import { mapStrategyToPrefill, type StrategyContextForForm } from "@/lib/facebook/strategyPrefill";
 import { resolveLinkedStrategy, toStrategyOption, withLinkedFirst } from "@/lib/facebook/strategyLink";
 
@@ -318,12 +319,38 @@ export default function FacebookSpecialistPage() {
   // ämnesfältet så ett grovt veckoplansutkast kan tas vidare till den
   // riktiga motorn utan att skrivas in på nytt.
   useEffect(() => {
-    const topic = new URLSearchParams(window.location.search).get("amne");
-    if (!topic) return;
+    const params = new URLSearchParams(window.location.search);
+
+    // PRIORITET MELLAN KÄLLOR, deterministisk och inte beroende av vilken
+    // effekt som råkar hinna först:
+    //
+    //   1. ?strategy=  — ett uttryckligt strategiflöde. Strategin äger
+    //      formuläret, och planens parametrar ignoreras helt. Utan den
+    //      här raden kunde en planprodukt skriva över strategins produkt
+    //      beroende på när den asynkrona strategiladdningen svarade.
+    //   2. ?source=plan — rik förifyllning från veckoplanen.
+    //   3. ?amne=      — gamla länkar. Oförändrat beteende.
+    if (params.get("strategy")) return;
+
     // Sätts utanför den synkrona effektkroppen — samma skäl som i
     // strategi-effekten nedan: undviker kaskad-render. useSearchParams
     // vore alternativet, men den här sidan förrenderas statiskt och
     // skulle då behöva en Suspense-gräns runt hela klientträdet.
+    const plan = readPlanParams(params);
+    if (plan) {
+      const p = planPrefill(plan);
+      queueMicrotask(() => {
+        // Bara fält mappningen vågar sätta. Resten behåller sina
+        // standardvärden, och användaren fyller i dem själv.
+        if (p.productOrTopic) setProductOrTopic(p.productOrTopic);
+        if (p.desiredAction) setDesiredAction(p.desiredAction);
+        if (p.requestedAngle) setAngle(p.requestedAngle);
+      });
+      return;
+    }
+
+    const topic = params.get("amne");
+    if (!topic) return;
     queueMicrotask(() => setProductOrTopic(topic.slice(0, 500)));
   }, []);
 

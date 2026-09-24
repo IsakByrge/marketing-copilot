@@ -11,6 +11,7 @@
     "smoke": "tsx scripts/route-smoke.mts",
     "eval:plan": "tsx scripts/evalPlan.mts",
     "test:prefill": "tsx scripts/strategyPrefill.integration.mts",
+    "test:planprefill": "tsx lib/facebook/planPrefill.test.mts",
     "test:strategist": "tsx lib/strategist/strategist.test.mts",
     "test:security": "tsx lib/server/security.test.mts",
     "test:producttext": "tsx lib/productText/csv.test.mts",
