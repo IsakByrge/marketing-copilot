@@ -1,0 +1,43 @@
+-- ─────────────────────────────────────────────────────────────
+-- plans.completed_at — användaren säger att veckans innehåll är klart
+--
+-- Lägger till EN kolumn på en befintlig tabell (plans). INGA rader
+-- ändras, inga policyer rörs, ingen RLS påverkas. Idempotent och
+-- säker att köra flera gånger (ADD COLUMN IF NOT EXISTS).
+--
+-- INTE KÖRD ÄNNU. Körs manuellt före merge till main.
+--
+-- VARFÖR: Idag kunde rekommendera "Gå igenom veckans innehåll" i all
+-- evighet. Produkten visste inte när arbetet var gjort, så samma
+-- mening stod kvar hela veckan oavsett om användaren gjort noll eller
+-- allt. Utan den här kolumnen kan rekommendationen aldrig lösas upp.
+--
+-- VAD FÄLTET BETYDER: att användaren själv har sagt att hen är klar
+-- med innehållsarbetet för just den planen. Ingenting annat.
+--
+-- Det betyder INTE att något är publicerat, schemalagt eller ens
+-- kopierat — produkten har noll integrationer och kan inte veta det.
+-- Det betyder inte heller att planen fortfarande är aktuell; den
+-- frågan äger isPlanStale och ISO-veckan, inte den här kolumnen.
+--
+-- Nullbar med flit: varje plan som skapats före kolumnen är omarkerad,
+-- och det är sant. Ingen bakåtfyllnad, inget påhittat.
+--
+-- Ingen default: now() hade markerat varje ny plan som klar i samma
+-- ögonblick den skapades. Fältet sätts bara av ett klick.
+--
+-- Ingen reset-logik behövs. plans skrivs alltid med INSERT, aldrig
+-- upsert (app/dashboard/page.tsx och app/onboarding/page.tsx), så varje
+-- ny veckoplan är en ny rad och får null av sig själv.
+--
+-- HUR DEN KÖRS (manuellt, körs INTE automatiskt av appen):
+-- 1. Supabase-projektets SQL Editor.
+-- 2. Klistra in hela filen och kör.
+-- 3. Ingen nedtid. En nullbar kolumn utan default skriver inte om
+--    tabellen, så det går på millisekunder.
+--
+-- Inga hemligheter, projekt-ID:n eller anslutningssträngar i filen.
+-- ─────────────────────────────────────────────────────────────
+
+alter table public.plans
+  add column if not exists completed_at timestamptz;

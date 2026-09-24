@@ -130,6 +130,41 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
   assert(run({ plan: { postCount: 0, createdAt: `${TODAY}T08:00:00Z` } }) === null, "en färsk plan utan inlägg ger inget steg alls — hellre tyst än påhittat");
 }
 
+/* ── Klar med veckans innehåll ────────────────────────── */
+{
+  const fardig = `${TODAY}T08:00:00Z`;
+  const omarkerad = { postCount: 5, createdAt: fardig };
+  const markerad = { postCount: 5, createdAt: fardig, completedAt: "2026-09-23T14:00:00Z" };
+
+  // 1 + 2: markeringen är det enda som skiljer dem åt.
+  assert(run({ plan: omarkerad })?.id === "content", "omarkerad plan med innehåll ger innehållssteget");
+  assert(run({ plan: markerad }) === null, "markerad plan ger inget innehållssteg");
+  assert(run({ plan: { ...omarkerad, completedAt: null } })?.id === "content", "completedAt null är omarkerad");
+
+  // 3: kampanjreglerna går före och påverkas inte av markeringen.
+  const resultat = campaign({ id: "r", status: "active", ends_on: "2026-09-25" });
+  const avslutad = campaign({ id: "e", status: "ended" });
+  const planerad = campaign({ id: "p", status: "planned", starts_on: "2026-09-18" });
+  assert(run({ campaigns: [resultat], plan: markerad })?.id === "campaign-results", "resultatregeln gäller även när planen är markerad");
+  assert(run({ campaigns: [avslutad], plan: markerad })?.id === "campaign-learning", "lärdomsregeln gäller även när planen är markerad");
+  assert(run({ campaigns: [planerad], plan: markerad })?.id === "campaign-start", "startregeln gäller även när planen är markerad");
+
+  // 4: markeringen säger inget om huruvida planen är aktuell.
+  const gammalOmarkerad = { postCount: 5, createdAt: "2026-09-09T08:00:00Z" };
+  const gammalMarkerad = { ...gammalOmarkerad, completedAt: "2026-09-11T14:00:00Z" };
+  assert(run({ plan: gammalOmarkerad })?.id === "plan-stale", "en inaktuell omarkerad plan ger stale-steget");
+  assert(run({ plan: gammalMarkerad })?.id === "plan-stale", "en inaktuell MARKERAD plan ger fortfarande stale-steget");
+  assert(run({ plan: gammalMarkerad })?.why === "Ditt senaste förslag är från vecka 37.", "stale-motiveringen är oförändrad");
+
+  // 5: inget annat att föreslå → tyst.
+  assert(run({ campaigns: [], plan: markerad }) === null, "markerad plan utan annat nästa steg ger null");
+
+  // 6: markeringen hör till sin egen planrad. plans skrivs alltid med
+  // INSERT, så nästa vecka är en ny rad med completed_at null.
+  const nyPlan = { postCount: 5, createdAt: fardig, completedAt: null };
+  assert(run({ plan: nyPlan })?.id === "content", "en ny omarkerad plan kan rekommenderas även om den förra var klar");
+}
+
 /* ── Prioritetsordningen ──────────────────────────────── */
 {
   const resultat = campaign({ id: "r", status: "active", ends_on: "2026-09-25" });

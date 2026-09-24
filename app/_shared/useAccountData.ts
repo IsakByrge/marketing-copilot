@@ -51,6 +51,11 @@ export type MarketingPlan = {
   /** Nar raden skapades i plans. Behovs for att kunna saga att ett
    *  forslag ar fran en tidigare vecka, och for dubblettskyddet. */
   createdAt?: string;
+  /** Nar anvandaren sjalv sa att hen ar klar med planens innehall.
+   *  Null/undefined = omarkerad. Sager INGENTING om publicering, och
+   *  inget om huruvida planen fortfarande ar aktuell — den fragan ager
+   *  isPlanStale. Saknas i planer skapade fore migration 0009. */
+  completedAt?: string | null;
   id?: string; company: string; focus: string; tags: string[];
   posts: MarketingPost[]; newsletter: Newsletter;
   campaigns: PlanCampaign[]; opportunities?: Opportunity[];
@@ -113,6 +118,9 @@ export function useAccountData() {
               // Null for planer skapade fore migration 0007 - da visar
               // Idag sin reservtext i stallet.
               intro: latest.intro ?? undefined,
+              // Null for planer skapade fore migration 0009, och for
+              // varje ny plan tills anvandaren markerar den.
+              completedAt: latest.completed_at ?? null,
               tags: latest.tags ?? [],
               posts: latest.posts ?? [], newsletter: latest.newsletter,
               campaigns: latest.campaigns ?? [], opportunities: latest.opportunities ?? [],
