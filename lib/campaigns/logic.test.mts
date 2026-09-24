@@ -333,6 +333,16 @@ const endedCampaign: Campaign = {
     const tre = runComparison([k1, k2, k3]);
     assert(tre?.from === 3 && tre?.to === 4, "jämförelsen tar de två SENASTE avslutade, inte den första");
 
+    // Regeln gränssnittet vilar på: jämförelsen omfattar exakt de två
+    // första i endedRuns. Därför bär bara de raderna måttet i högerkant —
+    // äldre körningar är historik och visar sina egna siffror.
+    const ordnade = endedRuns([k1, k2, k3]);
+    assert(
+      roas(ordnade[0]) === tre?.to && roas(ordnade[1]) === tre?.from,
+      "jämförelsens to/from är exakt de två första i endedRuns",
+    );
+    assert(roas(ordnade[2]) === 2, "den tredje körningen har ett eget mått men ingår inte i jämförelsen");
+
     const fyra = endedRuns([k1, k2, k3, k4]);
     assert(fyra.length === 4, "endedRuns kapar inte — det gör gränssnittet");
     assert(MAX_SYNLIGA_KORNINGAR === 3, "gränssnittet visar högst tre körningar");

@@ -214,8 +214,13 @@ export function TidigareKorningar({
       )}
 
       <div className="border-t border-border">
-        {synliga.map((k) => {
-          const matt = jamforelse ? matvarde(k, jamforelse.metric) : null;
+        {synliga.map((k, i) => {
+          // Måttet i högerkant visas BARA på de två körningar
+          // runComparison faktiskt ställde mot varandra — de två första i
+          // endedRuns. Stod det även på den tredje såg jämförelseraden ut
+          // att gälla alla tre. Äldre körningar är historik och visar sina
+          // egna siffror.
+          const matt = jamforelse && i < 2 ? matvarde(k, jamforelse.metric) : null;
           return (
             <div key={k.id} className="border-b border-border py-3.5">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
