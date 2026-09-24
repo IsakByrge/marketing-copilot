@@ -61,6 +61,9 @@ jobs:
       - name: Test — strategy prefill
         run: npm run test:prefill
 
+      - name: Test — veckoplan → Facebook-förifyllning
+        run: npm run test:planprefill
+
       - name: Test — strategist
         run: npm run test:strategist
 
