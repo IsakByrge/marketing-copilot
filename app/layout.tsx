@@ -29,7 +29,8 @@ const outfit = Outfit({
 
 export const metadata: Metadata = {
   title: "Marketing Copilot",
-  description: "AI-driven marknadsföring för ditt företag.",
+  description:
+    "Marketing Copilot hjälper dig prioritera vad som är viktigast i marknadsföringen och ta nästa steg.",
 };
 
 export default function RootLayout({
