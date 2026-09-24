@@ -470,6 +470,100 @@ export function groupCampaigns(list: Campaign[]): CampaignGroups {
   };
 }
 
+/* ── Körningar av samma strategi ────────────────────────── */
+
+/**
+ * Hur många avslutade körningar detaljsidan visar, inklusive den man
+ * står i. Historiken ska vara kompakt — det här är kampanjens lärande,
+ * inte en analysvy. Ingen "visa alla".
+ */
+export const MAX_SYNLIGA_KORNINGAR = 3;
+
+/**
+ * Avslutade körningar av samma strategi, nyast först.
+ *
+ * BARA status "ended". En planerad eller pågående kampanj med samma
+ * strategi är inte ett utfall och ska varken visas eller få sektionen
+ * att dyka upp — v1 handlar om lärande från färdiga körningar.
+ *
+ * Kronologin går på starts_on: frågan är när kampanjen KÖRDES, inte när
+ * raden skapades. created_at bryter lika datum. Sorteringen sker på en
+ * kopia; anroparens lista rörs inte.
+ */
+export function endedRuns(list: Campaign[]): Campaign[] {
+  return list
+    .filter((c) => c.status === "ended")
+    .sort(
+      (a, b) =>
+        b.starts_on.localeCompare(a.starts_on) || b.created_at.localeCompare(a.created_at),
+    );
+}
+
+/** De mått två körningar kan jämföras med. Se runComparison. */
+export type ComparisonMetric = "roas" | "cost_per_result";
+
+export interface RunComparison {
+  metric: ComparisonMetric;
+  /** Färdig etikett: "ROAS" eller "Kostnad per köp". */
+  label: string;
+  /** Äldre körningens värde. */
+  from: number;
+  /** Nyare körningens värde. */
+  to: number;
+}
+
+/**
+ * Samma resultattyp OCH en typ som betyder något.
+ *
+ * null säger inte vad som räknades. "other" är en uppsamlingskategori —
+ * samma lagrade värde i två körningar behöver inte vara samma sak, och
+ * då får vi inte ställa talen mot varandra.
+ */
+function jamforbarResultattyp(a: ResultType | null, b: ResultType | null): boolean {
+  return a !== null && a === b && a !== "other";
+}
+
+/**
+ * Jämför de TVÅ SENASTE AVSLUTADE körningarna.
+ *
+ * Hierarkin är två steg, inte fyra:
+ *   1. ROAS när båda har den. Kronor genom kronor — oberoende av vad
+ *      som räknades, så resultattypen får skilja sig.
+ *   2. Annars kostnad per resultat, men bara vid jämförbar resultattyp.
+ *   3. Annars ingenting.
+ *
+ * result_count och revenue är MED FLIT inte fallback. Fler leads för
+ * dubbla pengar är inte ett bättre utfall, och högre omsättning med
+ * högre kostnad säger ingenting. De siffrorna visas per körning som
+ * fakta; de bär ingen slutsats.
+ *
+ * Funktionen säger bara vilka två tal som gäller. Riktning, ord och
+ * formatering äger gränssnittet — här finns ingen tröskel, ingen
+ * signifikans och ingen tolkning.
+ */
+export function runComparison(list: Campaign[]): RunComparison | null {
+  const [nyare, aldre] = endedRuns(list);
+  if (!nyare || !aldre) return null;
+
+  const roasNy = roas(nyare);
+  const roasGammal = roas(aldre);
+  if (roasNy !== null && roasGammal !== null) {
+    return { metric: "roas", label: "ROAS", from: roasGammal, to: roasNy };
+  }
+
+  if (!jamforbarResultattyp(nyare.result_type, aldre.result_type)) return null;
+  const cprNy = costPerResult(nyare);
+  const cprGammal = costPerResult(aldre);
+  if (cprNy === null || cprGammal === null) return null;
+
+  return {
+    metric: "cost_per_result",
+    label: costPerLabel(nyare.result_type),
+    from: cprGammal,
+    to: cprNy,
+  };
+}
+
 /* ── Strategin, läst defensivt ──────────────────────────── */
 
 export interface StrategyView {

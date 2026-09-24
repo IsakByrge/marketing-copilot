@@ -8,6 +8,7 @@ import {
   validateCampaignForm, buildCampaignFromStrategy, buildRerunPayload,
   nextStatus, canEditResults, groupCampaigns, readStrategy, prefillFromStrategy,
   strategiesAvailableForNewCampaign, normalizeCampaignRow,
+  endedRuns, runComparison, MAX_SYNLIGA_KORNINGAR,
   type Campaign, type CampaignResults, type StrategyRow,
 } from "./logic";
 
@@ -213,6 +214,141 @@ const endedCampaign: Campaign = {
   assert(!!row && row.strategy?.id === strategyA.id, "inbäddad strategi som lista hanteras");
   assert(normalizeCampaignRow({ ...endedCampaign, status: "paused" }) === null, "okänd status avvisas");
   assert(normalizeCampaignRow(null) === null, "tom rad avvisas");
+}
+
+/* ── Körningar av samma strategi ──────────────────────── */
+{
+  /** En avslutad körning. Bara det jämförelsen bryr sig om sätts. */
+  const kor = (o: {
+    id: string; starts_on: string; created_at?: string;
+    status?: Campaign["status"];
+    spend?: number | null; revenue?: number | null;
+    type?: Campaign["result_type"]; count?: number | null;
+    learning?: string | null;
+  }): Campaign => ({
+    id: o.id, user_id: "u1", company_id: "c1", strategy_id: "s1",
+    title: `Körning ${o.id}`, status: o.status ?? "ended",
+    starts_on: o.starts_on, ends_on: o.starts_on,
+    spend_amount: o.spend ?? null, revenue_amount: o.revenue ?? null,
+    result_type: o.type ?? null, result_count: o.count ?? null, result_note: null,
+    learning: o.learning ?? null,
+    created_at: o.created_at ?? `${o.starts_on}T10:00:00Z`,
+    updated_at: `${o.starts_on}T10:00:00Z`, strategy: null,
+  });
+
+  /* Urval: bara avslutade, nyast först */
+  {
+    const list = [
+      kor({ id: "gammal", starts_on: "2026-03-03" }),
+      kor({ id: "ny", starts_on: "2026-09-15" }),
+      kor({ id: "mitten", starts_on: "2026-06-01" }),
+    ];
+    assert(endedRuns(list).map((k) => k.id).join() === "ny,mitten,gammal", "avslutade körningar sorteras nyast först på starts_on");
+    assert(list[0].id === "gammal", "endedRuns sorterar en kopia — anroparens lista rörs inte");
+
+    const tie = [
+      kor({ id: "sen", starts_on: "2026-06-01", created_at: "2026-05-02T10:00:00Z" }),
+      kor({ id: "tidig", starts_on: "2026-06-01", created_at: "2026-05-01T10:00:00Z" }),
+    ];
+    assert(endedRuns(tie).map((k) => k.id).join() === "sen,tidig", "created_at bryter lika starts_on");
+  }
+
+  /* Bara avslutade deltar */
+  {
+    const avslutad = kor({ id: "a", starts_on: "2026-06-01", spend: 5000, revenue: 20000 });
+    const aktiv = kor({ id: "b", starts_on: "2026-09-01", spend: 5500, revenue: 27500, status: "active" });
+    const planerad = kor({ id: "c", starts_on: "2026-10-01", status: "planned" });
+
+    assert(endedRuns([avslutad]).length === 1, "en avslutad körning räknas");
+    assert(runComparison([avslutad]) === null, "en enda avslutad körning ger ingen jämförelse");
+    assert(endedRuns([avslutad, aktiv]).length === 1, "en pågående körning är inte ett utfall");
+    assert(runComparison([avslutad, aktiv]) === null, "avslutad + pågående ger ingen jämförelse");
+    assert(endedRuns([avslutad, planerad]).length === 1, "en planerad körning är inte ett utfall");
+    assert(runComparison([avslutad, planerad]) === null, "avslutad + planerad ger ingen jämförelse");
+    assert(runComparison([]) === null, "inga körningar ger ingen jämförelse");
+  }
+
+  /* ROAS */
+  {
+    const a = kor({ id: "a", starts_on: "2026-06-01", spend: 5000, revenue: 20000 });
+    const b = kor({ id: "b", starts_on: "2026-09-01", spend: 5500, revenue: 27500 });
+    const c = runComparison([a, b]);
+    assert(c?.metric === "roas" && c.label === "ROAS", "två avslutade med ROAS jämförs på ROAS");
+    assert(c?.from === 4 && c?.to === 5, "from är den äldre körningen, to den nyare");
+
+    const nollIntakt = kor({ id: "n", starts_on: "2026-09-01", spend: 5000, revenue: 0 });
+    const c2 = runComparison([a, nollIntakt]);
+    assert(c2?.metric === "roas" && c2.to === 0, "omsättning 0 ger ROAS 0 — ett riktigt utfall, inte saknad data");
+
+    const nollSpend = kor({ id: "s", starts_on: "2026-09-01", spend: 0, revenue: 27500 });
+    assert(runComparison([a, nollSpend]) === null, "spenderat 0 ger ingen ROAS och därmed ingen jämförelse");
+
+    const olikaTyp = kor({ id: "t", starts_on: "2026-09-01", spend: 5500, revenue: 27500, type: "leads", count: 40 });
+    const aKop = kor({ id: "a2", starts_on: "2026-06-01", spend: 5000, revenue: 20000, type: "purchases", count: 30 });
+    assert(runComparison([aKop, olikaTyp])?.metric === "roas", "ROAS jämförs även när resultattypen skiljer sig — kronor genom kronor");
+  }
+
+  /* Kostnad per resultat */
+  {
+    const a = kor({ id: "a", starts_on: "2026-06-01", spend: 5600, type: "purchases", count: 40 });
+    const b = kor({ id: "b", starts_on: "2026-09-01", spend: 5500, type: "purchases", count: 55 });
+    const c = runComparison([a, b]);
+    assert(c?.metric === "cost_per_result", "utan ROAS faller jämförelsen till kostnad per resultat");
+    assert(c?.label === "Kostnad per köp", "etiketten följer resultattypen");
+    assert(c?.from === 140 && c?.to === 100, "från äldre till nyare");
+
+    const leads = kor({ id: "l", starts_on: "2026-09-01", spend: 5500, type: "leads", count: 55 });
+    assert(runComparison([a, leads]) === null, "olika resultattyp ger ingen kostnadsjämförelse");
+
+    const annat1 = kor({ id: "o1", starts_on: "2026-06-01", spend: 5600, type: "other", count: 40 });
+    const annat2 = kor({ id: "o2", starts_on: "2026-09-01", spend: 5500, type: "other", count: 55 });
+    assert(runComparison([annat1, annat2]) === null, "Annat är en uppsamlingskategori och jämförs inte");
+
+    const utanTyp1 = kor({ id: "u1", starts_on: "2026-06-01", spend: 5600, count: 40 });
+    const utanTyp2 = kor({ id: "u2", starts_on: "2026-09-01", spend: 5500, count: 55 });
+    assert(runComparison([utanTyp1, utanTyp2]) === null, "saknad resultattyp jämförs inte");
+
+    const nollAntal = kor({ id: "z", starts_on: "2026-09-01", spend: 5500, type: "purchases", count: 0 });
+    assert(runComparison([a, nollAntal]) === null, "antal 0 ger ingen kostnad per resultat");
+
+    const utanResultat = kor({ id: "tom", starts_on: "2026-09-01" });
+    assert(runComparison([a, utanResultat]) === null, "två avslutade utan gemensamt underlag ger ingen jämförelse");
+  }
+
+  /* Fallback används inte */
+  {
+    const a = kor({ id: "a", starts_on: "2026-06-01", revenue: 20000, type: "purchases", count: 30 });
+    const b = kor({ id: "b", starts_on: "2026-09-01", revenue: 27500, type: "purchases", count: 55 });
+    assert(runComparison([a, b]) === null, "antal och omsättning är inte fallback för en slutsats");
+  }
+
+  /* Flera körningar */
+  {
+    const k1 = kor({ id: "k1", starts_on: "2026-01-01", spend: 1000, revenue: 2000 });
+    const k2 = kor({ id: "k2", starts_on: "2026-04-01", spend: 1000, revenue: 3000 });
+    const k3 = kor({ id: "k3", starts_on: "2026-07-01", spend: 1000, revenue: 4000 });
+    const k4 = kor({ id: "k4", starts_on: "2026-10-01", spend: 1000, revenue: 5000 });
+
+    assert(endedRuns([k1, k2, k3]).length === 3, "tre avslutade körningar listas");
+    const tre = runComparison([k1, k2, k3]);
+    assert(tre?.from === 3 && tre?.to === 4, "jämförelsen tar de två SENASTE avslutade, inte den första");
+
+    const fyra = endedRuns([k1, k2, k3, k4]);
+    assert(fyra.length === 4, "endedRuns kapar inte — det gör gränssnittet");
+    assert(MAX_SYNLIGA_KORNINGAR === 3, "gränssnittet visar högst tre körningar");
+    assert(
+      fyra.slice(0, MAX_SYNLIGA_KORNINGAR).map((k) => k.id).join() === "k4,k3,k2",
+      "fler än tre avslutade begränsas till de tre senaste",
+    );
+  }
+
+  /* Lärdom */
+  {
+    const utan = kor({ id: "a", starts_on: "2026-06-01", spend: 1000, revenue: 2000 });
+    const blanksteg = kor({ id: "b", starts_on: "2026-09-01", spend: 1000, revenue: 3000, learning: "   " });
+    assert(utan.learning === null && !blanksteg.learning?.trim(), "saknad lärdom och blanksteg behandlas lika av gränssnittet");
+    assert(runComparison([utan, blanksteg])?.metric === "roas", "lärdom påverkar inte jämförelsen");
+  }
 }
 
 if (failures > 0) {
