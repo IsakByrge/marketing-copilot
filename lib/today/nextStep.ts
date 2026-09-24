@@ -56,6 +56,16 @@ export interface NextStepPlan {
   /** När planraden skapades. Saknas när sparningen till Supabase inte gick igenom. */
   createdAt?: string;
   postCount: number;
+  /**
+   * När användaren själv sa att hen är klar med planens innehåll.
+   * Null/undefined = omarkerad.
+   *
+   * Påverkar BARA innehållsregeln. Den säger ingenting om huruvida
+   * planen fortfarande är aktuell — den frågan äger isPlanStale och
+   * ISO-veckan. En markerad plan från förra veckan är alltså
+   * fortfarande inaktuell, och stale-regeln gäller som förut.
+   */
+  completedAt?: string | null;
 }
 
 export interface NextStepInput {
@@ -198,9 +208,21 @@ function weeklyPlan(plan: NextStepPlan | null, today: string): NextStep | null {
   return null;
 }
 
-/** 5. Annars: veckans innehåll, när det finns något att göra där. */
+/**
+ * 5. Annars: veckans innehåll, när det finns något att göra där.
+ *
+ * Är planen markerad som klar föreslås ingenting. Regeln kunde
+ * tidigare aldrig lösas upp — den sa samma mening varje dag i en vecka
+ * oavsett om användaren gjort noll eller allt, eftersom produkten inte
+ * visste när arbetet var gjort.
+ *
+ * Matchar ingen annan regel efter det returnerar nextStep null, och
+ * Idag visar bara sina genvägar. Det är med flit: hellre tyst än en
+ * svag rekommendation bara för att fylla ytan.
+ */
 function weeklyContent(plan: NextStepPlan | null): NextStep | null {
   if (!plan || plan.postCount <= 0) return null;
+  if (plan.completedAt) return null;
 
   return {
     id: "content",

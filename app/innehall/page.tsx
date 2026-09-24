@@ -28,6 +28,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
 import { Button, ButtonLink, Card, Chip, Alert, EmptyState, Skeleton } from "@/app/_shared/primitives";
 import { Textarea } from "@/app/_shared/Textarea";
+import { IconCheck } from "@/app/_shared/icons";
 import { useAccountData, type MarketingPlan } from "@/app/_shared/useAccountData";
 import ImageMaker from "@/app/_shared/ImageMaker";
 import { isoWeek } from "@/lib/server/voice";
@@ -83,9 +84,15 @@ function CopyButton({ getText, onCopied }: { getText: () => string; onCopied?: (
 }
 
 export default function ContentPage() {
-  const { plan, loaded } = useAccountData();
+  const { plan, setPlan, loaded } = useAccountData();
   const [open, setOpen] = useState<string | null>(null);
   const [ratings, setRatings] = useState<Record<number, Rating>>({});
+
+  // "Klar med veckans innehåll". Sätts bara av ett klick — aldrig av
+  // redigering, kopiering, tumme, bild eller tid på sidan. Produkten
+  // vet inte om något publicerats, och tillståndet påstår inte det.
+  const [markerar, setMarkerar] = useState(false);
+  const [markeringsfel, setMarkeringsfel] = useState("");
 
   // Ändringarna hör till en bestämd plan. Genereras en ny plan ska den
   // gamlas text inte ligga kvar i rutorna — därför bär state:t med sig
@@ -192,6 +199,41 @@ export default function ContentPage() {
       }, { onConflict: "user_id,plan_id,post_index" });
     } catch (e) {
       console.warn("Kunde inte spara feedback:", e);
+    }
+  }
+
+  /**
+   * Markerar eller avmarkerar planen som klar.
+   *
+   * Skriver bara completed_at på just den här planraden. user_id-filtret
+   * är defensivt utöver RLS, samma mönster som resten av appen. Inget
+   * visas som klart förrän Supabase bekräftat skrivningen.
+   */
+  async function markeraKlar(klar: boolean) {
+    if (!plan?.id || markerar) return;
+    setMarkerar(true);
+    setMarkeringsfel("");
+    const nytt = klar ? new Date().toISOString() : null;
+    try {
+      const sb = createClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) throw new Error("Ingen inloggad användare");
+      const { error } = await sb
+        .from("plans")
+        .update({ completed_at: nytt })
+        .eq("id", plan.id)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      setPlan({ ...plan, completedAt: nytt });
+    } catch (e) {
+      console.warn("Kunde inte spara markeringen:", e);
+      setMarkeringsfel(
+        klar
+          ? "Kunde inte markera veckans innehåll som klart. Försök igen."
+          : "Kunde inte ångra markeringen. Försök igen.",
+      );
+    } finally {
+      setMarkerar(false);
     }
   }
 
@@ -625,6 +667,48 @@ export default function ContentPage() {
                 <Alert className="mt-3">
                   Det här är utkast, inte aktiva kampanjer. Produkten mäter ingenting ännu.
                 </Alert>
+              </section>
+            )}
+
+            {/* Sist på sidan, efter allt innehållsarbete. Handlingen ska
+                inte konkurrera med huvuduppgiften högst upp — den hör
+                hemma när man är färdig, inte när man kommer in.
+
+                Markeringen betyder att ANVÄNDAREN säger sig vara klar.
+                Inget här vet om något är publicerat, och texten påstår
+                det inte. */}
+            {plan.posts?.length > 0 && (
+              <section className="border-t border-border pt-8">
+                {plan.completedAt ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="flex items-center gap-2 text-sm text-text-secondary">
+                      <IconCheck size={16} className="shrink-0 text-primary" />
+                      Veckans innehåll är markerat som klart.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void markeraKlar(false)}
+                      disabled={markerar}
+                      className="inline-flex min-h-11 items-center rounded px-1 text-sm font-medium text-text-secondary underline underline-offset-4 transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 sm:min-h-0 sm:py-1"
+                    >
+                      Ångra
+                    </button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    onClick={() => void markeraKlar(true)}
+                    loading={markerar}
+                    className="w-full sm:w-auto"
+                  >
+                    Klar med veckans innehåll
+                  </Button>
+                )}
+                {markeringsfel && (
+                  <Alert tone="danger" title="Det gick inte" className="mt-3">
+                    {markeringsfel}
+                  </Alert>
+                )}
               </section>
             )}
           </div>

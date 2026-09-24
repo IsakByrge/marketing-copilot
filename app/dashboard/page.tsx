@@ -95,7 +95,13 @@ export default function DashboardPage() {
   const steg = useMemo(
     () => nextStep({
       campaigns,
-      plan: plan ? { createdAt: plan.createdAt, postCount: plan.posts?.length ?? 0 } : null,
+      plan: plan
+        ? {
+            createdAt: plan.createdAt,
+            postCount: plan.posts?.length ?? 0,
+            completedAt: plan.completedAt,
+          }
+        : null,
       today: todayIso(),
     }),
     [campaigns, plan],
