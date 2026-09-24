@@ -62,6 +62,42 @@ export async function listCampaigns(): Promise<StoreResult<Campaign[]>> {
 }
 
 /**
+ * Id:t på en kampanj som redan använder strategin, eller null.
+ *
+ * "Gör till kampanj" ska bara kunna skapa den FÖRSTA kampanjen på en
+ * strategi. Nästa körning görs med Kör igen från den kampanj som finns
+ * — det är det som gör flera rader med samma strategy_id till körningar
+ * av samma strategi i stället för dubbletter.
+ *
+ * Returnerar id:t och inte bara ett ja/nej, så att arket kan länka till
+ * kampanjen i stället för att bara säga nej. Äldsta först: har strategin
+ * mot förmodan flera rader sedan tidigare är det den ursprungliga
+ * körningen användaren vill till.
+ *
+ * Ogiltigt id ger null, inte ett fel — det finns bara inget att hitta.
+ */
+export async function getCampaignIdForStrategy(strategyId: string): Promise<StoreResult<string | null>> {
+  if (!UUID.test(strategyId)) return { ok: true, data: null };
+  try {
+    const userId = await currentUserId();
+    if (!userId) return { ok: false, error: NOT_SIGNED_IN };
+    const { data, error } = await createClient()
+      .from("campaigns").select("id")
+      .eq("user_id", userId)
+      .eq("strategy_id", strategyId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) { logError("campaignForStrategy", error); return { ok: false, error: LOAD_ERROR }; }
+    const id = data?.id;
+    return { ok: true, data: id ? String(id) : null };
+  } catch (e) {
+    logError("campaignForStrategy", e);
+    return { ok: false, error: LOAD_ERROR };
+  }
+}
+
+/**
  * Alla körningar av en strategi — samma strategy_id, samma användare.
  *
  * En fråga, samma kolumner och samma normalisering som listCampaigns.
