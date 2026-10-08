@@ -121,6 +121,9 @@ jobs:
       - name: Test — administratörsgrind
         run: npm run test:admin
 
+      - name: Test — Company Brain når veckoplanens prompt
+        run: npm run test:plancontext
+
       - name: Test — faktaspärr i alla prompter
         run: npm run test:factguard
 

@@ -322,8 +322,12 @@ export function newManualProduct(name: string): CompanyProduct {
  * användaren uttryckligen bekräftar dem i det nya gränssnittet — även om de
  * i praktiken ofta stämmer.
  *
- * existingBrain (om company_brain redan finns, t.ex. delvis ifylld) vinner
- * alltid över det som härleds ur den gamla profilen.
+ * TRE FALL, i den här ordningen:
+ *  1. Ingen company_brain: allt härleds ur den gamla profilen.
+ *  2. company_brain med lastReviewedAt (sparad under Vad jag vet): den
+ *     gäller ensam. Inget fält fylls på ur den gamla profilen.
+ *  3. company_brain utan lastReviewedAt: fält för fält, där det som finns
+ *     i hjärnan vinner och tomma fält fylls ur den gamla profilen.
  */
 export function migrateProfileToBrain(
   profile: Pick<CompanyProfile, "summary" | "customers" | "products" | "tone" | "strengths" | "avoid" | "contentGuidelines"> | null | undefined,
@@ -351,9 +355,18 @@ export function migrateProfileToBrain(
 
   if (!existingBrain) return base;
 
-  // Ett redan existerande (om än ofullständigt) company_brain vinner fält
-  // för fält över det som just härletts ur den gamla profilen.
   const sanitized = sanitizeBrain(existingBrain);
+
+  // En hjärna som sparats under Vad jag vet är hela sanningen. Sidan
+  // laddar den migrerade profilen och sparar ALLTID hela objektet med
+  // lastReviewedAt, så allt onboarding visste finns redan med — och ett
+  // tomt fält betyder att användaren tömt det. Fylldes det på ur de
+  // platta kolumnerna kom en borttagen produkt tillbaka så fort den
+  // sista togs bort.
+  if (sanitized.lastReviewedAt) return sanitized;
+
+  // Aldrig sparad via Vad jag vet (saknar lastReviewedAt): det som finns
+  // vinner fält för fält över det som härletts ur den gamla profilen.
   const hasAny = (arr: unknown[]) => Array.isArray(arr) && arr.length > 0;
   return {
     companySummary: sanitized.companySummary || base.companySummary,

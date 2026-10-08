@@ -36,6 +36,15 @@ export type PlanCompanyRow = {
  * Företagsraden → det prompten byggs av. Ren funktion, så att kedjan
  * från databasrad till prompt går att testa utan Supabase och utan
  * modellanrop (planContext.test.mts).
+ *
+ * COMPANY BRAIN ÄR KÄLLAN. De platta kolumnerna läses bara av
+ * migrateProfileToBrain, som avgör om de alls får bidra (se reglerna
+ * där). Profilen byggs sedan ur hjärnan — aldrig direkt ur kolumnerna.
+ * Tidigare gick sammanfattning, kunder, produkter, ton, styrkor och
+ * riktlinjer raka vägen från onboarding till prompten, förbi allt
+ * användaren ändrat eller tagit bort under Vad jag vet.
+ *
+ * Bara namn och bransch tas ur raden: hjärnan har inga sådana fält.
  */
 export function planContextFromRow(row: PlanCompanyRow): { profile: PlanCompanyProfile; brain: CompanyBrainContext } {
   const brain = buildCompanyBrainContext(migrateProfileToBrain({
@@ -47,17 +56,23 @@ export function planContextFromRow(row: PlanCompanyRow): { profile: PlanCompanyP
   const profile: PlanCompanyProfile = {
     companyName: row.name,
     industry: row.industry ?? "",
-    summary: row.summary ?? "",
-    customers: row.customers ?? [],
-    products: row.products ?? [],
-    tone: row.tone ?? [],
-    strengths: row.strengths ?? [],
-    avoid: row.avoid ?? [],
-    contentGuidelines: row.content_guidelines ?? [],
+    summary: brain.summary,
+    customers: brain.audiences,
+    products: brain.priorityProducts.map((p) => p.name),
+    tone: brain.tone,
+    strengths: brain.strengths,
+    avoid: brain.forbiddenClaims,
+    contentGuidelines: brain.contentGuidelines,
   };
 
   return { profile, brain };
 }
+
+/** En lucka ska synas som en lucka. En tom rad läser modellen som
+ *  "fritt fram"; den här texten säger att vi inte vet. */
+const SAKNAS = "(inte angivet)";
+const text = (v: string | undefined) => v?.trim() || SAKNAS;
+const lista = (v: string[] | undefined) => (v ?? []).filter(Boolean).join(", ") || SAKNAS;
 
 /** De fem rollerna en veckas inlägg ska fördela sig på. */
 export const POST_ROLES = ["saljande", "tips", "prioriterad_produkt", "lokalt", "socialt"] as const;
@@ -129,15 +144,26 @@ export function brainBlock(brain: CompanyBrainContext | null): string {
       }).join("\n")
     : "  (inga produkter registrerade)";
 
-  const mal = brain.marketingGoals.length > 0
+  const harMal = brain.marketingGoals.length > 0;
+  const mal = harMal
     ? brain.marketingGoals.map((g) => `  - ${g}`).join("\n")
     : "  (inga mål angivna)";
+
+  // Målen stod tidigare under "varje inlägg ska tjäna minst ett av
+  // dessa" och blev då en etikett att dela ut i efterhand. De är skälet
+  // till veckans val och ska läsas så.
+  const malRegel = harMal ? `
+- Välj veckans "focus" och de två kampanjförslagen så att de för företaget
+  närmare minst ett av affärsmålen ovan. Säg i "intro" vilket mål veckan
+  tjänar, med företagarens egen formulering. Finns ingen ärlig koppling:
+  påstå inte att det finns en.` : "";
 
   return `
 PRODUKTER MED PRIORITET, LÖNSAMHET OCH SÄSONG:
 ${produkter}
 
-MARKNADSFÖRINGSMÅL — varje inlägg ska tjäna minst ett av dessa:
+FÖRETAGETS AFFÄRSMÅL MED MARKNADSFÖRINGEN — det här vill företaget uppnå.
+De är skälet till veckans val, inte etiketter att fördela i efterhand:
 ${mal}
 ${brain.seasons.length ? `\nVIKTIGA SÄSONGER: ${brain.seasons.join(", ")}` : ""}
 ${brain.usps.length ? `\nDET SOM SKILJER FÖRETAGET: ${brain.usps.join("; ")}` : ""}
@@ -149,7 +175,7 @@ STYRREGLER FÖR URVALET:
 - Produkter med prioritet "high" ELLER lönsamhet "high" som är i säsong just
   nu MÅSTE förekomma i minst ett inlägg den här veckan.
 - Den högst prioriterade produkten i säsong får inlägget med rollen
-  "prioriterad_produkt".
+  "prioriterad_produkt".${malRegel}
 - Koppla inlägget till ett av målen ovan när det passar, och skriv vilket
   i fältet "mal". Passar inget mål: lämna "mal" tom. Ett påklistrat mål
   är sämre än inget — det styr texten mot fel sak.
@@ -201,14 +227,16 @@ ${feedbackContext}
 
 FÖRETAGSPROFIL:
 Företagsnamn: ${profile.companyName ?? ""}
-Bransch: ${profile.industry ?? ""}
-Sammanfattning: ${profile.summary ?? ""}
-Kunder: ${(profile.customers ?? []).join(", ")}
-Produkter och tjänster: ${(profile.products ?? []).join(", ")}
-Tonalitet: ${(profile.tone ?? []).join(", ")}
-Styrkor: ${(profile.strengths ?? []).join(", ")}
-Ska undvikas: ${(profile.avoid ?? []).join(", ")}
-Innehållsriktlinjer: ${(profile.contentGuidelines ?? []).join(", ")}
+Bransch: ${text(profile.industry)}
+Sammanfattning: ${text(profile.summary)}
+Kunder: ${lista(profile.customers)}
+Produkter och tjänster: ${lista(profile.products)}
+Tonalitet: ${lista(profile.tone)}
+Styrkor: ${lista(profile.strengths)}
+Ska undvikas: ${lista(profile.avoid)}
+Innehållsriktlinjer: ${lista(profile.contentGuidelines)}
+Står det "${SAKNAS}" vet vi inte. Fyll aldrig luckan med en gissning om
+företaget — skriv om det som faktiskt står här.
 ${fileContext}
 
 ${brainBlock(brain)}
