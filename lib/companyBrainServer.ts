@@ -6,11 +6,10 @@
 // supabase-server.ts, som importerar next/headers (kan inte
 // buntas in i en klientkomponent).
 //
-// Inkopplad i /api/create-content, /api/product-texts och sedan
-// innehållssprinten även /api/generate-plan. Veckoplanen läste
-// tidigare bara de platta legacy-kolumnerna ur request-body, vilket
-// gjorde att prioritet, lönsamhet, säsong och marknadsföringsmål
-// aldrig nådde modellen.
+// Inkopplad i /api/create-content och /api/product-texts. Veckoplanen
+// (/api/generate-plan) läser samma rad själv och bygger kontexten med
+// planContextFromRow i lib/server/planPrompt.ts, så att profil och
+// hjärna alltid kommer ur en och samma fråga.
 // ─────────────────────────────────────────────────────────────
 import { createClient } from "./supabase-server";
 import { migrateProfileToBrain, buildCompanyBrainContext, type CompanyBrain, type CompanyBrainContext } from "@/app/_shared/companyBrain";
