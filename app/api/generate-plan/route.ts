@@ -21,12 +21,13 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /** Kontots senaste foretag, med company_brain. RLS gor att bara egna
- *  rader nas. Samma fraga som lib/companyBrainServer.ts staller. */
+ *  rader nas. Kolumnerna ar exakt de PlanCompanyRow bar - inget annat
+ *  ur raden behovs for planen. */
 async function getCompanyRow(supabase: SupabaseClient, userId: string): Promise<PlanCompanyRow | null> {
   try {
     const { data } = await supabase
       .from("companies")
-      .select("*")
+      .select("name, industry, summary, customers, products, tone, strengths, avoid, content_guidelines, company_brain")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(1);

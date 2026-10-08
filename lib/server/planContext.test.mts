@@ -156,6 +156,74 @@ test("trasig company_brain kraschar inte och faller tillbaka på onboarding", ()
   assert.ok(p.includes("GAMMAL SAMMANFATTNING"));
 });
 
+test("kolumnens default {} räknas som aldrig sparad: onboardingprofilen bär planen", () => {
+  const p = promptFor({ ...ONBOARDING, company_brain: {} });
+  assert.ok(p.includes("GAMMAL SAMMANFATTNING"));
+  assert.ok(p.includes("Gasolkaminer"));
+  assert.ok(p.includes("Gammalt förbud"));
+});
+
+// ── Delvis skadad men sparad hjärna ─────────────────────────
+// Sparningen skriver alltid varje fält med rätt typ. Ett tomt fält är
+// därför användarens val; ett fält av fel typ eller som saknas är
+// trasig data. Inget av dem får hämta tillbaka produkter ur onboarding.
+
+const utan = (nyckel: string) => {
+  const kopia: Record<string, unknown> = { ...SPARAD_HJARNA };
+  delete kopia[nyckel];
+  return kopia;
+};
+
+test("skadad: products är inte en lista — inga produkter hämtas ur onboarding", () => {
+  for (const hjarna of [{ ...SPARAD_HJARNA, products: "skräp" }, utan("products")]) {
+    const p = promptFor({ ...ONBOARDING, company_brain: hjarna });
+    for (const namn of ONBOARDING.products) assert.ok(!p.includes(namn), `"${namn}" återinfördes`);
+    assert.ok(p.includes("nämn då ingen specifik tjänst alls"), "faktaspärren är inte i sitt strängaste läge");
+    assert.ok(p.includes("NY SAMMANFATTNING"), "resten av hjärnan ska fortfarande gälla");
+  }
+});
+
+test("skadad: trasiga produktposter blir inte produkter i prompten", () => {
+  const p = promptFor({ ...ONBOARDING, company_brain: { ...SPARAD_HJARNA, products: [null, 42, { name: "" }, ...SPARAD_HJARNA.products] } });
+  assert.ok(!p.includes("Namnlös produkt"), "platshållaren nådde prompten som en produkt");
+  assert.ok(p.includes("Gasol i lösvikt") && p.includes("Gasolflaskor"), "hela poster ska stå kvar");
+  assert.ok(!p.includes("Gasolkaminer"));
+});
+
+test("skadad: lastReviewedAt har fel typ — hjärnan är fortfarande sparad", () => {
+  for (const markor of [1758355200000, "", false]) {
+    const p = promptFor({ ...ONBOARDING, company_brain: { ...SPARAD_HJARNA, products: [], lastReviewedAt: markor } });
+    for (const namn of ONBOARDING.products) assert.ok(!p.includes(namn), `"${namn}" återinfördes med markören ${JSON.stringify(markor)}`);
+  }
+});
+
+test("skadad: forbiddenClaims är inte en lista — onboardingens förbud gäller hellre än inga", () => {
+  for (const hjarna of [{ ...SPARAD_HJARNA, forbiddenClaims: null }, utan("forbiddenClaims")]) {
+    const p = promptFor({ ...ONBOARDING, company_brain: hjarna });
+    assert.ok(p.includes("Gammalt förbud"), "förbuden försvann tyst");
+  }
+});
+
+test("avsiktligt tömda förbud förblir tomma", () => {
+  const p = promptFor({ ...ONBOARDING, company_brain: { ...SPARAD_HJARNA, forbiddenClaims: [] } });
+  assert.ok(!p.includes("Gammalt förbud"));
+  assert.ok(!p.includes("marknadens billigaste"));
+});
+
+test("skadad: sammanfattning av fel typ blir en uttalad lucka, inte onboardingtexten", () => {
+  const p = promptFor({ ...ONBOARDING, company_brain: { ...SPARAD_HJARNA, companySummary: 123 } });
+  assert.ok(!p.includes("GAMMAL SAMMANFATTNING"));
+  assert.ok(p.includes("Sammanfattning: (inte angivet)"));
+});
+
+test("skadad: bara markören kvar — allt blir luckor, inget hämtas ur onboarding utom förbuden", () => {
+  const p = promptFor({ ...ONBOARDING, company_brain: { lastReviewedAt: "2026-09-20T08:00:00.000Z" } });
+  for (const v of ["GAMMAL SAMMANFATTNING", "Gammal kundgrupp", "Gasolkaminer", "Gammal ton", "Gammal styrka", "Gammal riktlinje"]) {
+    assert.ok(!p.includes(v), `"${v}" hämtades ur onboarding`);
+  }
+  assert.ok(p.includes("Gammalt förbud"));
+});
+
 // ── C. Prioriterad produkt ──────────────────────────────────
 
 test("C: prioritet, lönsamhet, säsong och differentiering når prompten", () => {

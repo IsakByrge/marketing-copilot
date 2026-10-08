@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────
 import { voiceBlock, isoWeek } from "./voice";
 import { factGuardBlock } from "./factGuard";
-import { migrateProfileToBrain, buildCompanyBrainContext, type CompanyBrainContext } from "@/app/_shared/companyBrain";
+import { migrateProfileToBrain, buildCompanyBrainContext, NAMELESS_PRODUCT, type CompanyBrainContext } from "@/app/_shared/companyBrain";
 import { veckansOrt } from "@/app/_shared/locations";
 import { sasongsBlock } from "./season";
 
@@ -47,11 +47,19 @@ export type PlanCompanyRow = {
  * Bara namn och bransch tas ur raden: hjärnan har inga sådana fält.
  */
 export function planContextFromRow(row: PlanCompanyRow): { profile: PlanCompanyProfile; brain: CompanyBrainContext } {
-  const brain = buildCompanyBrainContext(migrateProfileToBrain({
+  const context = buildCompanyBrainContext(migrateProfileToBrain({
     summary: row.summary ?? "", customers: row.customers ?? [], products: row.products ?? [],
     tone: row.tone ?? [], strengths: row.strengths ?? [], avoid: row.avoid ?? [],
     contentGuidelines: row.content_guidelines ?? [],
   }, row.company_brain));
+
+  // En post utan namn — sparad tom eller trasig i databasen — får en
+  // platshållare av saneringen. Den hör hemma i gränssnittet, där den går
+  // att rätta. I prompten vore den en produkt företaget inte har.
+  const brain: CompanyBrainContext = {
+    ...context,
+    priorityProducts: context.priorityProducts.filter((p) => p.name !== NAMELESS_PRODUCT),
+  };
 
   const profile: PlanCompanyProfile = {
     companyName: row.name,
