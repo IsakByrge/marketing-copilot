@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────
 import { voiceBlock, isoWeek } from "./voice";
 import { factGuardBlock } from "./factGuard";
-import type { CompanyBrainContext } from "@/app/_shared/companyBrain";
+import { migrateProfileToBrain, buildCompanyBrainContext, type CompanyBrainContext } from "@/app/_shared/companyBrain";
 import { veckansOrt } from "@/app/_shared/locations";
 import { sasongsBlock } from "./season";
 
@@ -21,6 +21,43 @@ export type PlanCompanyProfile = {
   customers?: string[]; products?: string[]; tone?: string[];
   strengths?: string[]; avoid?: string[]; contentGuidelines?: string[];
 };
+
+/** Företagsraden så som den ligger i databasen: de platta kolumnerna
+ *  från onboarding plus company_brain (jsonb). */
+export type PlanCompanyRow = {
+  name: string; industry?: string | null; summary?: string | null;
+  customers?: string[] | null; products?: string[] | null; tone?: string[] | null;
+  strengths?: string[] | null; avoid?: string[] | null;
+  content_guidelines?: string[] | null;
+  company_brain?: unknown;
+};
+
+/**
+ * Företagsraden → det prompten byggs av. Ren funktion, så att kedjan
+ * från databasrad till prompt går att testa utan Supabase och utan
+ * modellanrop (planContext.test.mts).
+ */
+export function planContextFromRow(row: PlanCompanyRow): { profile: PlanCompanyProfile; brain: CompanyBrainContext } {
+  const brain = buildCompanyBrainContext(migrateProfileToBrain({
+    summary: row.summary ?? "", customers: row.customers ?? [], products: row.products ?? [],
+    tone: row.tone ?? [], strengths: row.strengths ?? [], avoid: row.avoid ?? [],
+    contentGuidelines: row.content_guidelines ?? [],
+  }, row.company_brain));
+
+  const profile: PlanCompanyProfile = {
+    companyName: row.name,
+    industry: row.industry ?? "",
+    summary: row.summary ?? "",
+    customers: row.customers ?? [],
+    products: row.products ?? [],
+    tone: row.tone ?? [],
+    strengths: row.strengths ?? [],
+    avoid: row.avoid ?? [],
+    contentGuidelines: row.content_guidelines ?? [],
+  };
+
+  return { profile, brain };
+}
 
 /** De fem rollerna en veckas inlägg ska fördela sig på. */
 export const POST_ROLES = ["saljande", "tips", "prioriterad_produkt", "lokalt", "socialt"] as const;

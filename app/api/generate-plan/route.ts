@@ -12,8 +12,7 @@ import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { classifyAiError, modelUsageFrom } from "@/lib/server/aiError";
 import { callChatJson, AI } from "@/lib/server/ai";
 import { editMemoryBlock } from "@/lib/server/editMemory";
-import { getCompanyBrainContext } from "@/lib/companyBrainServer";
-import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, type PlanCompanyProfile } from "@/lib/server/planPrompt";
+import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, planContextFromRow, type PlanCompanyRow } from "@/lib/server/planPrompt";
 import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
 import { valideraPlan } from "@/lib/server/planValidate";
 
@@ -21,24 +20,17 @@ import { valideraPlan } from "@/lib/server/planValidate";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-/** Den platta foretagsraden, hamtad server-side. */
-type CompanyRow = {
-  name: string; industry?: string | null; summary?: string | null;
-  customers?: string[] | null; products?: string[] | null; tone?: string[] | null;
-  strengths?: string[] | null; avoid?: string[] | null;
-  content_guidelines?: string[] | null;
-};
-
-/** Kontots senaste foretag. RLS gor att bara egna rader nas. */
-async function getCompanyRow(supabase: SupabaseClient, userId: string): Promise<CompanyRow | null> {
+/** Kontots senaste foretag, med company_brain. RLS gor att bara egna
+ *  rader nas. Samma fraga som lib/companyBrainServer.ts staller. */
+async function getCompanyRow(supabase: SupabaseClient, userId: string): Promise<PlanCompanyRow | null> {
   try {
     const { data } = await supabase
       .from("companies")
-      .select("name, industry, summary, customers, products, tone, strengths, avoid, content_guidelines")
+      .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(1);
-    return (data?.[0] as CompanyRow) ?? null;
+    return (data?.[0] as PlanCompanyRow) ?? null;
   } catch {
     return null;
   }
@@ -129,17 +121,10 @@ export async function POST() {
       return safeError("Ingen företagsprofil hittades på kontot.", 400);
     }
 
-    const profile: PlanCompanyProfile = {
-      companyName: company.name,
-      industry: company.industry ?? "",
-      summary: company.summary ?? "",
-      customers: company.customers ?? [],
-      products: company.products ?? [],
-      tone: company.tone ?? [],
-      strengths: company.strengths ?? [],
-      avoid: company.avoid ?? [],
-      contentGuidelines: company.content_guidelines ?? [],
-    };
+    // Profil och Company Brain ur SAMMA rad. Hjärnan hämtades tidigare
+    // med en egen fråga, och då fanns en väg där profilen kom fram men
+    // hjärnan inte gjorde det.
+    const { profile, brain } = planContextFromRow(company);
 
     // Datum och veckonummer formas numera inne i planPrompt.
     const now = new Date();
@@ -147,11 +132,6 @@ export async function POST() {
     const upcomingDates = getUpcomingDates(now);
     // Lär av hur användaren brukar skriva om planens inlägg.
     const editMemory = await editMemoryBlock("plan_post");
-
-    // Company Brain, hämtad server-side ur sessionen. Bär prioritet,
-    // lönsamhet, säsong och marknadsföringsmål — allt som de platta
-    // kolumnerna saknar.
-    const brain = await getCompanyBrainContext();
 
     // Hämta historik från Supabase (RLS-scopat till den inloggade användaren)
     const pastPlans = await getPastPlans(guard.supabase, profile.companyName ?? "", userId);
@@ -218,7 +198,7 @@ ${pastPlans.map((p, i) => {
     // aldrig - att gissa fram ett faktum vore precis det problem en
     // platshallare avslojar. Inlagget far i stallet med sig vad som
     // saknas, och granssnittet visar det.
-    plan = valideraPlan(plan, brain?.websites);
+    plan = valideraPlan(plan, brain.websites);
 
     await guard.finish({
       status: "ok",
