@@ -31,7 +31,7 @@ import { INTERNAL_TERMS } from "@/lib/server/factGuard";
 import {
   hittaPlatshallare, antalStycken, normaliseraDag, valideraPlan,
   sakerhetsordIText, arSakerhetsrad,
-  lankMotHandlingen, obelagdaPastaenden,
+  lankMotHandlingen, obelagdaPastaenden, saknadText,
 } from "@/lib/server/planValidate";
 import { lankarIText, vardnamn } from "@/app/_shared/websites";
 import { sasongsfelIText, forbjudnaSasongsord } from "@/lib/server/season";
@@ -106,9 +106,9 @@ const brain: CompanyBrainContext = {
 // ── Kontroller ──────────────────────────────────────────────
 const ord = (s: string) => (s ?? "").trim().split(/\s+/).filter(Boolean).length;
 
-interface Post { roll?: string; dag?: string; produkt?: string; mal?: string; title?: string; text?: string; cta?: string }
-interface Campaign { title?: string; produkt?: string; goal?: string; message?: string; cta?: string }
-interface Plan { focus?: string; intro?: string; posts?: Post[]; newsletter?: { body?: string; subject?: string; cta?: string }; campaigns?: Campaign[] }
+interface Post { roll?: string; dag?: string; produkt?: string; mal?: string; title?: string; text?: string; cta?: string; saknas?: string[] }
+interface Campaign { title?: string; produkt?: string; goal?: string; message?: string; cta?: string; saknas?: string[] }
+interface Plan { focus?: string; intro?: string; posts?: Post[]; newsletter?: { body?: string; subject?: string; cta?: string; saknas?: string[] }; campaigns?: Campaign[] }
 
 type Kontroll = { namn: string; ok: boolean; detalj: string };
 
@@ -395,20 +395,41 @@ function kontrollera(plan: Plan, raPlan: Plan = plan, svaret: Plan = raPlan): Ko
   });
 
   // 4c. Pastaenden utan underlag: vad kunder tycker, vad kunden sparar,
-  // och att nagot ar battre. Inlaggen flaggas i granssnittet; nyhetsbrev
-  // och kampanjforslag har ingen flagga, sa dar syns felet inte alls.
+  // och att nagot ar battre. Det som star kvar efter rattningen marks i
+  // granssnittet - inlagg, nyhetsbrev och kampanjforslag. Kontrollen
+  // faller pa att nagot star kvar; den andra raden sager om varje
+  // kvarvarande pastaende ocksa har fatt sin varning.
   const underlag = planUnderlag(brain);
-  const obelagdaInlagg = posts.flatMap((p) => [p.title, p.text, p.cta].flatMap((t) => obelagdaPastaenden(t, underlag)));
-  const obelagdaOvrigt = [
-    plan.newsletter?.subject, plan.newsletter?.body, plan.newsletter?.cta,
-    ...(plan.campaigns ?? []).flatMap((c) => [c.title, c.goal, c.message, c.cta]),
-  ].flatMap((t) => obelagdaPastaenden(t, underlag));
+  const obelagdaInlagg = posts.flatMap((p) => [p.title, p.text, p.cta].flatMap((t) => obelagdaPastaenden(t, underlag, p.produkt)));
+  const obelagdaBrev = [plan.newsletter?.subject, plan.newsletter?.body, plan.newsletter?.cta]
+    .flatMap((t) => obelagdaPastaenden(t, underlag));
+  const obelagdaKampanj = (plan.campaigns ?? [])
+    .flatMap((c) => [c.title, c.goal, c.message, c.cta].flatMap((t) => obelagdaPastaenden(t, underlag, c.produkt)));
+  const kvar = [...obelagdaInlagg, ...obelagdaBrev, ...obelagdaKampanj];
   k.push({
     namn: "inga obelagda påståenden",
-    ok: obelagdaInlagg.length + obelagdaOvrigt.length === 0,
-    detalj: obelagdaInlagg.length + obelagdaOvrigt.length === 0
+    ok: kvar.length === 0,
+    detalj: kvar.length === 0
       ? `inga kvar (modellen skrev ${obelagdaFore.length} före rättning${obelagdaFore.length ? ": " + obelagdaFore.join(", ") : ""})`
-      : `före rättning ${obelagdaFore.length} · kvar i inlägg (flaggas): ${obelagdaInlagg.join(", ") || "–"} · nyhetsbrev/kampanj (syns inte): ${obelagdaOvrigt.join(", ") || "–"}`,
+      : `före rättning ${obelagdaFore.length} · kvar i inlägg: ${obelagdaInlagg.join(", ") || "–"} · nyhetsbrev: ${obelagdaBrev.join(", ") || "–"} · kampanj: ${obelagdaKampanj.join(", ") || "–"}`,
+  });
+
+  // 4c2. Syns det som star kvar? Varje kvarvarande pastaende, och varje
+  // inlagg utan text, ska ha en rad under "saknas".
+  const varningar = [
+    ...posts.flatMap((p) => p.saknas ?? []),
+    ...(plan.newsletter?.saknas ?? []),
+    ...(plan.campaigns ?? []).flatMap((c) => c.saknas ?? []),
+  ];
+  const osynliga = [
+    ...kvar.filter((fras) => !varningar.some((v) => v.includes(`"${fras}"`))),
+    ...posts.filter((p) => saknadText(p.text) && !(p.saknas ?? []).some((v) => v.includes("ingen text"))).map((p) => `tomt inlägg: ${p.roll}`),
+  ];
+  const tomma = posts.filter((p) => saknadText(p.text)).length;
+  k.push({
+    namn: "det som står kvar syns för användaren",
+    ok: osynliga.length === 0,
+    detalj: osynliga.length ? `utan varning: ${osynliga.join(", ")}` : `${kvar.length} påståenden och ${tomma} inlägg utan text, alla med varning`,
   });
 
   // 4d. Motiverar focus och intro valet med det foretaget sjalvt angett?
@@ -464,11 +485,30 @@ function kontrollera(plan: Plan, raPlan: Plan = plan, svaret: Plan = raPlan): Ko
     ...texter,
     ...kampanjer.flatMap((c) => [c.title ?? "", c.message ?? "", c.cta ?? ""]),
   ];
-  const sasongsfel = [...new Set(sasongstexter.flatMap((t) => sasongsfelIText(t)))];
+  //
+  // En ordtraff ar inte ett innehallsfel. "Inte bara for sommaren" i
+  // oktober sager att sasongen ar OVER, och "sommarstugan" ar en plats.
+  // Traffarna delas darfor i tva: meningar som avgransar sig mot
+  // arstiden, och ovriga. Bara de ovriga faller kontrollen, och bada
+  // skrivs ut med sin mening - sorteringen ar grov och ska lasas.
+  const AVGRANSAR = /inte\s+(?:bara|enbart|längre|slut)|(?:är|var)\s+över|även\s+(?:om|när|efter)|tar\s+inte\s+slut|efter\s+(?:sommar|vinter)|oavsett|året\s+(?:runt|om)/i;
+  const traffar = sasongstexter
+    .flatMap((t) => t.split(/(?<=[.!?])\s+|\n+/))
+    .flatMap((mening) => sasongsfelIText(mening).map((o) => ({ o, mening: mening.trim() })));
+  const avgransande = traffar.filter((t) => AVGRANSAR.test(t.mening));
+  const attLasa = traffar.filter((t) => !AVGRANSAR.test(t.mening));
+  const visa = (ts: typeof traffar) => ts.map((t) => `\n      [${t.o}] ${t.mening.slice(0, 140)}`).join("");
   k.push({
-    namn: "inga ord från fel årstid",
-    ok: sasongsfel.length === 0,
-    detalj: sasongsfel.length ? sasongsfel.join(", ") : `rent (förbjudet nu: ${forbjudnaSasongsord().slice(0, 3).join(", ")}…)`,
+    namn: "ingen text om fel årstid",
+    ok: attLasa.length === 0,
+    detalj: attLasa.length
+      ? `${attLasa.length} ordträff att läsa — kan vara ett innehållsfel:${visa(attLasa)}`
+      : `inga (förbjudet nu: ${forbjudnaSasongsord().slice(0, 3).join(", ")}…)`,
+  });
+  k.push({
+    namn: "säsongsord som avgränsning (inget fel)",
+    ok: true,
+    detalj: avgransande.length ? `${avgransande.length} ordträff:${visa(avgransande)}` : "inga",
   });
 
   // 6. Nyhetsbrevets styckeindelning.

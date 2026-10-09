@@ -634,7 +634,10 @@ export default function ContentPage() {
                     aria-expanded={open === "nl"}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block font-medium">{newsletter.subject}</span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{newsletter.subject}</span>
+                        {newsletter.saknas?.length ? <Chip tone="warning">Behöver komplettering</Chip> : null}
+                      </span>
                       <span className="mt-0.5 block text-sm text-text-secondary">
                         {newsletter.preview}
                       </span>
@@ -646,6 +649,13 @@ export default function ContentPage() {
 
                   {open === "nl" && (
                     <div className="mt-4">
+                      {newsletter.saknas?.length ? (
+                        <Alert tone="warning" title="Texten har luckor" className="mb-3">
+                          <ul className="list-disc space-y-1 pl-4">
+                            {newsletter.saknas.map((s) => <li key={s}>{s}</li>)}
+                          </ul>
+                        </Alert>
+                      ) : null}
                       <Textarea
                         rows={12}
                         value={edits["nl"] ?? newsletterText(newsletter)}
@@ -672,8 +682,20 @@ export default function ContentPage() {
                 <div className="space-y-3">
                   {campaigns.map((c, i) => (
                     <Card key={i} padding="sm">
-                      <p className="font-medium">{c.title}</p>
+                      <p className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{c.title}</span>
+                        {c.saknas?.length ? <Chip tone="warning">Behöver komplettering</Chip> : null}
+                      </p>
                       <p className="mt-0.5 text-sm text-text-secondary">{c.goal}</p>
+                      {/* Budskapet visas inte på kortet, så raderna är enda
+                          stället felet syns innan förslaget används. */}
+                      {c.saknas?.length ? (
+                        <Alert tone="warning" title="Texten har luckor" className="mt-3">
+                          <ul className="list-disc space-y-1 pl-4">
+                            {c.saknas.map((s) => <li key={s}>{s}</li>)}
+                          </ul>
+                        </Alert>
+                      ) : null}
                     </Card>
                   ))}
                 </div>

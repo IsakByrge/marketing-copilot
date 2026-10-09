@@ -27,7 +27,7 @@
 // next/headers, så både routen och eval-skriptet kan använda den.
 // ─────────────────────────────────────────────────────────────
 import { LENGTH_LIMITS } from "./planPrompt";
-import { obelagdaPastaenden, type Underlag } from "./planValidate";
+import { obelagdaPastaenden, underlagSomText, type Underlag } from "./planValidate";
 import { forbjudnaSasongsord, sasongsfelIText } from "./season";
 import { lankarIText, vardnamn } from "@/app/_shared/websites";
 
@@ -62,6 +62,8 @@ interface Falt {
   text: string;
   /** Minsta antal ord. Bara brödtexterna har ett golv. */
   minst?: number;
+  /** Produkten inlägget eller kampanjen gäller, när den står angiven. */
+  produkt?: string;
 }
 
 const KAMPANJFALT = { titel: "title", mal: "goal", budskap: "message", cta: "cta" } as const;
@@ -76,9 +78,10 @@ function allaFalt(plan: PlanShape): Falt[] {
   const falt: Falt[] = [];
   (plan.posts ?? []).forEach((p, i) => {
     const namn = p.title ?? `Inlägg ${i + 1}`;
-    falt.push({ nyckel: String(i), etikett: namn, text: p.text ?? "", minst: LENGTH_LIMITS.POST_MIN_WORDS });
-    falt.push({ nyckel: `rubrik-${i}`, etikett: `Rubriken till "${namn}"`, text: p.title ?? "" });
-    falt.push({ nyckel: `cta-${i}`, etikett: `Uppmaningen till "${namn}"`, text: p.cta ?? "" });
+    const produkt = p.produkt;
+    falt.push({ nyckel: String(i), etikett: namn, text: p.text ?? "", minst: LENGTH_LIMITS.POST_MIN_WORDS, produkt });
+    falt.push({ nyckel: `rubrik-${i}`, etikett: `Rubriken till "${namn}"`, text: p.title ?? "", produkt });
+    falt.push({ nyckel: `cta-${i}`, etikett: `Uppmaningen till "${namn}"`, text: p.cta ?? "", produkt });
   });
   const nl = plan.newsletter;
   if (nl) {
@@ -89,7 +92,7 @@ function allaFalt(plan: PlanShape): Falt[] {
   (Array.isArray(plan.campaigns) ? plan.campaigns : []).forEach((c, i) => {
     for (const del of Object.keys(KAMPANJFALT) as Kampanjdel[]) {
       const v = c?.[KAMPANJFALT[del]];
-      falt.push({ nyckel: `kampanj-${i}-${del}`, etikett: `Kampanjförslag ${i + 1}, ${del}`, text: typeof v === "string" ? v : "" });
+      falt.push({ nyckel: `kampanj-${i}-${del}`, etikett: `Kampanjförslag ${i + 1}, ${del}`, text: typeof v === "string" ? v : "", produkt: c?.produkt });
     }
   });
   return falt;
@@ -154,7 +157,7 @@ export function hittaBrister(plan: PlanShape, underlag?: Underlag): Brist[] {
   return allaFalt(plan).flatMap((f) => {
     const n = ord(f.text);
     const forKort = f.minst !== undefined && n < f.minst ? { ordNu: n, minst: f.minst } : undefined;
-    const obelagda = underlag ? obelagdaPastaenden(f.text, underlag) : [];
+    const obelagda = underlag ? obelagdaPastaenden(f.text, underlag, f.produkt) : [];
     return forKort || obelagda.length > 0
       ? [{ nyckel: f.nyckel, etikett: f.etikett, text: f.text, forKort, obelagda, minst: f.minst }]
       : [];
@@ -203,9 +206,9 @@ PÅSTÅR TEXTEN NÅGOT UTAN UNDERLAG — TA BORT PÅSTÅENDET:
 - Påstå inget om vad kunder tycker, väljer eller brukar göra.
 - Ändra ingenting annat. Samma ämne, samma ton, ungefär samma längd.
   Fakta ur företagsdatan som redan står i texten ska stå kvar.
-${underlag?.text.trim() ? `
+${underlag && underlagSomText(underlag) ? `
 DET HÄR STÅR I FÖRETAGSDATAN, OCH BARA DET FÅR PÅSTÅS OM FÖRETAGET:
-${underlag.text.trim()}
+${underlagSomText(underlag)}
 ` : ""}` : "";
 
   return `Texterna nedan kommer från en veckoplan du just skrev och behöver
@@ -248,8 +251,9 @@ ${brister.map((b) => `    "${b.nyckel}": "den rättade texten${b.forKort ? `, mi
  *
  *  - Var texten för kort ska den ha blivit längre.
  *  - Påstod den något utan underlag ska påståendena ha blivit färre.
- *  - Den får aldrig påstå MER än förut. En utbyggd text som fått ett
- *    nytt besparingslöfte är inte en rättning.
+ *  - Den får aldrig påstå något NYTT utan underlag, inte heller när
+ *    texten blivit längre eller påståendena färre. En utbyggd text som
+ *    fått ett nytt besparingslöfte är inte en rättning.
  *  - Den får aldrig ha fått ett ord från fel årstid eller en webbadress
  *    som inte stod där. Prompten förbjuder båda, och ändå kom
  *    "semester" in i utbyggda inlägg i två planer av fem i oktober.
@@ -266,14 +270,17 @@ export function applyRepair(plan: PlanShape, texts: Record<string, string>, unde
     if (!f) continue;
 
     const varForKort = f.minst !== undefined && ord(f.text) < f.minst;
-    const fore = underlag ? obelagdaPastaenden(f.text, underlag).length : 0;
-    const efter = underlag ? obelagdaPastaenden(ny, underlag).length : 0;
+    const pastar = (t: string) => (underlag ? obelagdaPastaenden(t, underlag, f.produkt).map((o) => o.toLowerCase()) : []);
+    const fore = pastar(f.text);
+    const efter = pastar(ny);
 
-    if (efter > fore) continue;
+    // Antalet räcker inte. "Sparar tid" som byts mot "kunder uppskattar"
+    // är lika många påståenden, och ett av dem är nytt.
+    if (nytt(efter, fore)) continue;
     if (nytt(sasongsfelIText(ny, now), sasongsfelIText(f.text, now))) continue;
     if (nytt(adresser(ny), adresser(f.text))) continue;
     if (varForKort && ord(ny) <= ord(f.text)) continue;
-    if (!varForKort && efter >= fore) continue;
+    if (!varForKort && efter.length >= fore.length) continue;
     // Ett påstående tas bort genom att skriva om en mening, inte genom
     // att stryka texten. Ett svar som tappat mer än en tredjedel av
     // orden är inte samma text längre.

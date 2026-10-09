@@ -9,7 +9,7 @@ import {
   normaliseraDag, antalStycken, delaIStycken,
   sakerhetsordIText, granskningsordIText, arSakerhetsrad, valideraPlan,
   kopLank, infoLank, valjLank, arBesoksuppmaning, kundensHandling, sattLank,
-  obelagdaPastaenden, utanUtropstecken,
+  obelagdaPastaenden, saknadText, utanUtropstecken,
 } from "./planValidate";
 
 let passed = 0;
@@ -318,7 +318,7 @@ test("valideraPlan behåller länkrättningens anmärkning bredvid platshållarn
 /** Det företaget självt har skrivit. Säger ingenting om tid eller pengar. */
 const UNDERLAG = {
   text: "Säljer gasol i webbshop och i egna depåer.\nEgna depåer\nGasol i lösvikt\nBetalar bara för det som faktiskt fylls",
-  bevis: 0,
+  bevis: [],
 };
 
 /** Stod i en riktig plan. Får aldrig sluta fångas. */
@@ -343,6 +343,8 @@ test("fler former av samma tre sorter fångas", () => {
     ["Ett kostnadseffektivt sätt att fylla på.", "kostnadseffektivt"],
     ["Flexibelt och ekonomiskt för husbilsägare.", "ekonomiskt"],
     ["Du får lägre kostnader över tid.", "lägre kostnader"],
+    // Neutrumformen gick igenom: mönstret krävde "prisvärd".
+    ["Ett prisvärt val.", "prisvärt"],
     ["Smidigare än att byta flaska.", "Smidigare än"],
     ["Gasol av högsta kvalitet.", "högsta kvalitet"],
     ["Med högkvalitativa produkter för utomhusbruk.", "högkvalitativa"],
@@ -371,23 +373,108 @@ test("bekräftade fakta och vanlig text ger inga larm", () => {
 });
 
 test("det företaget självt har påstått får stå kvar", () => {
-  assert.deepEqual(obelagdaPastaenden("Lösvikt sparar tid.", { text: "Lösvikt sparar tid för den som fyller ofta", bevis: 0 }), []);
-  assert.deepEqual(obelagdaPastaenden("Ett prisvärt val.", { text: "Prisvärd påfyllning", bevis: 0 }), []);
-  assert.deepEqual(obelagdaPastaenden("Alltid fräsch gasol.", { text: "Fräsch gasol från egen cistern", bevis: 0 }), []);
-  assert.deepEqual(obelagdaPastaenden("Med högkvalitativa grillar.", { text: "Högkvalitativa grillar i gjutjärn", bevis: 0 }), []);
-  assert.deepEqual(obelagdaPastaenden("Med högkvalitativa grillar.", { text: "Grillar av hög kvalitet", bevis: 0 }), []);
-  assert.deepEqual(obelagdaPastaenden("Våra kvalitetsprodukter.", { text: "Grillar av hög kvalitet", bevis: 0 }), []);
+  assert.deepEqual(obelagdaPastaenden("Lösvikt sparar tid.", { text: "Lösvikt sparar tid för den som fyller ofta", bevis: [] }), []);
+  assert.deepEqual(obelagdaPastaenden("Ett prisvärt val.", { text: "Prisvärd påfyllning", bevis: [] }), []);
+  assert.deepEqual(obelagdaPastaenden("Alltid fräsch gasol.", { text: "Fräsch gasol från egen cistern", bevis: [] }), []);
+  assert.deepEqual(obelagdaPastaenden("Med högkvalitativa grillar.", { text: "Högkvalitativa grillar i gjutjärn", bevis: [] }), []);
+  assert.deepEqual(obelagdaPastaenden("Med högkvalitativa grillar.", { text: "Grillar av hög kvalitet", bevis: [] }), []);
+  assert.deepEqual(obelagdaPastaenden("Våra kvalitetsprodukter.", { text: "Grillar av hög kvalitet", bevis: [] }), []);
   // Tid är belagt, pengar är det inte.
   assert.deepEqual(
-    obelagdaPastaenden("Lösvikt sparar både tid och pengar.", { text: "Lösvikt sparar tid", bevis: 0 }),
+    obelagdaPastaenden("Lösvikt sparar både tid och pengar.", { text: "Lösvikt sparar tid", bevis: [] }),
     ["sparar både tid och pengar"],
   );
 });
 
 test("omdömen kräver verifierade bevis, inte bara ordet i underlaget", () => {
   const mening = "Många kunder uppskattar lösvikt.";
-  assert.ok(obelagdaPastaenden(mening, { text: "Många kunder", bevis: 0 }).length > 0);
-  assert.deepEqual(obelagdaPastaenden(mening, { text: "", bevis: 1 }), []);
+  assert.ok(obelagdaPastaenden(mening, { text: "Många kunder", bevis: [] }).length > 0);
+  assert.deepEqual(obelagdaPastaenden(mening, { text: "", bevis: ["Många kunder uppskattar lösvikt enligt kundenkäten 2025"] }), []);
+});
+
+test("ett bevis om något annat belägger inte ett nytt omdöme", () => {
+  // Tidigare räckte det att det FANNS ett bevis, vilket som helst.
+  const u = { text: "", bevis: ["4,8 i betyg på Google av 212 omdömen", "Över 2000 kunder sedan 2015"] };
+  assert.deepEqual(obelagdaPastaenden("Många kunder uppskattar lösvikt.", u), ["Många kunder uppskattar", "Många kunder", "kunder uppskattar"]);
+  assert.deepEqual(obelagdaPastaenden("Vår populära tjänst.", u), ["populära"]);
+  assert.deepEqual(obelagdaPastaenden("De flesta husbilsägare väljer lösvikt.", u), ["De flesta husbilsägare väljer"]);
+  // Det beviset faktiskt säger får stå.
+  assert.deepEqual(obelagdaPastaenden("Läs våra omdömen på Google.", u), []);
+  // Orden måste stå i ETT bevis, inte utspridda över flera.
+  assert.deepEqual(
+    obelagdaPastaenden("Kunder uppskattar oss.", { text: "", bevis: ["Kunder sedan 2015", "Personalen uppskattar jobbet"] }),
+    ["Kunder uppskattar"],
+  );
+});
+
+const TVA_PRODUKTER = {
+  text: "Säljer gasol och tillbehör.",
+  bevis: ["Gasolgrillar: populära hos våra kunder enligt kundenkäten 2025"],
+  produkter: [
+    { namn: "Gasol i lösvikt", text: "Betalar bara för det som faktiskt fylls" },
+    { namn: "Gasolgrillar", text: "Prisvärda grillar av hög kvalitet" },
+  ],
+};
+
+test("det som står om en produkt belägger inget om en annan", () => {
+  assert.deepEqual(obelagdaPastaenden("Våra gasolgrillar är prisvärda.", TVA_PRODUKTER), []);
+  assert.deepEqual(obelagdaPastaenden("Gasol i lösvikt är prisvärt.", TVA_PRODUKTER), ["prisvärt"]);
+  assert.deepEqual(obelagdaPastaenden("Gasol i lösvikt av högsta kvalitet.", TVA_PRODUKTER), ["högsta kvalitet"]);
+  // Samma text, två meningar, två produkter: var och en prövas för sig.
+  assert.deepEqual(
+    obelagdaPastaenden("Våra gasolgrillar är prisvärda. Gasol i lösvikt är också prisvärt.", TVA_PRODUKTER),
+    ["prisvärt"],
+  );
+});
+
+test("produkten tas ur inläggets eget fält när meningen inte nämner den", () => {
+  assert.deepEqual(obelagdaPastaenden("Ett prisvärt val.", TVA_PRODUKTER, "Gasolgrillar"), []);
+  assert.deepEqual(obelagdaPastaenden("Ett prisvärt val.", TVA_PRODUKTER, "Gasol i lösvikt"), ["prisvärt"]);
+});
+
+test("går produkten inte att peka ut räknas ingen produkttext", () => {
+  assert.deepEqual(obelagdaPastaenden("Ett prisvärt val.", TVA_PRODUKTER), ["prisvärt"]);
+  assert.deepEqual(obelagdaPastaenden("Ett prisvärt val.", TVA_PRODUKTER, "Slangar"), ["prisvärt"]);
+});
+
+test("ett bevis om en produkt belägger inget omdöme om en annan", () => {
+  assert.deepEqual(obelagdaPastaenden("Våra populära gasolgrillar.", TVA_PRODUKTER), []);
+  assert.deepEqual(obelagdaPastaenden("Populär: gasol i lösvikt.", TVA_PRODUKTER), ["Populär"]);
+  assert.deepEqual(obelagdaPastaenden("En populär tjänst.", TVA_PRODUKTER), ["populär"]);
+});
+
+test("det som gäller hela företaget belägger oavsett produkt", () => {
+  const u = { ...TVA_PRODUKTER, text: "Prisvärd påfyllning i egna depåer." };
+  assert.deepEqual(obelagdaPastaenden("Gasol i lösvikt är prisvärt.", u), []);
+});
+
+test("utan text, eller med bara en adress, säger inlägget att texten saknas", () => {
+  assert.match(saknadText("https://testgas.se") ?? "", /bara en adress/);
+  assert.match(saknadText("\n\nhttps://testgas.se\n") ?? "", /bara en adress/);
+  assert.match(saknadText("") ?? "", /ingen text\./);
+  assert.equal(saknadText("Kom förbi depån.\n\nhttps://testgas.se"), null);
+  // Det verkliga fallet: modellen lämnade bara adressen i det prioriterade inlägget.
+  const plan = valideraPlan<Inlagg>({ posts: [{ roll: "prioriterad_produkt", cta: "Kom förbi depån", text: "https://testgas.se" }] }, SIDOR, UNDERLAG);
+  assert.equal((plan.posts[0].saknas as string[]).length, 1);
+  assert.match((plan.posts[0].saknas as string[])[0], /ingen text, bara en adress/);
+});
+
+test("påståenden som står kvar i nyhetsbrev och kampanjförslag märks också", () => {
+  const plan = valideraPlan<Inlagg & { newsletter: Record<string, unknown>; campaigns: Array<Record<string, unknown>> }>({
+    posts: [],
+    newsletter: { subject: "Höst i depån", body: "Något som kunder uppskattar. Du betalar bara för det som faktiskt fylls.", cta: "Kom förbi depån" },
+    campaigns: [
+      { title: "Påfyllningsdagar", produkt: "Gasol i lösvikt", goal: "Fler besök", message: "Upptäck våra kvalitetsprodukter.", cta: "Kom förbi" },
+      { title: "Fyll din egen flaska", produkt: "Gasol i lösvikt", goal: "Fler besök", message: "Du betalar per kilo.", cta: "Kom förbi" },
+    ],
+  }, SIDOR, UNDERLAG);
+  assert.deepEqual(plan.newsletter.saknas, ['Texten påstår "kunder uppskattar", men det står inte i Vad jag vet. Ta bort det, eller lägg in det som styrker det.']);
+  assert.equal((plan.campaigns[0].saknas as string[]).length, 1);
+  assert.ok((plan.campaigns[0].saknas as string[])[0].includes('"kvalitetsprodukter"'));
+  assert.equal(plan.campaigns[1].saknas, undefined);
+  // Utan underlag mäts ingenting, som för inläggen.
+  const utan = valideraPlan<Inlagg & { newsletter: Record<string, unknown> }>({ posts: [], newsletter: { body: "Något som kunder uppskattar." } }, SIDOR);
+  assert.equal(utan.newsletter.saknas, undefined);
 });
 
 test("utan underlag räknas ingenting som belagt", () => {

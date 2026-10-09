@@ -15,7 +15,7 @@ function test(name: string, fn: () => void) {
 
 const UNDERLAG = {
   text: "Säljer gasol i webbshop och i egna depåer.\nGasol i lösvikt\nBetalar bara för det som faktiskt fylls",
-  bevis: 0,
+  bevis: [],
 };
 
 /** N ord utan något att anmärka på. */
@@ -119,6 +119,23 @@ test("en utbyggd text tas emot — men inte om den fått ett nytt påstående", 
   assert.equal(applyRepair(p, { "1": `${LANG} Många väljer lösvikt.` }, UNDERLAG).posts![1].text, kort);
   // Utan underlag gäller bara längden, som förut.
   assert.ok(ord(applyRepair(p, { "1": `${LANG} Många väljer lösvikt.` }).posts![1].text ?? "") > ord(kort));
+});
+
+test("REGRESSION: en för kort text som byter ett påstående mot ett annat tas inte emot", () => {
+  // Stod i en riktig rättning: nyhetsbrevet var för kort och sa "sparar
+  // tid". Svaret var längre och sa "kunder uppskattar" i stället. Lika
+  // många påståenden, och det räckte förut.
+  const original = "Lösvikt sparar tid för dig.";
+  const p = plan({ newsletter: { subject: "Höst", body: original, cta: "Kom" } });
+  const ny = `${LANGT_BREV} Något som våra kunder uppskattar.`;
+  assert.equal(applyRepair(p, { newsletter: ny }, UNDERLAG).newsletter!.body, original);
+  // Också när påståendena blir FÄRRE men ett av dem är nytt.
+  const tva = medInlagg(1, { text: "Sparar tid och är kostnadseffektivt." });
+  const ut = applyRepair(tva, { "1": `${LANG} Ett populärt val.` }, UNDERLAG);
+  assert.equal(ut.posts![1].text, "Sparar tid och är kostnadseffektivt.");
+  // Utbyggd, och det gamla påståendet står kvar orört: det är inte sämre.
+  const kvar = `${LANGT_BREV} Lösvikt sparar tid för dig.`;
+  assert.equal(applyRepair(p, { newsletter: kvar }, UNDERLAG).newsletter!.body, kvar);
 });
 
 test("en utbyggd text med ett ord från fel årstid tas inte emot", () => {

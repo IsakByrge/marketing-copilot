@@ -15,6 +15,7 @@ import { factGuardBlock } from "./factGuard";
 import { migrateProfileToBrain, buildCompanyBrainContext, NAMELESS_PRODUCT, type CompanyBrainContext } from "@/app/_shared/companyBrain";
 import { veckansOrt } from "@/app/_shared/locations";
 import { sasongsBlock } from "./season";
+import type { Underlag } from "./planValidate";
 
 export type PlanCompanyProfile = {
   companyName?: string; industry?: string; summary?: string;
@@ -78,20 +79,24 @@ export function planContextFromRow(row: PlanCompanyRow): { profile: PlanCompanyP
 
 /**
  * Det ett påstående i planen får luta sig mot: allt företaget själv
- * skrivit om sig och sina produkter, plus antalet verifierade bevis.
+ * skrivit om sig och sina produkter, plus de verifierade bevisen.
  * Valideringen jämför texterna mot det här (planValidate.ts).
+ *
+ * Företaget, varje produkt och bevisen hålls isär, så att det som står
+ * om en produkt inte belägger något om en annan.
  *
  * Invändningar är med flit inte med. De är kundens tvekan, inte något
  * företaget påstår.
  */
-export function planUnderlag(brain: CompanyBrainContext | null): { text: string; bevis: number } {
-  if (!brain) return { text: "", bevis: 0 };
+export function planUnderlag(brain: CompanyBrainContext | null): Underlag {
+  if (!brain) return { text: "", bevis: [] };
   return {
-    text: [
-      brain.summary, ...brain.strengths, ...brain.usps, ...brain.proofPoints,
-      ...brain.priorityProducts.flatMap((p) => [p.name, p.description ?? "", ...p.differentiators]),
-    ].join("\n"),
-    bevis: brain.proofPoints.length,
+    text: [brain.summary, ...brain.strengths, ...brain.usps].join("\n"),
+    bevis: brain.proofPoints,
+    produkter: brain.priorityProducts.map((p) => ({
+      namn: p.name,
+      text: [p.description ?? "", ...p.differentiators].join("\n"),
+    })),
   };
 }
 

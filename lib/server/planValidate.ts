@@ -524,20 +524,34 @@ export function sattLank<T extends ValideradPlan>(
 
 /**
  * Det ett påstående får luta sig mot: den text företaget själv lagt in
- * om sig och sina produkter, och antalet verifierade bevis.
+ * om sig och sina produkter, och de verifierade bevisen.
+ *
+ * Tre källor hålls isär med flit. Det som står om EN produkt belägger
+ * inget om en annan, och ett bevis belägger bara det beviset säger.
  */
 export interface Underlag {
-  /** Sammanfattning, styrkor, USP:ar, bevis och produkttexter, hopslagna. */
+  /** Det som gäller hela företaget: sammanfattning, styrkor, USP:ar. */
   text: string;
-  /** Antal poster i proofPoints. Noll = inga omdömen får åberopas. */
-  bevis: number;
+  /** Verifierade bevis, ett per post. Tom lista = inga omdömen får åberopas. */
+  bevis: string[];
+  /** Det som står om varje produkt. Utan listan räknas allt i `text`. */
+  produkter?: Array<{ namn: string; text: string }>;
+}
+
+/** Hela underlaget som löptext, till prompten. */
+export function underlagSomText(underlag: Underlag): string {
+  return [
+    underlag.text,
+    ...(underlag.produkter ?? []).flatMap((p) => [p.namn, p.text]),
+    ...underlag.bevis,
+  ].map((s) => s.trim()).filter(Boolean).join("\n");
 }
 
 interface Pastaende {
   re: RegExp;
   /**
    * När påståendet ändå är belagt:
-   *  - "bevis": bara när det finns verifierade bevis.
+   *  - "bevis": bara när ETT verifierat bevis säger samma sak.
    *  - "ordet": när det träffade ordet står i underlaget.
    *  - RegExp:  när underlaget matchar det.
    */
@@ -566,7 +580,7 @@ const OBELAGDA: Pastaende[] = [
   { re: /(?<!\p{L})spar(?:a|ar|at|ade)?\s+(?:\p{L}+\s+){0,3}?tid(?!\p{L})/giu, stod: /spar\p{L}*\s+(?:\p{L}+\s+){0,3}?tid|tidsbespar/iu },
   { re: /(?<!\p{L})tidsbespar\p{L}*/giu, stod: /spar\p{L}*\s+(?:\p{L}+\s+){0,3}?tid|tidsbespar/iu },
   { re: /(?<!\p{L})spar(?:a|ar|at|ade)?\s+(?:\p{L}+\s+){0,3}?(?:pengar|kronor|hundralappar)(?!\p{L})/giu, stod: /spar\p{L}*\s+(?:\p{L}+\s+){0,3}?(?:pengar|kronor)|billig|prisvärd|lägre\s+(?:pris|kostnad)/iu },
-  { re: /(?<!\p{L})(?:billigare|billigast\p{L}*|prisvärd\p{L}*|kostnadseffektiv\p{L}*|kostnadsbespar\p{L}*)(?!\p{L})/giu, stod: "ordet" },
+  { re: /(?<!\p{L})(?:billigare|billigast\p{L}*|prisvär[dt]\p{L}*|kostnadseffektiv\p{L}*|kostnadsbespar\p{L}*)(?!\p{L})/giu, stod: "ordet" },
   { re: /(?<!\p{L})lägre\s+(?:pris|kostnad)\p{L}*/giu, stod: /lägre\s+(?:pris|kostnad)|billig/iu },
   { re: /(?<!\p{L})(?:lönar sig|ekonomisk[at]?)(?!\p{L})/giu, stod: /lönar sig|ekonomisk/iu },
 
@@ -581,24 +595,67 @@ const OBELAGDA: Pastaende[] = [
   { re: /(?<!\p{L})(?:överlägs|oslagbar|förstklassig|branschledande|marknadsledande|marknadens\s+(?:bästa|billigaste|största|ledande))\p{L}*/giu, stod: "ordet" },
 ];
 
+/** Produkterna ur underlaget som nämns vid namn i texten. */
+const namnda = (text: string, produkter: NonNullable<Underlag["produkter"]>) => {
+  const l = text.toLowerCase();
+  return produkter.filter((p) => p.namn.trim() && l.includes(p.namn.trim().toLowerCase()));
+};
+
+/** De bärande orden i ett påstående, som stammar: "uppskattar" -> "uppsk". */
+const stammar = (fras: string) =>
+  fras.toLowerCase().split(/[^\p{L}]+/u).filter((o) => o.length >= 4).map((o) => o.slice(0, 5));
+
 /**
  * Påståenden i texten som företagsdatan inte täcker, som de står skrivna.
  * Tom lista = inget att anmärka på.
+ *
+ * Stödet prövas konservativt, mening för mening. Går det inte att
+ * fastställa räknas påståendet som obelagt — ett falskt larm kostar en
+ * blick, ett påhittat omdöme kostar mer.
+ *
+ *  - Vilken produkt meningen gäller: den som nämns i meningen, annars
+ *    `produkt` (inläggets eller kampanjens eget fält), annars de som
+ *    nämns någonstans i texten. Bara de produkternas texter räknas.
+ *    Går produkten inte att peka ut räknas ingen produkttext alls.
+ *  - Ett bevis som nämner en ANNAN produkt räknas inte.
+ *  - Ett omdöme om kunder är belagt först när ett och samma bevis
+ *    innehåller påståendets bärande ord. Att det finns bevis räcker
+ *    inte: "4,8 i betyg på Google" belägger inte "många väljer lösvikt".
+ *
+ * Det mekaniska har en gräns. Ett bevis som säger "kunder uppskattar
+ * personalen" godkänner också "kunder uppskattar lösvikt" när ingen
+ * produkt skiljer dem åt.
  */
-export function obelagdaPastaenden(text: string | undefined, underlag: Underlag = { text: "", bevis: 0 }): string[] {
+export function obelagdaPastaenden(
+  text: string | undefined,
+  underlag: Underlag = { text: "", bevis: [] },
+  produkt?: string,
+): string[] {
   if (!text) return [];
-  const u = underlag.text.toLowerCase();
+  const produkter = underlag.produkter ?? [];
   const traffar = new Set<string>();
 
-  for (const { re, stod } of OBELAGDA) {
-    for (const m of text.matchAll(re)) {
-      const fras = m[0].trim();
-      const belagt =
-        stod === "bevis" ? underlag.bevis > 0
-          // Ordstammen räcker: "prisvärd" i underlaget täcker "prisvärda".
-          : stod === "ordet" ? u.includes(fras.toLowerCase().split(/\s+/)[0].slice(0, 6))
-            : stod.test(u);
-      if (!belagt) traffar.add(fras);
+  for (const mening of text.split(/(?<=[.!?])\s+|\n+/)) {
+    let gallande = namnda(mening, produkter);
+    if (gallande.length === 0 && produkt) gallande = namnda(produkt, produkter);
+    if (gallande.length === 0) gallande = namnda(text, produkter);
+
+    const bevis = underlag.bevis.filter((b) => {
+      const om = namnda(b, produkter);
+      return om.length === 0 || om.some((p) => gallande.includes(p));
+    });
+    const u = [underlag.text, ...gallande.flatMap((p) => [p.namn, p.text]), ...bevis].join("\n").toLowerCase();
+
+    for (const { re, stod } of OBELAGDA) {
+      for (const m of mening.matchAll(re)) {
+        const fras = m[0].trim();
+        const belagt =
+          stod === "bevis" ? bevis.some((b) => stammar(fras).every((s) => b.toLowerCase().includes(s)))
+            // Ordstammen räcker: "prisvärd" i underlaget täcker "prisvärda".
+            : stod === "ordet" ? u.includes(fras.toLowerCase().split(/\s+/)[0].slice(0, 6))
+              : stod.test(u);
+        if (!belagt) traffar.add(fras);
+      }
     }
   }
   return [...traffar];
@@ -622,9 +679,22 @@ export interface ValideradPost {
 
 export interface ValideradPlan {
   posts?: ValideradPost[];
-  newsletter?: { body?: string; subject?: string; preview?: string; cta?: string; [k: string]: unknown };
+  newsletter?: { body?: string; subject?: string; preview?: string; cta?: string; saknas?: string[]; [k: string]: unknown };
   campaigns?: unknown;
   [k: string]: unknown;
+}
+
+/**
+ * Raden för ett inlägg som saknar text. Modellen lämnar ibland bara
+ * adressen i ett säljande inlägg, och när rättningsrundans utbyggnad
+ * inte tas emot är det vad användaren får.
+ */
+export function saknadText(text: string | undefined): string | null {
+  const t = text ?? "";
+  const lankar = lankarI(t);
+  const utanLankar = lankar.reduce((s, l) => s.split(l).join(" "), t);
+  if (/\p{L}/u.test(utanLankar)) return null;
+  return `Inlägget har ingen text${lankar.length ? ", bara en adress" : ""}. Skriv texten innan du publicerar.`;
 }
 
 /**
@@ -632,8 +702,9 @@ export interface ValideradPlan {
  * Ändrar aldrig själva texten — att gissa fram ett faktum vore precis
  * det problem platshållaren avslöjar.
  *
- * Med `underlag` märks också påståenden som företagsdatan inte täcker.
- * Utan det mäts de inte: en tom jämförelse hade underkänt allt.
+ * Med `underlag` märks också påståenden som företagsdatan inte täcker,
+ * i inlägg, nyhetsbrev och kampanjförslag. Utan det mäts de inte: en
+ * tom jämförelse hade underkänt allt.
  */
 export function valideraPlan<T extends ValideradPlan>(
   plan: T,
@@ -649,12 +720,15 @@ export function valideraPlan<T extends ValideradPlan>(
     const text = utanUtropstecken(p.text as string | undefined);
     const cta = utanUtropstecken(p.cta as string | undefined);
 
+    const produkt = typeof p.produkt === "string" ? p.produkt : undefined;
     const obelagda = underlag
-      ? [title, text, cta].flatMap((t) => obelagdaPastaenden(t, underlag)).map(beskrivObelagt)
+      ? [title, text, cta].flatMap((t) => obelagdaPastaenden(t, underlag, produkt)).map(beskrivObelagt)
       : [];
+    const utanText = saknadText(text);
     const saknas = [
       // Det länkrättningen redan noterat ska inte skrivas över.
       ...(p.saknas ?? []),
+      ...(utanText ? [utanText] : []),
       ...saknatIText(title), ...saknatIText(text), ...saknatIText(cta),
       ...obelagda,
     ];
@@ -675,25 +749,42 @@ export function valideraPlan<T extends ValideradPlan>(
     };
   });
 
+  // Samma rad som inläggen får, för de texter rättningsrundan inte
+  // lyckades rätta. Utan den syns felet inte alls i nyhetsbrev och
+  // kampanjförslag.
+  const markta = (texter: unknown[], produkt?: unknown): { saknas?: string[] } => {
+    if (!underlag) return {};
+    const rader = texter
+      .flatMap((t) => obelagdaPastaenden(typeof t === "string" ? t : undefined, underlag, typeof produkt === "string" ? produkt : undefined))
+      .map(beskrivObelagt);
+    return rader.length ? { saknas: [...new Set(rader)] } : {};
+  };
+
   // Nyhetsbrevet får sin styckeindelning här om modellen slarvade.
   const newsletter = plan.newsletter
-    ? {
-        ...plan.newsletter,
-        subject: utanUtropstecken(plan.newsletter.subject as string | undefined),
-        preview: utanUtropstecken(plan.newsletter.preview as string | undefined),
-        body: delaIStycken(utanUtropstecken(plan.newsletter.body)),
-        cta: utanUtropstecken(plan.newsletter.cta as string | undefined),
-      }
+    ? (() => {
+        const nl = {
+          ...plan.newsletter,
+          subject: utanUtropstecken(plan.newsletter.subject as string | undefined),
+          preview: utanUtropstecken(plan.newsletter.preview as string | undefined),
+          body: delaIStycken(utanUtropstecken(plan.newsletter.body)),
+          cta: utanUtropstecken(plan.newsletter.cta as string | undefined),
+        };
+        return { ...nl, ...markta([nl.subject, nl.body, nl.cta]) };
+      })()
     : plan.newsletter;
 
   // Kampanjförslagen är också kundtext så fort de kopieras vidare.
   const campaigns = Array.isArray(plan.campaigns)
-    ? (plan.campaigns as Array<Record<string, unknown>>).map((c) => ({
-        ...c,
-        ...(typeof c.title === "string" ? { title: utanUtropstecken(c.title) } : {}),
-        ...(typeof c.message === "string" ? { message: utanUtropstecken(c.message) } : {}),
-        ...(typeof c.cta === "string" ? { cta: utanUtropstecken(c.cta) } : {}),
-      }))
+    ? (plan.campaigns as Array<Record<string, unknown>>).map((c) => {
+        const k = {
+          ...c,
+          ...(typeof c.title === "string" ? { title: utanUtropstecken(c.title) } : {}),
+          ...(typeof c.message === "string" ? { message: utanUtropstecken(c.message) } : {}),
+          ...(typeof c.cta === "string" ? { cta: utanUtropstecken(c.cta) } : {}),
+        } as Record<string, unknown>;
+        return { ...k, ...markta([k.title, k.goal, k.message, k.cta], k.produkt) };
+      })
     : plan.campaigns;
 
   return { ...plan, posts, newsletter, campaigns };
