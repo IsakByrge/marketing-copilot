@@ -553,9 +553,10 @@ interface Pastaende {
    * När påståendet ändå är belagt:
    *  - "bevis": bara när ETT verifierat bevis säger samma sak.
    *  - "ordet": när det träffade ordet står i underlaget.
+   *  - "villkoret": när VARJE bärande ord i villkoret står i underlaget.
    *  - RegExp:  när underlaget matchar det.
    */
-  stod: "bevis" | "ordet" | RegExp;
+  stod: "bevis" | "ordet" | "villkoret" | RegExp;
 }
 
 /**
@@ -593,6 +594,15 @@ const OBELAGDA: Pastaende[] = [
   { re: /(?<!\p{L})högkvalitativ\p{L}*/giu, stod: /kvalit/iu },
   { re: /(?<!\p{L})kvalitets\p{L}+/giu, stod: "ordet" },
   { re: /(?<!\p{L})(?:överlägs|oslagbar|förstklassig|branschledande|marknadsledande|marknadens\s+(?:bästa|billigaste|största|ledande))\p{L}*/giu, stod: "ordet" },
+
+  // Vad kunden betalar för, och vad tjänsten lovar att anpassa sig
+  // efter. Här räcker det inte att ordet finns: villkoret ska betyda
+  // samma sak som i underlaget. "Betalar för det som fylls" blev
+  // "betalar för den gasol du faktiskt använder" i en riktig plan — ett
+  // annat villkor, och ett vi inte har. Varje bärande ord i villkoret
+  // måste därför stå i underlaget.
+  { re: /(?<!\p{L})betal\p{L}*\s+(?:\p{L}+\s+){0,3}?för(?!\p{L})/giu, stod: "villkoret" },
+  { re: /(?<!\p{L})anpassa[dts]\p{L}*\s+(?:för|efter|till)(?!\p{L})/giu, stod: "villkoret" },
 ];
 
 /** Produkterna ur underlaget som nämns vid namn i texten. */
@@ -607,7 +617,28 @@ const FYLLNADSORD = new Set([
   "mycket", "väldigt", "verkligen", "särskilt", "något", "någon", "några", "inte", "bara", "även",
   "redan", "alltid", "ofta", "just", "deras", "sina", "sitt", "dina", "ditt", "blir", "vara", "finns",
   "över", "under", "efter", "innan", "eftersom", "därför", "hela", "både", "enligt",
+  "faktiskt", "endast", "enbart", "exakt", "exakta", "precis", "själv", "själva",
+  // "Det som fylls" och "den mängd som fylls" är samma villkor.
+  "mängd", "mängden",
 ]);
+
+/** Samma sak med kortare stam, för jämförelser som ska tåla böjning: "fylls" och "fyller". */
+const kortstammar = (fras: string) =>
+  fras.toLowerCase().split(/[^\p{L}]+/u).filter((o) => o.length >= 4 && !FYLLNADSORD.has(o)).map((o) => o.slice(0, 4));
+
+/**
+ * Villkoret från träffen och framåt: "betalar bara för den gasol du
+ * faktiskt använder". Bryts vid skiljetecken och bindeord, och tar
+ * högst sex ord efter träffen, så att bara det villkoret gäller följer
+ * med. "…för det som fylls gör skillnad" ska inte falla på "skillnad".
+ */
+const VILLKORSORD = 6;
+function villkor(mening: string, index: number, traff: string): string {
+  const rest = mening.slice(index + traff.length);
+  const slut = rest.search(/[,;:()–—.!?'"”]|\s-\s|\s(?:och|men|samt|så|eftersom|medan|vilket|när|utan|istället)\s/u);
+  const ord = (slut === -1 ? rest : rest.slice(0, slut)).trim().split(/\s+/).filter(Boolean);
+  return [traff.trim(), ...ord.slice(0, VILLKORSORD)].join(" ");
+}
 
 /** De bärande orden i ett påstående, som stammar: "uppskattar" -> "uppsk". */
 const stammar = (fras: string) =>
@@ -696,6 +727,14 @@ export function obelagdaPastaenden(
 
     for (const { re, stod } of OBELAGDA) {
       for (const m of mening.matchAll(re)) {
+        if (stod === "villkoret") {
+          // Vid ordbörjan, inte som delsträng: "behöver" stod annars
+          // att finna i "tillbehör".
+          const iUnderlaget = new Set(u.split(/[^\p{L}]+/u).map((o) => o.slice(0, 4)));
+          const fras = villkor(mening, m.index, m[0]);
+          if (!kortstammar(fras).every((s) => iUnderlaget.has(s))) traffar.add(fras);
+          continue;
+        }
         const fras = m[0].trim();
         const belagt =
           stod === "bevis" ? bevis.some((b) => bevisStoder(b, fras, satsdel(mening, m.index), gallande, produkter))

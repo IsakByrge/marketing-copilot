@@ -453,6 +453,74 @@ test("REGRESSION: ett direkt återgivet, relevant bevis godkänns", () => {
   assert.deepEqual(obelagdaPastaenden("Vi har 4,8 i betyg på Google av 212 omdömen.", u), []);
 });
 
+// ── Villkor som ändrar betydelse ────────────────────────────
+
+/** Påhittat företag. Säger vad kunden betalar för, och ingenting om scheman. */
+const VILLKOR = {
+  text: "Säljer gasol och tillbehör i egna depåer.",
+  bevis: [],
+  produkter: [{ namn: "Gasol i lösvikt", text: "Kunden betalar för mängden gasol som fylls i flaskan." }],
+};
+
+test("REGRESSION: ett villkor som fått en annan betydelse flaggas", () => {
+  // Stod i en riktig plan: underlaget säger "fylls", texten "använder".
+  assert.deepEqual(
+    obelagdaPastaenden("Med gasol i lösvikt betalar du bara för den gasol du faktiskt använder.", VILLKOR),
+    ["betalar du bara för den gasol du faktiskt använder"],
+  );
+  assert.deepEqual(
+    obelagdaPastaenden("Du betalar endast för den mängd du behöver.", VILLKOR, "Gasol i lösvikt"),
+    ["betalar endast för den mängd du behöver"],
+  );
+  // "Tillbehör" i underlaget belägger inte "behöver".
+  assert.ok(VILLKOR.text.includes("behö"));
+});
+
+test("samma villkor med andra ord, böjning eller ordföljd går igenom", () => {
+  for (const mening of [
+    "Med gasol i lösvikt betalar du för mängden gasol som fylls i flaskan.",
+    "Med gasol i lösvikt betalar du bara för det som faktiskt fylls.",
+    "Gasol i lösvikt: du betalar endast för den gasol du fyller.",
+    "Gasol i lösvikt betyder att du betalar för exakt den mängd som fyllts i din flaska.",
+    "Fyll gasol i lösvikt och betala bara för det du fyller, när du kommer förbi depån.",
+    // Meningen fortsätter utan skiljetecken. Det som följer är inte villkoret.
+    "Att du med gasol i lösvikt betalar bara för det som faktiskt fylls gör den till veckans ledstjärna.",
+  ]) {
+    assert.deepEqual(obelagdaPastaenden(mening, VILLKOR), [], `falskt larm: ${mening}`);
+  }
+});
+
+test("REGRESSION: ett löfte om anpassning utan underlag flaggas", () => {
+  // Stod i samma plan: "service anpassad för att passa ditt schema".
+  assert.deepEqual(
+    obelagdaPastaenden("Vi erbjuder service anpassad för att passa ditt schema.", VILLKOR),
+    ["anpassad för att passa ditt schema"],
+  );
+  assert.deepEqual(obelagdaPastaenden("Påfyllning anpassad efter dina behov.", VILLKOR), ["anpassad efter dina behov"]);
+  // Det företaget självt lovar får stå.
+  const lovar = { ...VILLKOR, text: "Öppettider anpassade efter ditt schema." };
+  assert.deepEqual(obelagdaPastaenden("Öppet på tider anpassade efter ditt schema.", lovar), []);
+});
+
+test("villkoret prövas mot rätt produkt", () => {
+  const u = { ...VILLKOR, produkter: [...VILLKOR.produkter, { namn: "Gasolkaminer", text: "Kaminer för uterum." }] };
+  // Kaminens text säger ingenting om vad man betalar för.
+  assert.deepEqual(
+    obelagdaPastaenden("Du betalar bara för det som fylls.", u, "Gasolkaminer"),
+    ["betalar bara för det som fylls"],
+  );
+  assert.deepEqual(obelagdaPastaenden("Du betalar bara för det som fylls.", u, "Gasol i lösvikt"), []);
+});
+
+test("valideraPlan ger det ändrade villkoret den vanliga varningen, också i kampanjförslag", () => {
+  const plan = valideraPlan<Inlagg & { campaigns: Array<Record<string, unknown>> }>({
+    posts: [{ roll: "lokalt", produkt: "Gasol i lösvikt", title: "Enköping", text: "I Enköping betalar du bara för den gasol du faktiskt använder.", cta: "Kom förbi depån" }],
+    campaigns: [{ title: "Fyll din egen flaska", produkt: "Gasol i lösvikt", goal: "Fler depåbesök", message: "Betala bara för den gasol du faktiskt använder.", cta: "Kom förbi" }],
+  }, SIDOR, VILLKOR);
+  assert.match((plan.posts[0].saknas as string[])[0], /Texten påstår "betalar du bara för den gasol du faktiskt använder"/);
+  assert.match((plan.campaigns[0].saknas as string[])[0], /Texten påstår "Betala bara för den gasol du faktiskt använder"/);
+});
+
 const TVA_PRODUKTER = {
   text: "Säljer gasol och tillbehör.",
   bevis: ["Gasolgrillar: populära hos våra kunder enligt kundenkäten 2025"],

@@ -189,7 +189,34 @@ export function brainBlock(brain: CompanyBrainContext | null): string {
   närmare minst ett av affärsmålen ovan. Säg i "intro" vilket mål veckan
   tjänar, med företagarens egen formulering, och vilka av uppgifterna
   ovan som gör att just den produkten går först. Finns ingen ärlig
-  koppling: påstå inte att det finns en.` : "";
+  koppling: påstå inte att det finns en.
+- VARJE kampanjförslag ska tjäna ett av affärsmålen ovan, och fältet
+  "goal" ska vara just det målet, med företagarens formulering. Hitta
+  aldrig på ett nytt mål — inte "ökad försäljning" av en produkt som
+  inget mål nämner, inte "ökad medvetenhet".
+- Tjänar bara en produkt målen: gör båda kampanjförslagen för den
+  produkten, med olika vinkel, målgrupp eller kanal. Föreslå aldrig en
+  kampanj för en annan produkt för omväxlings skull.` : "";
+
+  // Utan mål finns bara prioriteten att gå på. Då är det den som styr,
+  // och lönsamheten avgör mellan lika prioriterade.
+  const urval = harMal
+    ? `- Företagarens mål och den prioritet hen själv har satt styr vilka
+  produkter veckan handlar om. En produkt med prioritet "high" som är i
+  säsong och för företaget närmare ett av målen ska förekomma i minst
+  ett inlägg.
+- Lönsamhet är beslutsunderlag, inte ett krav. Den avgör mellan två
+  produkter som båda tjänar ett mål. Hög lönsamhet ensam ger ingen
+  produkt ett eget inlägg eller en kampanj.
+- En produkt som inget mål nämner och som inte är prioriterad får stå
+  med där den hör hemma i sak, till exempel i tipsinlägget om att välja
+  rätt. Den leder inget inlägg och får ingen kampanj.`
+    : `- Den prioritet företagaren själv har satt styr vilka produkter veckan
+  handlar om. En produkt med prioritet "high" som är i säsong ska
+  förekomma i minst ett inlägg.
+- Lönsamhet är beslutsunderlag, inte ett krav. Den avgör mellan två
+  lika prioriterade produkter. Hög lönsamhet ensam ger ingen produkt
+  ett eget inlägg eller en kampanj.`;
 
   return `
 PRODUKTER MED PRIORITET, LÖNSAMHET OCH SÄSONG:
@@ -205,8 +232,7 @@ ${brain.locations.length ? `\nPLATSER KUNDER KAN BESÖKA: ${brain.locations.join
 
 ${topDiffRad(brain)}
 STYRREGLER FÖR URVALET:
-- Produkter med prioritet "high" ELLER lönsamhet "high" som är i säsong just
-  nu MÅSTE förekomma i minst ett inlägg den här veckan.
+${urval}
 - Den högst prioriterade produkten i säsong får inlägget med rollen
   "prioriterad_produkt".${malRegel}
 - Koppla inlägget till ett av målen ovan när det passar, och skriv vilket
@@ -250,6 +276,17 @@ export function buildPlanUserPrompt(input: PlanPromptInput): string {
   const month = now.toLocaleString("sv-SE", { month: "long" });
   const day = now.getDate();
   const week = isoWeek(now);
+
+  // Kampanjmallen krävde tidigare "en ANNAN produkt" i det andra
+  // förslaget. Med ett enda mål, om en enda produkt, tvingade det fram
+  // en kampanj utan koppling till målet — och ett påhittat mål till den.
+  const harMal = (brain?.marketingGoals.length ?? 0) > 0;
+  const kampanjmal = harMal
+    ? "Ett av företagets affärsmål ovan, med samma formulering. Aldrig ett eget."
+    : "Vad kampanjen uppnår";
+  const andraProdukt = harMal
+    ? "en produkt ur listan som tjänar samma eller ett annat av affärsmålen — samma produkt som i det första förslaget om ingen annan gör det"
+    : "en produkt ur listan, i första hand en med hög prioritet";
 
   return `NULÄGE: ${day} ${month} ${year}, vecka ${week}.
 
@@ -298,7 +335,11 @@ DESSUTOM:
 FEM INLÄGG MED FEM OLIKA ROLLER — inte fem varianter av samma budskap.
 Exakt ett inlägg per roll, i den här ordningen:
 1. "saljande" — lyfter en produkt eller tjänst ur listan och varför den löser
-   något just nu. Får sälja, men bara på det som finns.
+   något just nu. Får sälja, men bara på det som finns. Produkten väljs
+   enligt styrreglerna för urvalet ovan: den ska föra företaget närmare
+   ett av målen eller vara prioriterad. Att en produkt är lönsam eller i
+   säsong räcker inte. Får samma produkt som det prioriterade inlägget
+   bli säljande också: ta en annan vinkel, inte en annan produkt.
 2. "tips" — hjälper läsaren VÄLJA RÄTT eller FÖRSTÅ HUR DET GÅR TILL.
    Två sorters tips är tillåtna, och inga andra:
    a) Välja rätt produkt: vilken storlek eller variant som passar vilket
@@ -413,8 +454,8 @@ Returnera exakt denna JSON:
     "cta": "Uppmaning som bara hänvisar till något som finns"
   },
   "campaigns": [
-    { "title": "Konkret kampanjnamn som säger vad kampanjen gör — ALDRIG \\"Kampanj för ${month}\\" eller \\"Höstkampanj\\"", "produkt": "produkten kampanjen handlar om, ur listan", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" },
-    { "title": "Konkret kampanjnamn för en ANNAN produkt", "produkt": "en annan produkt ur listan", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" }
+    { "title": "Konkret kampanjnamn som säger vad kampanjen gör — ALDRIG \\"Kampanj för ${month}\\" eller \\"Höstkampanj\\"", "produkt": "produkten kampanjen handlar om, ur listan", "goal": "${kampanjmal}", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" },
+    { "title": "Konkret kampanjnamn med en annan vinkel, målgrupp eller kanal än det första", "produkt": "${andraProdukt}", "goal": "${kampanjmal}", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" }
   ],
   "opportunities": [
     {

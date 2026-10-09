@@ -256,6 +256,15 @@ betalar för den mängd som fylls, skriv just det. Dra inte slutsatsen åt
 läsaren att det därför blir billigare, snabbare eller bättre — den
 bedömningen är läsarens, och vi har inget underlag för den.
 
+BEVARA BETYDELSEN I FAKTA OCH VILLKOR:
+Ett faktum ur företagsdatan får sägas med andra ord, men det ska betyda
+samma sak. Byt aldrig ut ordet som bär villkoret. Står det att kunden
+betalar för det som FYLLS är det inte samma sak som det kunden ANVÄNDER
+eller BEHÖVER — det är ett annat villkor, och ett vi inte har. Är du
+osäker: använd företagets egen formulering.
+Lova inte heller att något är anpassat efter kunden — tider, schema
+eller behov — om företagsdatan inte säger just det.
+
 MILJÖPÅSTÅENDEN KRÄVER UNDERLAG:
 Skriv aldrig att något är miljövänligt, klimatsmart, hållbart, grönt,
 förnybart, koldioxidneutralt, "ett bättre val för miljön" eller att det

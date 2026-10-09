@@ -51,13 +51,15 @@ if (!process.env.OPENAI_API_KEY) {
 // ── Testprofilen ────────────────────────────────────────────
 const PRIORITERAD_PRODUKT = "Gasol i lösvikt";
 const DEPAMAL = "Fler besökare till våra depåer";
+/** Produkter som inget av testprofilens mål handlar om. */
+const UTAN_MALKOPPLING = ["Gasolkaminer", "Gasolgrillar"];
 
 const profile = {
   companyName: "Testgas Norrköping",
   industry: "Försäljning och påfyllning av gasol",
   summary: "Säljer gasol och tillbehör till privatpersoner och mindre företag, med egna depåer där kunder fyller på flaskor.",
   customers: ["Husbilsägare", "Villaägare med gasolgrill", "Mindre restauranger"],
-  products: [PRIORITERAD_PRODUKT, "Gasolflaskor", "Slangar och regulatorer", "Gasolgrillar"],
+  products: [PRIORITERAD_PRODUKT, "Gasolflaskor", "Slangar och regulatorer", "Gasolgrillar", "Gasolkaminer"],
   tone: ["Sakligt", "Vänligt", "Utan överdrifter"],
   strengths: ["Egna depåer", "Betalar bara för det som fylls"],
   avoid: ["Skrämselpropaganda"],
@@ -85,6 +87,19 @@ const brain: CompanyBrainContext = {
       objections: [],
       differentiators: [],
       seasonality: "April–augusti",
+    },
+    // Lönsam och i säsong, men inget av målen nedan handlar om den.
+    // Tillagd efter testet med riktig företagsdata, där just en sådan
+    // produkt fick en egen kampanj med ett påhittat mål. Resultat från
+    // körningar före den här produkten är inte jämförbara på urvalet.
+    {
+      name: "Gasolkaminer",
+      description: "Gasolkaminer i flera storlekar.",
+      profitability: "high",
+      priority: "normal",
+      objections: [],
+      differentiators: [],
+      seasonality: "September–mars",
     },
   ],
   strengths: profile.strengths,
@@ -477,6 +492,30 @@ function kontrollera(plan: Plan, raPlan: Plan = plan, svaret: Plan = raPlan): Ko
     namn: "kampanjer kopplade till produkt",
     ok: kampanjer.length > 0 && utanProdukt.length === 0,
     detalj: utanProdukt.length ? `utan: ${utanProdukt.map((c) => c.title).join(" | ")}` : kampanjer.map((c) => c.produkt).join(" | "),
+  });
+
+  // 5b. Styr malen urvalet? Kampanjens mal ska vara ett av foretagets
+  // egna, och en produkt som inget mal namner ska varken fa en kampanj
+  // eller leda ett saljande inlagg - hur lonsam den an ar.
+  const paHittadeMal = kampanjer.filter((c) => {
+    const m = (c.goal ?? "").trim().toLowerCase();
+    return !m || !kandaMal.some((g) => m.includes(g) || g.includes(m));
+  });
+  k.push({
+    namn: "kampanjmål finns i företagsdatan",
+    ok: kampanjer.length > 0 && paHittadeMal.length === 0,
+    detalj: paHittadeMal.length ? `eget mål: ${paHittadeMal.map((c) => `${c.produkt}: "${c.goal}"`).join(" | ")}` : kampanjer.map((c) => c.goal).join(" | "),
+  });
+
+  const arOkopplad = (p: string | undefined) => UTAN_MALKOPPLING.some((n) => (p ?? "").toLowerCase().includes(n.toLowerCase()));
+  const felLedda = [
+    ...kampanjer.filter((c) => arOkopplad(c.produkt)).map((c) => `kampanj: ${c.produkt}`),
+    ...posts.filter((p) => ["saljande", "prioriterad_produkt"].includes(p.roll ?? "") && arOkopplad(p.produkt)).map((p) => `${p.roll}: ${p.produkt}`),
+  ];
+  k.push({
+    namn: "produkt utan målkoppling leder inget",
+    ok: felLedda.length === 0,
+    detalj: felLedda.length ? felLedda.join(" | ") : `varken ${UTAN_MALKOPPLING.join(" eller ")}`,
   });
 
   // 3. Sasongsord som hor till fel arstid, aven i kampanjforslagen.

@@ -204,6 +204,10 @@ PÅSTÅR TEXTEN NÅGOT UTAN UNDERLAG — TA BORT PÅSTÅENDET:
   blir billigare, snabbare eller bättre är en slutsats, och den drar
   läsaren själv.
 - Påstå inget om vad kunder tycker, väljer eller brukar göra.
+- Är det citerade ett villkor — vad kunden betalar för, eller vad något
+  är anpassat efter — skriv det med företagsdatans egna ord nedan. Byt
+  inte ut ordet som bär villkoret, och står villkoret inte nedan: ta
+  bort det.
 - Ändra ingenting annat. Samma ämne, samma ton, ungefär samma längd.
   Fakta ur företagsdatan som redan står i texten ska stå kvar.
 ${underlag && underlagSomText(underlag) ? `

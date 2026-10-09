@@ -247,6 +247,56 @@ test("D2: målen presenteras som affärsmål som styr veckans fokus och kampanjf
   assert.ok(!p.includes("varje inlägg ska tjäna minst ett av dessa"), "målen beskrivs fortfarande bara som etiketter på inlägg");
 });
 
+// ── D3–D5. Mål och prioritet styr urvalet ───────────────────
+// Ett företag med ETT mål, om EN produkt, och en annan produkt som är
+// lönsam men som inget mål nämner. Planen föreslog en kampanj för den
+// andra produkten, med ett mål som inte fanns.
+
+const ETT_MAL = {
+  ...ONBOARDING,
+  company_brain: {
+    ...SPARAD_HJARNA,
+    marketingGoals: ["Fler depåbesök för gasol i lösvikt"],
+    products: [
+      produkt("p1", "Gasol i lösvikt", { priority: "high", profitability: "normal", differentiators: ["Du betalar bara för det som fylls"] }),
+      produkt("p2", "Gasolkaminer", { priority: "normal", profitability: "high" }),
+    ],
+  },
+} satisfies PlanCompanyRow;
+
+test("D3: hög lönsamhet är underlag, inte ett obligatoriskt inlägg", () => {
+  const p = promptFor(ETT_MAL);
+  assert.ok(!/lönsamhet "high"[^.]*MÅSTE/.test(p), "hög lönsamhet tvingar fortfarande fram ett inlägg");
+  assert.ok(!p.includes('ELLER lönsamhet "high"'));
+  assert.match(p, /Lönsamhet är beslutsunderlag, inte ett krav/);
+  assert.match(p, /Hög lönsamhet ensam ger ingen\s+produkt ett eget inlägg eller en kampanj/);
+  // Det säljande inlägget valde annars den lönsamma produkten i säsong.
+  assert.match(p, /Att en produkt är lönsam eller i\s+säsong räcker inte/);
+  // Uppgiften står kvar som underlag.
+  assert.match(p, /Gasolkaminer \(prioritet: normal · lönsamhet: high\)/);
+});
+
+test("D4: kampanjförslagen ska tjäna ett angivet mål, och får gälla samma produkt", () => {
+  const p = promptFor(ETT_MAL);
+  assert.ok(!p.includes("ANNAN produkt"), "mallen kräver fortfarande en annan produkt");
+  assert.ok(!p.includes("en annan produkt ur listan"));
+  assert.ok(!p.includes('"goal": "Vad kampanjen uppnår"'), "kampanjmålet är fortfarande fritt");
+  assert.match(p, /VARJE kampanjförslag ska tjäna ett av affärsmålen/);
+  assert.match(p, /Hitta\s+aldrig på ett nytt mål/);
+  assert.match(p, /gör båda kampanjförslagen för den\s+produkten/);
+  assert.equal((p.match(/"goal": "Ett av företagets affärsmål ovan/g) ?? []).length, 2);
+});
+
+test("D5: utan mål styr prioriteten, och lönsamhet är fortfarande inget krav", () => {
+  const p = promptFor({ ...ETT_MAL, company_brain: { ...ETT_MAL.company_brain, marketingGoals: [] } });
+  assert.match(p, /Den prioritet företagaren själv har satt styr/);
+  assert.match(p, /Lönsamhet är beslutsunderlag, inte ett krav/);
+  assert.ok(!p.includes('ELLER lönsamhet "high"'));
+  // Utan mål finns inget mål att kräva av en kampanj.
+  assert.ok(p.includes('"goal": "Vad kampanjen uppnår"'));
+  assert.ok(!p.includes("VARJE kampanjförslag ska tjäna"));
+});
+
 // ── E. Saknad information ───────────────────────────────────
 
 test("E1: tomma fält sägs vara okända i stället för att lämnas blanka", () => {
