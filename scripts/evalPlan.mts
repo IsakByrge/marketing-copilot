@@ -499,7 +499,7 @@ function kontrollera(plan: Plan, raPlan: Plan = plan, svaret: Plan = raPlan): Ko
   const attLasa = traffar.filter((t) => !AVGRANSAR.test(t.mening));
   const visa = (ts: typeof traffar) => ts.map((t) => `\n      [${t.o}] ${t.mening.slice(0, 140)}`).join("");
   k.push({
-    namn: "ingen text om fel årstid",
+    namn: "inga säsongsord som behöver läsas",
     ok: attLasa.length === 0,
     detalj: attLasa.length
       ? `${attLasa.length} ordträff att läsa — kan vara ett innehållsfel:${visa(attLasa)}`

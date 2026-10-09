@@ -407,6 +407,52 @@ test("ett bevis om något annat belägger inte ett nytt omdöme", () => {
   );
 });
 
+test("REGRESSION: ett bevis om personalen belägger inte samma omdöme om lösvikt", () => {
+  const u = {
+    text: "",
+    bevis: ["Kunder uppskattar personalen enligt kundenkäten 2025"],
+    produkter: [{ namn: "Gasol i lösvikt", text: "Betalar bara för det som faktiskt fylls" }],
+  };
+  // Omdömets ord stämmer. Det omdömet gäller gör det inte.
+  assert.deepEqual(obelagdaPastaenden("Kunder uppskattar lösvikt.", u), ["Kunder uppskattar"]);
+  assert.deepEqual(obelagdaPastaenden("Kunder uppskattar lösvikt.", u, "Gasol i lösvikt"), ["Kunder uppskattar"]);
+  assert.deepEqual(obelagdaPastaenden("Kunder uppskattar gasol i lösvikt.", u), ["Kunder uppskattar"]);
+  // Säger texten inte vad omdömet gäller avgör produktfältet — och
+  // beviset nämner inte produkten.
+  assert.deepEqual(obelagdaPastaenden("Något som kunder uppskattar.", u, "Gasol i lösvikt"), ["kunder uppskattar"]);
+  // Utan både ämne och produkt går stödet inte att fastställa.
+  assert.deepEqual(obelagdaPastaenden("Något som kunder uppskattar.", u), ["kunder uppskattar"]);
+  // Det beviset faktiskt säger får stå, också mitt i en längre mening.
+  assert.deepEqual(obelagdaPastaenden("Kunder uppskattar personalen.", u), []);
+  assert.deepEqual(obelagdaPastaenden("Kom förbi depån i Nyköping, kunder uppskattar personalen.", u), []);
+});
+
+test("REGRESSION: ett bevis om en produkt belägger inte samma omdöme om en annan", () => {
+  const u = {
+    text: "",
+    bevis: ["Kunder uppskattar gasolgrillar från oss enligt kundenkäten 2025"],
+    produkter: [
+      { namn: "Gasol i lösvikt", text: "Betalar bara för det som faktiskt fylls" },
+      { namn: "Gasolgrillar", text: "Grillar för utomhusbruk." },
+    ],
+  };
+  assert.deepEqual(obelagdaPastaenden("Kunder uppskattar gasolgrillar.", u), []);
+  assert.deepEqual(obelagdaPastaenden("Kunder uppskattar gasol i lösvikt.", u), ["Kunder uppskattar"]);
+  assert.deepEqual(obelagdaPastaenden("Något som kunder uppskattar.", u, "Gasolgrillar"), []);
+  assert.deepEqual(obelagdaPastaenden("Något som kunder uppskattar.", u, "Gasol i lösvikt"), ["kunder uppskattar"]);
+});
+
+test("REGRESSION: ett direkt återgivet, relevant bevis godkänns", () => {
+  const u = {
+    text: "",
+    bevis: ["Många kunder uppskattar gasol i lösvikt enligt kundenkäten 2025", "4,8 i betyg på Google av 212 omdömen"],
+    produkter: [{ namn: "Gasol i lösvikt", text: "Betalar bara för det som faktiskt fylls" }],
+  };
+  assert.deepEqual(obelagdaPastaenden("Många kunder uppskattar gasol i lösvikt enligt kundenkäten 2025.", u), []);
+  assert.deepEqual(obelagdaPastaenden("Många kunder uppskattar gasol i lösvikt.", u, "Gasol i lösvikt"), []);
+  assert.deepEqual(obelagdaPastaenden("Vi har 4,8 i betyg på Google av 212 omdömen.", u), []);
+});
+
 const TVA_PRODUKTER = {
   text: "Säljer gasol och tillbehör.",
   bevis: ["Gasolgrillar: populära hos våra kunder enligt kundenkäten 2025"],

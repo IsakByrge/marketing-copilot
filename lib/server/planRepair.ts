@@ -258,6 +258,10 @@ ${brister.map((b) => `    "${b.nyckel}": "den rättade texten${b.forKort ? `, mi
  *    som inte stod där. Prompten förbjuder båda, och ändå kom
  *    "semester" in i utbyggda inlägg i två planer av fem i oktober.
  *
+ * Spärrarna stoppar det de känner igen: ord ur listorna och adresser.
+ * De garanterar inte att en mottagen text är korrekt — ett påstående
+ * eller en årstid som uttrycks med andra ord går igenom.
+ *
  * Allt annat ignoreras, och originalet står kvar.
  */
 export function applyRepair(plan: PlanShape, texts: Record<string, string>, underlag?: Underlag, now = new Date()): PlanShape {

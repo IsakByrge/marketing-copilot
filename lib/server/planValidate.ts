@@ -601,9 +601,59 @@ const namnda = (text: string, produkter: NonNullable<Underlag["produkter"]>) => 
   return produkter.filter((p) => p.namn.trim() && l.includes(p.namn.trim().toLowerCase()));
 };
 
+/** Ord som inte säger vad en mening handlar om. */
+const FYLLNADSORD = new Set([
+  "våra", "vårt", "alla", "allt", "också", "detta", "denna", "dessa", "från", "till", "eller", "samt",
+  "mycket", "väldigt", "verkligen", "särskilt", "något", "någon", "några", "inte", "bara", "även",
+  "redan", "alltid", "ofta", "just", "deras", "sina", "sitt", "dina", "ditt", "blir", "vara", "finns",
+  "över", "under", "efter", "innan", "eftersom", "därför", "hela", "både", "enligt",
+]);
+
 /** De bärande orden i ett påstående, som stammar: "uppskattar" -> "uppsk". */
 const stammar = (fras: string) =>
-  fras.toLowerCase().split(/[^\p{L}]+/u).filter((o) => o.length >= 4).map((o) => o.slice(0, 5));
+  fras.toLowerCase().split(/[^\p{L}]+/u).filter((o) => o.length >= 4 && !FYLLNADSORD.has(o)).map((o) => o.slice(0, 5));
+
+/** Satsdelen kring en träff: meningen mellan närmaste skiljetecken. */
+function satsdel(mening: string, index: number): string {
+  let start = 0;
+  for (const m of mening.matchAll(/[,;:()–—]|\s-\s/g)) {
+    if (m.index >= index) return mening.slice(start, m.index);
+    start = m.index + m[0].length;
+  }
+  return mening.slice(start);
+}
+
+/**
+ * Stöder beviset omdömet OCH det omdömet gäller?
+ *
+ * "Kunder uppskattar personalen" säger ingenting om lösvikt, hur väl
+ * "kunder uppskattar" än stämmer. Tre krav, alla på ett och samma bevis:
+ *  - det innehåller omdömets egna ord,
+ *  - gäller texten en produkt nämner beviset den produkten,
+ *  - det innehåller de övriga bärande orden i samma satsdel — det
+ *    omdömet handlar om.
+ * Säger varken satsdelen eller produkten vad omdömet gäller går stödet
+ * inte att fastställa, och då är svaret nej.
+ *
+ * Det här är ordöverlapp, inte läsförståelse. Ett bevis med rätt ord i
+ * en annan betydelse godkänns, och ett riktigt bevis med andra ord
+ * underkänns.
+ */
+function bevisStoder(
+  bevis: string,
+  fras: string,
+  sats: string,
+  gallande: NonNullable<Underlag["produkter"]>,
+  produkter: NonNullable<Underlag["produkter"]>,
+): boolean {
+  const b = bevis.toLowerCase();
+  const omdome = stammar(fras);
+  if (!omdome.every((s) => b.includes(s))) return false;
+  if (gallande.length > 0 && !namnda(bevis, produkter).some((p) => gallande.includes(p))) return false;
+  const amne = stammar(sats).filter((s) => !omdome.includes(s));
+  if (amne.length === 0 && gallande.length === 0) return false;
+  return amne.every((s) => b.includes(s));
+}
 
 /**
  * Påståenden i texten som företagsdatan inte täcker, som de står skrivna.
@@ -619,12 +669,10 @@ const stammar = (fras: string) =>
  *    Går produkten inte att peka ut räknas ingen produkttext alls.
  *  - Ett bevis som nämner en ANNAN produkt räknas inte.
  *  - Ett omdöme om kunder är belagt först när ett och samma bevis
- *    innehåller påståendets bärande ord. Att det finns bevis räcker
- *    inte: "4,8 i betyg på Google" belägger inte "många väljer lösvikt".
- *
- * Det mekaniska har en gräns. Ett bevis som säger "kunder uppskattar
- * personalen" godkänner också "kunder uppskattar lösvikt" när ingen
- * produkt skiljer dem åt.
+ *    stöder både omdömet och det omdömet gäller (se bevisStoder). Att
+ *    det finns bevis räcker inte: "4,8 i betyg på Google" belägger inte
+ *    "många väljer lösvikt", och "kunder uppskattar personalen"
+ *    belägger inte "kunder uppskattar lösvikt".
  */
 export function obelagdaPastaenden(
   text: string | undefined,
@@ -650,7 +698,7 @@ export function obelagdaPastaenden(
       for (const m of mening.matchAll(re)) {
         const fras = m[0].trim();
         const belagt =
-          stod === "bevis" ? bevis.some((b) => stammar(fras).every((s) => b.toLowerCase().includes(s)))
+          stod === "bevis" ? bevis.some((b) => bevisStoder(b, fras, satsdel(mening, m.index), gallande, produkter))
             // Ordstammen räcker: "prisvärd" i underlaget täcker "prisvärda".
             : stod === "ordet" ? u.includes(fras.toLowerCase().split(/\s+/)[0].slice(0, 6))
               : stod.test(u);
