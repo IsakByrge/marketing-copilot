@@ -290,86 +290,467 @@ export function delaIStycken(body: string | undefined, onskade = 3): string | un
 /** Roller vars inlägg ska sluta med en länk. */
 const LANKROLLER = ["saljande", "prioriterad_produkt"];
 
+type Webbplats = { url: string; purpose: string };
+
 /**
- * Uppmaningar som handlar om att komma till en fysisk plats.
- * Ett sådant inlägg ska leda till sidan som berättar VAR vi finns, inte
- * till kassan — det prioriterade inlägget bad om depåbesök och länkade
- * till webbshoppen, vilket skickar läsaren fel.
+ * Vad läsaren ombeds göra härnäst: komma till en plats, köpa på nätet
+ * eller läsa mer på webbplatsen.
  */
-const BESOKSORD = [
-  "besök", "kom förbi", "kom in", "kom till", "depå", "butiken",
-  "på plats", "träffa", "svänga förbi", "hitta oss", "öppettider",
+export type KundensHandling = "besok" | "kop" | "las";
+
+/**
+ * Ord som pekar ut en fysisk plats. Ett inlägg med en sådan uppmaning
+ * ska leda till sidan som berättar VAR vi finns, inte till kassan — det
+ * prioriterade inlägget bad om depåbesök och länkade till webbshoppen,
+ * vilket skickar läsaren fel.
+ *
+ * "besök" står inte här. Det är ett verb som också används om
+ * webbplatser ("besök webbshoppen") och vägs för sig nedan.
+ */
+const PLATSORD = [
+  "kom förbi", "kom in", "kom till", "depå", "butiken", "på plats",
+  "träffa", "svänga förbi", "sväng förbi", "hitta oss", "öppettider",
 ];
 
-/** Sant när uppmaningen ber läsaren komma någonstans. */
-export function arBesoksuppmaning(cta: string | undefined, text?: string): boolean {
-  const l = `${cta ?? ""} ${text ?? ""}`.toLowerCase();
-  return BESOKSORD.some((o) => l.includes(o));
-}
+/** Uppmaningar som handlar om att köpa på nätet. */
+const KOPORD = [
+  "köp", "beställ", "handla", "webbshop", "webbutik", "nätbutik",
+  "shoppen", "varukorg", "online", "på nätet",
+];
 
-/** Adressen där man köper. */
-export function kopLank(websites: Array<{ url: string; purpose: string }> | undefined): string | null {
-  const sidor = (websites ?? []).filter((w) => w.url);
-  if (sidor.length === 0) return null;
-  const kop = sidor.find((w) => /k[öo]p|shop|butik|best[äa]ll|handla/i.test(w.purpose));
-  return (kop ?? sidor[0]).url;
-}
+/** Uppmaningar som handlar om att läsa vidare. */
+const LASORD = ["läs mer", "läs om", "mer information", "hemsida", "webbplats", "webbsida"];
 
-/** Adressen som berättar om verksamheten och var den finns. */
-export function infoLank(websites: Array<{ url: string; purpose: string }> | undefined): string | null {
-  const sidor = (websites ?? []).filter((w) => w.url);
-  if (sidor.length === 0) return null;
-  const info = sidor.find((w) => /hemsida|information|om oss|dep[åa]|kontakt|hitta/i.test(w.purpose));
-  // Ingen informationssida angiven: hellre den som INTE är shoppen.
-  const ickeShop = sidor.find((w) => !/k[öo]p|shop|best[äa]ll|handla/i.test(w.purpose));
-  return (info ?? ickeShop ?? sidor[0]).url;
-}
+/** Syften som gör en adress till ett ställe där man köper. */
+const KOPSYFTE = /k[öo]p|shop|webbutik|n[äa]tbutik|e-handel|best[äa]ll|handla/i;
+/** Syften som gör en adress till ett ställe där man läser om oss och ser var vi finns. */
+const INFOSYFTE = /hemsida|information|om oss|dep[åa]|kontakt|hitta|[öo]ppettid|(?<![a-zåäö])butik/i;
 
 /**
- * Länken som hör till inläggets uppmaning.
- * Ber uppmaningen om ett besök leder den till informationssidan,
- * annars till köpsidan.
+ * Orden matchas vid ordBÖRJAN. Som delsträng finns "köp" i "Nyköping",
+ * och då blev "Besök oss i Nyköping" ett köp — och "Kom förbi vår depå
+ * i Nyköping" både besök och köp, alltså ingenting. Ändelser får följa:
+ * "depå" fångar "depån" och "depåerna".
  */
-export function valjLank(
-  websites: Array<{ url: string; purpose: string }> | undefined,
-  cta: string | undefined,
-  text?: string,
-): string | null {
-  return arBesoksuppmaning(cta, text) ? infoLank(websites) : kopLank(websites);
+const harOrd = (text: string, ord: readonly string[]) =>
+  ord.some((o) => new RegExp(`(?<!\\p{L})${o.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "iu").test(text));
+
+/** Sant när uppmaningen ber läsaren komma till en fysisk plats. */
+export function arBesoksuppmaning(cta: string | undefined): boolean {
+  return kundensHandling(cta) === "besok";
 }
 
 /**
- * Sätter länken sist i säljande och prioriterade inlägg som saknar en.
+ * Kundens nästa handling, läst ur UPPMANINGEN och ingenting annat.
  *
- * Prompten ber om det, men landar det bara ibland — tre mätningar gav
- * 0, 2 och 0 av fem. Adressen kommer ur företagsdatan och inget annat
- * ändras i texten, så det här är att fylla i ett fält, inte att skriva
- * copy. Finns ingen adress händer ingenting.
+ * Tidigare avgjorde uppmaningen och hela brödtexten tillsammans, och
+ * ordet "depå" någonstans i ett säljande inlägg räckte för att det
+ * skulle räknas som ett besök. Uppmaningen är det läsaren ombeds göra.
+ * Brödtexten beskriver; den ber inte om något.
+ *
+ * Null när uppmaningen inte säger vart läsaren ska, eller pekar åt två
+ * håll på en gång ("kom förbi eller beställ på nätet"). Då vet vi inte
+ * vart länken ska leda, och då rörs ingen länk.
+ */
+export function kundensHandling(cta: string | undefined): KundensHandling | null {
+  const l = (cta ?? "").toLowerCase();
+  const plats = harOrd(l, PLATSORD);
+  const kop = harOrd(l, KOPORD);
+  const las = harOrd(l, LASORD);
+
+  if (plats && kop) return null;
+  if (plats) return "besok";
+  if (kop) return "kop";
+  // "Besök vår hemsida" är att läsa vidare, "Besök oss" är att komma dit.
+  if (harOrd(l, ["besök"])) return las ? "las" : "besok";
+  if (las) return "las";
+  return null;
+}
+
+/**
+ * Adressen där man köper. Null när ingen registrerad adress har det
+ * syftet — den första i listan togs tidigare som reserv, och då kunde
+ * en informationssida stå som köplänk.
+ */
+export function kopLank(websites: Webbplats[] | undefined): string | null {
+  return (websites ?? []).find((w) => w.url && KOPSYFTE.test(w.purpose))?.url ?? null;
+}
+
+/**
+ * Adressen som berättar om verksamheten och var den finns. Null när
+ * ingen registrerad adress har det syftet. Reserven var tidigare "den
+ * som inte är shoppen, annars den första" — med bara webbshoppen
+ * registrerad fick ett depåbesök alltså shoppens adress.
+ */
+export function infoLank(websites: Webbplats[] | undefined): string | null {
+  return (websites ?? []).find((w) => w.url && INFOSYFTE.test(w.purpose))?.url ?? null;
+}
+
+/** Länken som hör till handlingen, eller null när rätt destination saknas. */
+export function lankFor(websites: Webbplats[] | undefined, handling: KundensHandling | null): string | null {
+  if (handling === "kop") return kopLank(websites);
+  if (handling === "besok" || handling === "las") return infoLank(websites);
+  return null;
+}
+
+/** Länken som hör till inläggets uppmaning. */
+export function valjLank(websites: Webbplats[] | undefined, cta: string | undefined): string | null {
+  return lankFor(websites, kundensHandling(cta));
+}
+
+/** Värdnamn utan www, eller null. Egen kopia så modulen förblir fristående. */
+function vard(raw: string): string | null {
+  try {
+    return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+const LANK_I_TEXT = /\bhttps?:\/\/[^\s<>()"']+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:\/[^\s<>()"']*)?/gi;
+
+/** Länkarna i en text, utan avslutande skiljetecken. */
+function lankarI(text: string): string[] {
+  return [...new Set((text.match(LANK_I_TEXT) ?? []).map((l) => l.replace(/[.,;:]+$/, "")))];
+}
+
+/** Den registrerade webbplats en länk i texten pekar på, om någon. */
+function registreradSida(lank: string, websites: Webbplats[]): Webbplats | null {
+  const v = vard(lank);
+  if (!v) return null;
+  return websites.find((w) => vard(w.url) === v) ?? null;
+}
+
+/** Sant när webbplatsens syfte passar handlingen. */
+function passar(sida: Webbplats, handling: KundensHandling): boolean {
+  return (handling === "kop" ? KOPSYFTE : INFOSYFTE).test(sida.purpose);
+}
+
+/** Vad som saknas när ett inlägg ber om något vi inte har en adress för. */
+function saknadDestination(handling: KundensHandling): string {
+  const vad = {
+    besok: ["ber om ett besök", "med depå- eller kontaktinformation"],
+    las: ["hänvisar till webbplatsen", "med information om verksamheten"],
+    kop: ["ber om ett köp", "med köpsyfte"],
+  }[handling];
+  return `Inlägget ${vad[0]}, men ingen webbplats ${vad[1]} finns i Vad jag vet. Länken är borttagen — lägg till adressen under Webbplatser om inlägget ska länka.`;
+}
+
+/**
+ * Sant när en registrerad länk i texten pekar åt fel håll för
+ * uppmaningen. Delad med eval-skriptet, så mätningen och rättningen
+ * använder samma regel.
+ */
+export function lankMotHandlingen(
+  websites: Webbplats[] | undefined,
+  cta: string | undefined,
+  text: string | undefined,
+): boolean {
+  const sidor = (websites ?? []).filter((w) => w.url);
+  const handling = kundensHandling(cta);
+  if (!handling || !text) return false;
+  return lankarI(text).some((l) => {
+    const sida = registreradSida(l, sidor);
+    return sida !== null && !passar(sida, handling);
+  });
+}
+
+/**
+ * Låter kundens nästa handling styra länken i varje inlägg.
+ *
+ * Tre saker, i den här ordningen:
+ *  1. En registrerad adress som pekar åt fel håll byts mot den rätta.
+ *     Ber uppmaningen om ett depåbesök ska webbshoppen inte stå där.
+ *  2. Finns ingen adress med rätt syfte tas den felaktiga bort, och
+ *     inlägget får en rad i `saknas` om vad som behöver läggas till.
+ *     Hellre ingen länk än en som skickar läsaren fel.
+ *  3. Säljande och prioriterade inlägg utan länk får den rätta sist.
+ *     Prompten ber om det men landar det bara ibland.
+ *
+ * Adresserna kommer ur företagsdatan och inget annat ändras i texten,
+ * så det här är att rätta ett fält, inte att skriva copy. Adresser som
+ * inte är registrerade rörs inte här. Säger uppmaningen inte vad
+ * läsaren ska göra rörs ingenting.
  */
 export function sattLank<T extends ValideradPlan>(
   plan: T,
-  websites: Array<{ url: string; purpose: string }> | undefined,
+  websites: Webbplats[] | undefined,
 ): T {
-  if (!(websites ?? []).some((w) => w.url)) return plan;
+  const sidor = (websites ?? []).filter((w) => w.url);
+  if (sidor.length === 0) return plan;
 
   const posts = (plan.posts ?? []).map((p) => {
     const roll = typeof p.roll === "string" ? p.roll : "";
-    if (!LANKROLLER.includes(roll)) return p;
-    const text = typeof p.text === "string" ? p.text : "";
-    if (!text.trim()) return p;
+    const original = typeof p.text === "string" ? p.text : "";
+    if (!original.trim()) return p;
 
-    // Länken väljs efter uppmaningen, inte efter rollen. Ett inlägg som
-    // ber om ett depåbesök ska leda dit man ser var depåerna ligger.
-    const lank = valjLank(websites, p.cta as string | undefined, text);
-    if (!lank || text.includes(lank)) return p;
+    const handling = kundensHandling(p.cta as string | undefined);
+    if (!handling) return p;
 
-    // Redan någon länk i texten? La modellen in en annan av företagets
-    // adresser är det ett medvetet val — rör inte.
-    if (/https?:\/\/\S+/.test(text)) return p;
-    return { ...p, text: `${text.trimEnd()}\n\n${lank}` };
+    const ratt = lankFor(sidor, handling);
+    let text = original;
+    let saknas: string | null = null;
+
+    // 1–2. Rätta registrerade adresser som pekar åt fel håll.
+    for (const lank of lankarI(text)) {
+      const sida = registreradSida(lank, sidor);
+      if (!sida || passar(sida, handling)) continue;
+      if (ratt && !lankarI(text).includes(ratt)) {
+        text = text.split(lank).join(ratt);
+      } else {
+        text = text.split(lank).join("").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trimEnd();
+        if (!ratt) saknas = saknadDestination(handling);
+      }
+    }
+
+    // 3. Lägg till länken där den ska finnas men saknas.
+    const harRegistrerad = lankarI(text).some((l) => registreradSida(l, sidor) !== null);
+    if (ratt && !harRegistrerad && LANKROLLER.includes(roll)) {
+      text = `${text.trimEnd()}\n\n${ratt}`;
+    }
+
+    if (text === original && !saknas) return p;
+    return {
+      ...p,
+      text,
+      ...(saknas ? { saknas: [...new Set([...(p.saknas ?? []), saknas])] } : {}),
+    };
   });
 
   return { ...plan, posts };
+}
+
+// ── Obelagda påståenden ─────────────────────────────────────
+
+/**
+ * Det ett påstående får luta sig mot: den text företaget själv lagt in
+ * om sig och sina produkter, och de verifierade bevisen.
+ *
+ * Tre källor hålls isär med flit. Det som står om EN produkt belägger
+ * inget om en annan, och ett bevis belägger bara det beviset säger.
+ */
+export interface Underlag {
+  /** Det som gäller hela företaget: sammanfattning, styrkor, USP:ar. */
+  text: string;
+  /** Verifierade bevis, ett per post. Tom lista = inga omdömen får åberopas. */
+  bevis: string[];
+  /** Det som står om varje produkt. Utan listan räknas allt i `text`. */
+  produkter?: Array<{ namn: string; text: string }>;
+}
+
+/** Hela underlaget som löptext, till prompten. */
+export function underlagSomText(underlag: Underlag): string {
+  return [
+    underlag.text,
+    ...(underlag.produkter ?? []).flatMap((p) => [p.namn, p.text]),
+    ...underlag.bevis,
+  ].map((s) => s.trim()).filter(Boolean).join("\n");
+}
+
+interface Pastaende {
+  re: RegExp;
+  /**
+   * När påståendet ändå är belagt:
+   *  - "bevis": bara när ETT verifierat bevis säger samma sak.
+   *  - "ordet": när det träffade ordet står i underlaget.
+   *  - "villkoret": när VARJE bärande ord i villkoret står i underlaget.
+   *  - RegExp:  när underlaget matchar det.
+   */
+  stod: "bevis" | "ordet" | "villkoret" | RegExp;
+}
+
+/**
+ * Tre sorters påståenden som låter som fakta men kräver underlag:
+ * vad kunder tycker, vad kunden sparar, och att något är bättre.
+ *
+ * Alla tre stod i en riktig plan: "många upplever", "sparar tid och
+ * pengar" och "fräsch gasol". Inget av det fanns i företagsdatan.
+ * Det som FINNS där får stå kvar — står det att kunden betalar för den
+ * mängd som fylls är det ett faktum, och står det att något sparar tid
+ * är det företagets eget påstående och inte modellens.
+ */
+const OBELAGDA: Pastaende[] = [
+  // Vad kunder tycker, gör eller upplever.
+  { re: /(?<!\p{L})(?:många|de flesta|flertalet|allt fler|fler och fler)\s+(?:\p{L}+\s+){0,3}?(?:upplever|tycker|menar|väljer|uppskattar|föredrar|märker|känner|säger|berättar|vittnar|rekommenderar|upptäcker|gillar|älskar|har\s+(?:upptäckt|valt|märkt))(?!\p{L})/giu, stod: "bevis" },
+  { re: /(?<!\p{L})(?:många|de flesta|flertalet|allt fler|nöjda|trogna)\s+(?:av\s+(?:våra|era)\s+)?kunder(?!\p{L})/giu, stod: "bevis" },
+  { re: /(?<!\p{L})kunder(?:na)?\s+(?:som\s+)?(?:säger|älskar|uppskattar|upplever|berättar|tycker|rekommenderar|återkommer|hyllar)(?!\p{L})/giu, stod: "bevis" },
+  { re: /(?<!\p{L})(?:populär|omtyckt|uppskatta[dt]|eftertrakta[dt]|efterfråga[dt]|kundfavorit|storsäljare)\p{L}*/giu, stod: "bevis" },
+  { re: /(?<!\p{L})(?:recension|omdöme|kundomdöme)\p{L}*/giu, stod: "bevis" },
+
+  // Vad kunden sparar.
+  { re: /(?<!\p{L})spar(?:a|ar|at|ade)?\s+(?:\p{L}+\s+){0,3}?tid(?!\p{L})/giu, stod: /spar\p{L}*\s+(?:\p{L}+\s+){0,3}?tid|tidsbespar/iu },
+  { re: /(?<!\p{L})tidsbespar\p{L}*/giu, stod: /spar\p{L}*\s+(?:\p{L}+\s+){0,3}?tid|tidsbespar/iu },
+  { re: /(?<!\p{L})spar(?:a|ar|at|ade)?\s+(?:\p{L}+\s+){0,3}?(?:pengar|kronor|hundralappar)(?!\p{L})/giu, stod: /spar\p{L}*\s+(?:\p{L}+\s+){0,3}?(?:pengar|kronor)|billig|prisvärd|lägre\s+(?:pris|kostnad)/iu },
+  { re: /(?<!\p{L})(?:billigare|billigast\p{L}*|prisvär[dt]\p{L}*|kostnadseffektiv\p{L}*|kostnadsbespar\p{L}*)(?!\p{L})/giu, stod: "ordet" },
+  { re: /(?<!\p{L})lägre\s+(?:pris|kostnad)\p{L}*/giu, stod: /lägre\s+(?:pris|kostnad)|billig/iu },
+  { re: /(?<!\p{L})(?:lönar sig|ekonomisk[at]?)(?!\p{L})/giu, stod: /lönar sig|ekonomisk/iu },
+
+  // Att något är bättre — än något annat, eller rent allmänt.
+  { re: /(?<!\p{L})fräsch\p{L}*/giu, stod: "ordet" },
+  { re: /(?<!\p{L})(?:bättre|renare|säkrare|effektivare|snabbare|smidigare|enklare|pålitligare|tryggare)\s+än(?!\p{L})(?!\s+(?:du|man|ni)\s+(?:tror|anar))/giu, stod: "ordet" },
+  { re: /(?<!\p{L})(?:högsta|bästa|bäst|överlägsen|oslagbar|förstklassig)\s+kvalit\p{L}*/giu, stod: "ordet" },
+  // "Högkvalitativa produkter" och "våra kvalitetsprodukter" är samma
+  // omdöme som "högsta kvalitet". Stammen "kvalit" i underlaget belägger det.
+  { re: /(?<!\p{L})högkvalitativ\p{L}*/giu, stod: /kvalit/iu },
+  { re: /(?<!\p{L})kvalitets\p{L}+/giu, stod: "ordet" },
+  { re: /(?<!\p{L})(?:överlägs|oslagbar|förstklassig|branschledande|marknadsledande|marknadens\s+(?:bästa|billigaste|största|ledande))\p{L}*/giu, stod: "ordet" },
+
+  // Vad kunden betalar för, och vad tjänsten lovar att anpassa sig
+  // efter. Här räcker det inte att ordet finns: villkoret ska betyda
+  // samma sak som i underlaget. "Betalar för det som fylls" blev
+  // "betalar för den gasol du faktiskt använder" i en riktig plan — ett
+  // annat villkor, och ett vi inte har. Varje bärande ord i villkoret
+  // måste därför stå i underlaget.
+  { re: /(?<!\p{L})betal\p{L}*\s+(?:\p{L}+\s+){0,3}?för(?!\p{L})/giu, stod: "villkoret" },
+  { re: /(?<!\p{L})anpassa[dts]\p{L}*\s+(?:för|efter|till)(?!\p{L})/giu, stod: "villkoret" },
+];
+
+/** Produkterna ur underlaget som nämns vid namn i texten. */
+const namnda = (text: string, produkter: NonNullable<Underlag["produkter"]>) => {
+  const l = text.toLowerCase();
+  return produkter.filter((p) => p.namn.trim() && l.includes(p.namn.trim().toLowerCase()));
+};
+
+/** Ord som inte säger vad en mening handlar om. */
+const FYLLNADSORD = new Set([
+  "våra", "vårt", "alla", "allt", "också", "detta", "denna", "dessa", "från", "till", "eller", "samt",
+  "mycket", "väldigt", "verkligen", "särskilt", "något", "någon", "några", "inte", "bara", "även",
+  "redan", "alltid", "ofta", "just", "deras", "sina", "sitt", "dina", "ditt", "blir", "vara", "finns",
+  "över", "under", "efter", "innan", "eftersom", "därför", "hela", "både", "enligt",
+  "faktiskt", "endast", "enbart", "exakt", "exakta", "precis", "själv", "själva",
+  // "Det som fylls" och "den mängd som fylls" är samma villkor.
+  "mängd", "mängden",
+]);
+
+/** Samma sak med kortare stam, för jämförelser som ska tåla böjning: "fylls" och "fyller". */
+const kortstammar = (fras: string) =>
+  fras.toLowerCase().split(/[^\p{L}]+/u).filter((o) => o.length >= 4 && !FYLLNADSORD.has(o)).map((o) => o.slice(0, 4));
+
+/**
+ * Villkoret från träffen och framåt: "betalar bara för den gasol du
+ * faktiskt använder". Bryts vid skiljetecken och bindeord, och tar
+ * högst sex ord efter träffen, så att bara det villkoret gäller följer
+ * med. "…för det som fylls gör skillnad" ska inte falla på "skillnad".
+ */
+const VILLKORSORD = 6;
+function villkor(mening: string, index: number, traff: string): string {
+  const rest = mening.slice(index + traff.length);
+  const slut = rest.search(/[,;:()–—.!?'"”]|\s-\s|\s(?:och|men|samt|så|eftersom|medan|vilket|när|utan|istället)\s/u);
+  const ord = (slut === -1 ? rest : rest.slice(0, slut)).trim().split(/\s+/).filter(Boolean);
+  return [traff.trim(), ...ord.slice(0, VILLKORSORD)].join(" ");
+}
+
+/** De bärande orden i ett påstående, som stammar: "uppskattar" -> "uppsk". */
+const stammar = (fras: string) =>
+  fras.toLowerCase().split(/[^\p{L}]+/u).filter((o) => o.length >= 4 && !FYLLNADSORD.has(o)).map((o) => o.slice(0, 5));
+
+/** Satsdelen kring en träff: meningen mellan närmaste skiljetecken. */
+function satsdel(mening: string, index: number): string {
+  let start = 0;
+  for (const m of mening.matchAll(/[,;:()–—]|\s-\s/g)) {
+    if (m.index >= index) return mening.slice(start, m.index);
+    start = m.index + m[0].length;
+  }
+  return mening.slice(start);
+}
+
+/**
+ * Stöder beviset omdömet OCH det omdömet gäller?
+ *
+ * "Kunder uppskattar personalen" säger ingenting om lösvikt, hur väl
+ * "kunder uppskattar" än stämmer. Tre krav, alla på ett och samma bevis:
+ *  - det innehåller omdömets egna ord,
+ *  - gäller texten en produkt nämner beviset den produkten,
+ *  - det innehåller de övriga bärande orden i samma satsdel — det
+ *    omdömet handlar om.
+ * Säger varken satsdelen eller produkten vad omdömet gäller går stödet
+ * inte att fastställa, och då är svaret nej.
+ *
+ * Det här är ordöverlapp, inte läsförståelse. Ett bevis med rätt ord i
+ * en annan betydelse godkänns, och ett riktigt bevis med andra ord
+ * underkänns.
+ */
+function bevisStoder(
+  bevis: string,
+  fras: string,
+  sats: string,
+  gallande: NonNullable<Underlag["produkter"]>,
+  produkter: NonNullable<Underlag["produkter"]>,
+): boolean {
+  const b = bevis.toLowerCase();
+  const omdome = stammar(fras);
+  if (!omdome.every((s) => b.includes(s))) return false;
+  if (gallande.length > 0 && !namnda(bevis, produkter).some((p) => gallande.includes(p))) return false;
+  const amne = stammar(sats).filter((s) => !omdome.includes(s));
+  if (amne.length === 0 && gallande.length === 0) return false;
+  return amne.every((s) => b.includes(s));
+}
+
+/**
+ * Påståenden i texten som företagsdatan inte täcker, som de står skrivna.
+ * Tom lista = inget att anmärka på.
+ *
+ * Stödet prövas konservativt, mening för mening. Går det inte att
+ * fastställa räknas påståendet som obelagt — ett falskt larm kostar en
+ * blick, ett påhittat omdöme kostar mer.
+ *
+ *  - Vilken produkt meningen gäller: den som nämns i meningen, annars
+ *    `produkt` (inläggets eller kampanjens eget fält), annars de som
+ *    nämns någonstans i texten. Bara de produkternas texter räknas.
+ *    Går produkten inte att peka ut räknas ingen produkttext alls.
+ *  - Ett bevis som nämner en ANNAN produkt räknas inte.
+ *  - Ett omdöme om kunder är belagt först när ett och samma bevis
+ *    stöder både omdömet och det omdömet gäller (se bevisStoder). Att
+ *    det finns bevis räcker inte: "4,8 i betyg på Google" belägger inte
+ *    "många väljer lösvikt", och "kunder uppskattar personalen"
+ *    belägger inte "kunder uppskattar lösvikt".
+ */
+export function obelagdaPastaenden(
+  text: string | undefined,
+  underlag: Underlag = { text: "", bevis: [] },
+  produkt?: string,
+): string[] {
+  if (!text) return [];
+  const produkter = underlag.produkter ?? [];
+  const traffar = new Set<string>();
+
+  for (const mening of text.split(/(?<=[.!?])\s+|\n+/)) {
+    let gallande = namnda(mening, produkter);
+    if (gallande.length === 0 && produkt) gallande = namnda(produkt, produkter);
+    if (gallande.length === 0) gallande = namnda(text, produkter);
+
+    const bevis = underlag.bevis.filter((b) => {
+      const om = namnda(b, produkter);
+      return om.length === 0 || om.some((p) => gallande.includes(p));
+    });
+    const u = [underlag.text, ...gallande.flatMap((p) => [p.namn, p.text]), ...bevis].join("\n").toLowerCase();
+
+    for (const { re, stod } of OBELAGDA) {
+      for (const m of mening.matchAll(re)) {
+        if (stod === "villkoret") {
+          // Vid ordbörjan, inte som delsträng: "behöver" stod annars
+          // att finna i "tillbehör".
+          const iUnderlaget = new Set(u.split(/[^\p{L}]+/u).map((o) => o.slice(0, 4)));
+          const fras = villkor(mening, m.index, m[0]);
+          if (!kortstammar(fras).every((s) => iUnderlaget.has(s))) traffar.add(fras);
+          continue;
+        }
+        const fras = m[0].trim();
+        const belagt =
+          stod === "bevis" ? bevis.some((b) => bevisStoder(b, fras, satsdel(mening, m.index), gallande, produkter))
+            // Ordstammen räcker: "prisvärd" i underlaget täcker "prisvärda".
+            : stod === "ordet" ? u.includes(fras.toLowerCase().split(/\s+/)[0].slice(0, 6))
+              : stod.test(u);
+        if (!belagt) traffar.add(fras);
+      }
+    }
+  }
+  return [...traffar];
+}
+
+/** Raden användaren får se när ett påstående saknar underlag. */
+export function beskrivObelagt(fras: string): string {
+  return `Texten påstår "${fras}", men det står inte i Vad jag vet. Ta bort det, eller lägg in det som styrker det.`;
 }
 
 // ── Sammanställning ─────────────────────────────────────────
@@ -385,19 +766,37 @@ export interface ValideradPost {
 
 export interface ValideradPlan {
   posts?: ValideradPost[];
-  newsletter?: { body?: string; subject?: string; preview?: string; cta?: string; [k: string]: unknown };
+  newsletter?: { body?: string; subject?: string; preview?: string; cta?: string; saknas?: string[]; [k: string]: unknown };
   campaigns?: unknown;
   [k: string]: unknown;
+}
+
+/**
+ * Raden för ett inlägg som saknar text. Modellen lämnar ibland bara
+ * adressen i ett säljande inlägg, och när rättningsrundans utbyggnad
+ * inte tas emot är det vad användaren får.
+ */
+export function saknadText(text: string | undefined): string | null {
+  const t = text ?? "";
+  const lankar = lankarI(t);
+  const utanLankar = lankar.reduce((s, l) => s.split(l).join(" "), t);
+  if (/\p{L}/u.test(utanLankar)) return null;
+  return `Inlägget har ingen text${lankar.length ? ", bara en adress" : ""}. Skriv texten innan du publicerar.`;
 }
 
 /**
  * Märker inlägg med platshållare och normaliserar veckodagarna.
  * Ändrar aldrig själva texten — att gissa fram ett faktum vore precis
  * det problem platshållaren avslöjar.
+ *
+ * Med `underlag` märks också påståenden som företagsdatan inte täcker,
+ * i inlägg, nyhetsbrev och kampanjförslag. Utan det mäts de inte: en
+ * tom jämförelse hade underkänt allt.
  */
 export function valideraPlan<T extends ValideradPlan>(
   plan: T,
   websites?: Array<{ url: string; purpose: string }>,
+  underlag?: Underlag,
 ): T {
   plan = sattLank(plan, websites);
 
@@ -408,7 +807,18 @@ export function valideraPlan<T extends ValideradPlan>(
     const text = utanUtropstecken(p.text as string | undefined);
     const cta = utanUtropstecken(p.cta as string | undefined);
 
-    const saknas = [...saknatIText(title), ...saknatIText(text), ...saknatIText(cta)];
+    const produkt = typeof p.produkt === "string" ? p.produkt : undefined;
+    const obelagda = underlag
+      ? [title, text, cta].flatMap((t) => obelagdaPastaenden(t, underlag, produkt)).map(beskrivObelagt)
+      : [];
+    const utanText = saknadText(text);
+    const saknas = [
+      // Det länkrättningen redan noterat ska inte skrivas över.
+      ...(p.saknas ?? []),
+      ...(utanText ? [utanText] : []),
+      ...saknatIText(title), ...saknatIText(text), ...saknatIText(cta),
+      ...obelagda,
+    ];
     const dag = normaliseraDag(p.dag);
     const granskas = [...new Set([
       ...granskningsordIText(title),
@@ -426,25 +836,42 @@ export function valideraPlan<T extends ValideradPlan>(
     };
   });
 
+  // Samma rad som inläggen får, för de texter rättningsrundan inte
+  // lyckades rätta. Utan den syns felet inte alls i nyhetsbrev och
+  // kampanjförslag.
+  const markta = (texter: unknown[], produkt?: unknown): { saknas?: string[] } => {
+    if (!underlag) return {};
+    const rader = texter
+      .flatMap((t) => obelagdaPastaenden(typeof t === "string" ? t : undefined, underlag, typeof produkt === "string" ? produkt : undefined))
+      .map(beskrivObelagt);
+    return rader.length ? { saknas: [...new Set(rader)] } : {};
+  };
+
   // Nyhetsbrevet får sin styckeindelning här om modellen slarvade.
   const newsletter = plan.newsletter
-    ? {
-        ...plan.newsletter,
-        subject: utanUtropstecken(plan.newsletter.subject as string | undefined),
-        preview: utanUtropstecken(plan.newsletter.preview as string | undefined),
-        body: delaIStycken(utanUtropstecken(plan.newsletter.body)),
-        cta: utanUtropstecken(plan.newsletter.cta as string | undefined),
-      }
+    ? (() => {
+        const nl = {
+          ...plan.newsletter,
+          subject: utanUtropstecken(plan.newsletter.subject as string | undefined),
+          preview: utanUtropstecken(plan.newsletter.preview as string | undefined),
+          body: delaIStycken(utanUtropstecken(plan.newsletter.body)),
+          cta: utanUtropstecken(plan.newsletter.cta as string | undefined),
+        };
+        return { ...nl, ...markta([nl.subject, nl.body, nl.cta]) };
+      })()
     : plan.newsletter;
 
   // Kampanjförslagen är också kundtext så fort de kopieras vidare.
   const campaigns = Array.isArray(plan.campaigns)
-    ? (plan.campaigns as Array<Record<string, unknown>>).map((c) => ({
-        ...c,
-        ...(typeof c.title === "string" ? { title: utanUtropstecken(c.title) } : {}),
-        ...(typeof c.message === "string" ? { message: utanUtropstecken(c.message) } : {}),
-        ...(typeof c.cta === "string" ? { cta: utanUtropstecken(c.cta) } : {}),
-      }))
+    ? (plan.campaigns as Array<Record<string, unknown>>).map((c) => {
+        const k = {
+          ...c,
+          ...(typeof c.title === "string" ? { title: utanUtropstecken(c.title) } : {}),
+          ...(typeof c.message === "string" ? { message: utanUtropstecken(c.message) } : {}),
+          ...(typeof c.cta === "string" ? { cta: utanUtropstecken(c.cta) } : {}),
+        } as Record<string, unknown>;
+        return { ...k, ...markta([k.title, k.goal, k.message, k.cta], k.produkt) };
+      })
     : plan.campaigns;
 
   return { ...plan, posts, newsletter, campaigns };

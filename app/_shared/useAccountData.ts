@@ -37,11 +37,17 @@ export type MarketingPost = {
    *  som slang, regulator eller kamin. Satts server-side. */
   granskas?: string[];
 };
-export type Newsletter = { subject: string; preview: string; body: string; cta: string };
+export type Newsletter = {
+  subject: string; preview: string; body: string; cta: string;
+  /** Pastaenden i texten som foretagsdatan inte tacker. Satts server-side. */
+  saknas?: string[];
+};
 export type PlanCampaign = {
   title: string; goal: string; message: string; channels: string; cta: string;
   /** Produkten kampanjen handlar om. Saknas i planer fore innehallssprint 2. */
   produkt?: string;
+  /** Pastaenden i forslaget som foretagsdatan inte tacker. Satts server-side. */
+  saknas?: string[];
 };
 export type Opportunity = { title: string; date: string; relevance: string };
 

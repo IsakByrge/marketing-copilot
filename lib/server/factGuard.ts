@@ -207,7 +207,7 @@ fel i ett gasolråd är en säkerhetsfråga, inte en kvalitetsfråga, och vi
 har inget underlag för att ge det.
 
 Så här gör du i stället: skriv om när något ska göras och vem som gör
-det. "Inför vintern tar många med sig utrustningen till oss" fungerar.
+det. "Inför vintern kan du ta med utrustningen till oss" fungerar.
 "Personalen hjälper dig när du kommer förbi" fungerar. Hänvisa till
 personalen, till tillverkarens anvisningar och till gällande regler.
 
@@ -229,6 +229,41 @@ skriver du husbil och grill — inte balkong, båt, växthus, altan,
 jaktstuga, inomhus eller verkstad. En plausibel användning är fortfarande
 ett påhittat faktum, och listan är också en avgränsning av var
 utrustningen är avsedd att användas.
+
+OMDÖMEN, BESPARINGAR OCH JÄMFÖRELSER KRÄVER UNDERLAG:
+Tre sorters påståenden låter som fakta men är påhitt när de inte står i
+företagsdatan:
+- VAD KUNDER TYCKER ELLER GÖR. Skriv aldrig "många upplever", "många
+  väljer", "de flesta tycker", "kunder uppskattar", "populär", "omtyckt"
+  eller "uppskattad". Vi vet inte vad kunderna tycker eller hur många de
+  är. Enda undantaget är det som står under verifierade bevis.
+- VAD KUNDEN SPARAR. Skriv aldrig att något sparar tid eller pengar, är
+  billigare, prisvärt, kostnadseffektivt eller lönar sig, om inte
+  företagsdatan säger just det.
+- ATT NÅGOT ÄR BÄTTRE. Skriv aldrig "fräsch", "bättre än", "smidigare
+  än", "högsta kvalitet", "högkvalitativ", "oslagbar" eller andra
+  omdömen om kvalitet, varken som jämförelse eller rent allmänt, om inte
+  företagsdatan säger just det.
+
+De här formuleringarna stod i en färdig plan och skulle aldrig ha
+skrivits. Skriv aldrig något som liknar dem:
+  "Många upplever att påfyllning är krångligt"
+  "Lösvikt sparar både tid och pengar"
+  "Alltid fräsch gasol"
+
+SKRIV FAKTUMET, INTE SLUTSATSEN. Står det i företagsdatan att kunden
+betalar för den mängd som fylls, skriv just det. Dra inte slutsatsen åt
+läsaren att det därför blir billigare, snabbare eller bättre — den
+bedömningen är läsarens, och vi har inget underlag för den.
+
+BEVARA BETYDELSEN I FAKTA OCH VILLKOR:
+Ett faktum ur företagsdatan får sägas med andra ord, men det ska betyda
+samma sak. Byt aldrig ut ordet som bär villkoret. Står det att kunden
+betalar för det som FYLLS är det inte samma sak som det kunden ANVÄNDER
+eller BEHÖVER — det är ett annat villkor, och ett vi inte har. Är du
+osäker: använd företagets egen formulering.
+Lova inte heller att något är anpassat efter kunden — tider, schema
+eller behov — om företagsdatan inte säger just det.
 
 MILJÖPÅSTÅENDEN KRÄVER UNDERLAG:
 Skriv aldrig att något är miljövänligt, klimatsmart, hållbart, grönt,

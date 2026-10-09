@@ -16,19 +16,22 @@
 // Flaggor:
 //   --runs=3      antal körningar (standard 1)
 //   --print       skriv ut hela den sista planen som JSON
+//   --dump=mapp   spara varje körning i fyra steg: modellens svar, det
+//                 rättningsrundan svarade, planen efter rundan och
+//                 planen efter valideringen
 // ─────────────────────────────────────────────────────────────
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import OpenAI from "openai";
 import {
-  PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, POST_ROLES, LENGTH_LIMITS,
+  PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, planUnderlag, POST_ROLES, LENGTH_LIMITS,
 } from "@/lib/server/planPrompt";
 import { RISKY_CTA_WORDS } from "@/lib/server/factGuard";
-import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
+import { hittaBrister, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
 import { INTERNAL_TERMS } from "@/lib/server/factGuard";
 import {
   hittaPlatshallare, antalStycken, normaliseraDag, valideraPlan,
   sakerhetsordIText, arSakerhetsrad,
-  arBesoksuppmaning, kopLank, infoLank,
+  lankMotHandlingen, obelagdaPastaenden, saknadText,
 } from "@/lib/server/planValidate";
 import { lankarIText, vardnamn } from "@/app/_shared/websites";
 import { sasongsfelIText, forbjudnaSasongsord } from "@/lib/server/season";
@@ -48,13 +51,15 @@ if (!process.env.OPENAI_API_KEY) {
 // ── Testprofilen ────────────────────────────────────────────
 const PRIORITERAD_PRODUKT = "Gasol i lösvikt";
 const DEPAMAL = "Fler besökare till våra depåer";
+/** Produkter som inget av testprofilens mål handlar om. */
+const UTAN_MALKOPPLING = ["Gasolkaminer", "Gasolgrillar"];
 
 const profile = {
   companyName: "Testgas Norrköping",
   industry: "Försäljning och påfyllning av gasol",
   summary: "Säljer gasol och tillbehör till privatpersoner och mindre företag, med egna depåer där kunder fyller på flaskor.",
   customers: ["Husbilsägare", "Villaägare med gasolgrill", "Mindre restauranger"],
-  products: [PRIORITERAD_PRODUKT, "Gasolflaskor", "Slangar och regulatorer", "Gasolgrillar"],
+  products: [PRIORITERAD_PRODUKT, "Gasolflaskor", "Slangar och regulatorer", "Gasolgrillar", "Gasolkaminer"],
   tone: ["Sakligt", "Vänligt", "Utan överdrifter"],
   strengths: ["Egna depåer", "Betalar bara för det som fylls"],
   avoid: ["Skrämselpropaganda"],
@@ -83,6 +88,19 @@ const brain: CompanyBrainContext = {
       differentiators: [],
       seasonality: "April–augusti",
     },
+    // Lönsam och i säsong, men inget av målen nedan handlar om den.
+    // Tillagd efter testet med riktig företagsdata, där just en sådan
+    // produkt fick en egen kampanj med ett påhittat mål. Resultat från
+    // körningar före den här produkten är inte jämförbara på urvalet.
+    {
+      name: "Gasolkaminer",
+      description: "Gasolkaminer i flera storlekar.",
+      profitability: "high",
+      priority: "normal",
+      objections: [],
+      differentiators: [],
+      seasonality: "September–mars",
+    },
   ],
   strengths: profile.strengths,
   usps: ["Egna depåer på tre orter"],
@@ -103,9 +121,9 @@ const brain: CompanyBrainContext = {
 // ── Kontroller ──────────────────────────────────────────────
 const ord = (s: string) => (s ?? "").trim().split(/\s+/).filter(Boolean).length;
 
-interface Post { roll?: string; dag?: string; produkt?: string; mal?: string; title?: string; text?: string; cta?: string }
-interface Campaign { title?: string; produkt?: string }
-interface Plan { intro?: string; posts?: Post[]; newsletter?: { body?: string; subject?: string; cta?: string }; campaigns?: Campaign[] }
+interface Post { roll?: string; dag?: string; produkt?: string; mal?: string; title?: string; text?: string; cta?: string; saknas?: string[] }
+interface Campaign { title?: string; produkt?: string; goal?: string; message?: string; cta?: string; saknas?: string[] }
+interface Plan { focus?: string; intro?: string; posts?: Post[]; newsletter?: { body?: string; subject?: string; cta?: string; saknas?: string[] }; campaigns?: Campaign[] }
 
 type Kontroll = { namn: string; ok: boolean; detalj: string };
 
@@ -113,9 +131,45 @@ type Kontroll = { namn: string; ok: boolean; detalj: string };
 const LOVAR_LISTA = /\b(\d+|två|tre|fyra|fem|sex|sju)\s+(steg|saker|tips|sätt|misstag|punkter|råd|frågor)|checklista/i;
 const HAR_LISTA = /(\n\s*[-•*\d]|^\s*\d[.)]\s)/m;
 
-function kontrollera(plan: Plan): Kontroll[] {
+/** Påståenden utan underlag i modellens första svar, före rättningsrundan. */
+let obelagdaFore: string[] = [];
+
+/** Varje fält rättningsrundan kan skriva i, med ett namn att peka på. */
+function rundansFalt(plan: Plan): Array<[string, string]> {
+  return [
+    ...(plan.posts ?? []).flatMap((p, i): Array<[string, string]> => [
+      [`inlägg ${i + 1}`, p.text ?? ""], [`rubrik ${i + 1}`, p.title ?? ""], [`uppmaning ${i + 1}`, p.cta ?? ""],
+    ]),
+    ["nyhetsbrev", plan.newsletter?.body ?? ""], ["ämnesrad", plan.newsletter?.subject ?? ""],
+    ...(plan.campaigns ?? []).flatMap((c, i): Array<[string, string]> => [
+      [`kampanj ${i + 1} titel`, c.title ?? ""], [`kampanj ${i + 1} budskap`, c.message ?? ""],
+    ]),
+  ];
+}
+
+function kontrollera(plan: Plan, raPlan: Plan = plan, svaret: Plan = raPlan): Kontroll[] {
   const k: Kontroll[] = [];
   const posts = plan.posts ?? [];
+
+  // 0. Gjorde rättningsrundan något SÄMRE? Jämför modellens första svar
+  // med det rundan lämnade ifrån sig, fält för fält: ord från fel
+  // årstid, webbadresser och ett nyhetsbrev som krympt.
+  const fore = new Map(rundansFalt(svaret));
+  const infort = rundansFalt(raPlan).flatMap(([namn, efter]) => {
+    const innan = fore.get(namn) ?? "";
+    const sasong = sasongsfelIText(efter).filter((o) => !sasongsfelIText(innan).includes(o));
+    const lankar = lankarIText(efter).filter((l) => vardnamn(l) !== null && !lankarIText(innan).includes(l));
+    return [
+      ...sasong.map((o) => `${namn}: "${o}"`),
+      ...lankar.map((l) => `${namn}: ${l}`),
+      ...(namn === "nyhetsbrev" && ord(efter) < ord(innan) ? [`nyhetsbrev: ${ord(innan)} -> ${ord(efter)} ord`] : []),
+    ];
+  });
+  k.push({
+    namn: "rättningsrundan inför inga nya fel",
+    ok: infort.length === 0,
+    detalj: infort.length ? infort.join(" | ") : `inga (nyhetsbrev ${ord(svaret.newsletter?.body ?? "")} -> ${ord(raPlan.newsletter?.body ?? "")} ord)`,
+  });
 
   k.push({
     namn: "fem inlägg",
@@ -341,22 +395,83 @@ function kontrollera(plan: Plan): Kontroll[] {
     detalj: `${medLank}/${posts.length}`,
   });
 
-  // 4b. Lanken ska matcha uppmaningen, inte amnet.
-  const kop = kopLank(brain.websites);
-  const info = infoLank(brain.websites);
-  const felLank = posts.filter((p) => {
-    const lankar = lankarIText(p.text).filter((l) => vardnamn(l) !== null);
-    if (lankar.length === 0) return false;
-    const vantad = arBesoksuppmaning(p.cta, p.text) ? info : kop;
-    if (!vantad) return false;
-    return !lankar.some((l) => l.includes(vardnamn(vantad) ?? " "));
-  });
+  // 4b. Lanken ska folja kundens nasta handling. Mats tva ganger:
+  // pa det modellen skrev, och pa det anvandaren far se efter
+  // valideringen. Den forsta siffran sager hur ofta prompten missar,
+  // den andra om kodrattningen haller.
+  const felFore = (raPlan.posts ?? []).filter((p) => lankMotHandlingen(brain.websites, p.cta, p.text));
+  const felLank = posts.filter((p) => lankMotHandlingen(brain.websites, p.cta, p.text));
   k.push({
-    namn: "länken matchar uppmaningen",
+    namn: "länken följer kundens handling",
     ok: felLank.length === 0,
     detalj: felLank.length
-      ? felLank.map((p) => `"${p.cta}" -> ${lankarIText(p.text)[0]}`).join(" | ")
-      : "alla rätt",
+      ? felLank.map((p) => `"${p.cta}" -> ${lankarIText(p.text).join(" ")}`).join(" | ")
+      : `alla rätt (modellen skrev fel i ${felFore.length} inlägg före rättning)`,
+  });
+
+  // 4c. Pastaenden utan underlag: vad kunder tycker, vad kunden sparar,
+  // och att nagot ar battre. Det som star kvar efter rattningen marks i
+  // granssnittet - inlagg, nyhetsbrev och kampanjforslag. Kontrollen
+  // faller pa att nagot star kvar; den andra raden sager om varje
+  // kvarvarande pastaende ocksa har fatt sin varning.
+  const underlag = planUnderlag(brain);
+  const obelagdaInlagg = posts.flatMap((p) => [p.title, p.text, p.cta].flatMap((t) => obelagdaPastaenden(t, underlag, p.produkt)));
+  const obelagdaBrev = [plan.newsletter?.subject, plan.newsletter?.body, plan.newsletter?.cta]
+    .flatMap((t) => obelagdaPastaenden(t, underlag));
+  const obelagdaKampanj = (plan.campaigns ?? [])
+    .flatMap((c) => [c.title, c.goal, c.message, c.cta].flatMap((t) => obelagdaPastaenden(t, underlag, c.produkt)));
+  const kvar = [...obelagdaInlagg, ...obelagdaBrev, ...obelagdaKampanj];
+  k.push({
+    namn: "inga obelagda påståenden",
+    ok: kvar.length === 0,
+    detalj: kvar.length === 0
+      ? `inga kvar (modellen skrev ${obelagdaFore.length} före rättning${obelagdaFore.length ? ": " + obelagdaFore.join(", ") : ""})`
+      : `före rättning ${obelagdaFore.length} · kvar i inlägg: ${obelagdaInlagg.join(", ") || "–"} · nyhetsbrev: ${obelagdaBrev.join(", ") || "–"} · kampanj: ${obelagdaKampanj.join(", ") || "–"}`,
+  });
+
+  // 4c2. Syns det som star kvar? Varje kvarvarande pastaende, och varje
+  // inlagg utan text, ska ha en rad under "saknas".
+  const varningar = [
+    ...posts.flatMap((p) => p.saknas ?? []),
+    ...(plan.newsletter?.saknas ?? []),
+    ...(plan.campaigns ?? []).flatMap((c) => c.saknas ?? []),
+  ];
+  const osynliga = [
+    ...kvar.filter((fras) => !varningar.some((v) => v.includes(`"${fras}"`))),
+    ...posts.filter((p) => saknadText(p.text) && !(p.saknas ?? []).some((v) => v.includes("ingen text"))).map((p) => `tomt inlägg: ${p.roll}`),
+  ];
+  const tomma = posts.filter((p) => saknadText(p.text)).length;
+  k.push({
+    namn: "det som står kvar syns för användaren",
+    ok: osynliga.length === 0,
+    detalj: osynliga.length ? `utan varning: ${osynliga.join(", ")}` : `${kvar.length} påståenden och ${tomma} inlägg utan text, alla med varning`,
+  });
+
+  // 4d. Motiverar focus och intro valet med det foretaget sjalvt angett?
+  // Tre mekaniska tecken: en produkt ur underlaget namns, ett av malen
+  // gar att kanna igen, och inget pastas om efterfragan eller kunder
+  // som vi inte har underlag for. Texten skrivs ut i sin helhet - det
+  // har ar en grov matning, och den ska lasas.
+  const motivering = `${plan.focus ?? ""} ${plan.intro ?? ""}`;
+  const mLag = motivering.toLowerCase();
+  const namndProdukt = brain.priorityProducts.find((p) => mLag.includes(p.name.toLowerCase()));
+  const kantMal = brain.marketingGoals.find((g) => {
+    const stammar = g.toLowerCase().split(/\s+/).filter((w) => w.length > 4).map((w) => w.slice(0, 5));
+    return stammar.length > 0 && stammar.filter((w) => mLag.includes(w)).length >= Math.min(2, stammar.length);
+  });
+  const pahitt = [
+    ...obelagdaPastaenden(motivering, underlag),
+    ...(motivering.match(/efterfrågan|eftertrakta|trend\p{L}*|högsäsong|rusning/giu) ?? []),
+  ];
+  const brister = [
+    namndProdukt ? null : "ingen produkt ur underlaget nämns",
+    kantMal ? null : "inget av målen känns igen",
+    pahitt.length ? `obelagt: ${pahitt.join(", ")}` : null,
+  ].filter(Boolean);
+  k.push({
+    namn: "focus och intro motiverar valet",
+    ok: brister.length === 0,
+    detalj: `${brister.length ? brister.join("; ") : `${namndProdukt?.name} + "${kantMal}"`}\n      focus: ${plan.focus ?? "(saknas)"}\n      intro: ${plan.intro ?? "(saknas)"}`,
   });
 
   // 5. Kampanjtitlar och produktkoppling.
@@ -379,16 +494,60 @@ function kontrollera(plan: Plan): Kontroll[] {
     detalj: utanProdukt.length ? `utan: ${utanProdukt.map((c) => c.title).join(" | ")}` : kampanjer.map((c) => c.produkt).join(" | "),
   });
 
-  // 3. Sasongsord som hor till fel arstid, aven i kampanjtitlar.
+  // 5b. Styr malen urvalet? Kampanjens mal ska vara ett av foretagets
+  // egna, och en produkt som inget mal namner ska varken fa en kampanj
+  // eller leda ett saljande inlagg - hur lonsam den an ar.
+  const paHittadeMal = kampanjer.filter((c) => {
+    const m = (c.goal ?? "").trim().toLowerCase();
+    return !m || !kandaMal.some((g) => m.includes(g) || g.includes(m));
+  });
+  k.push({
+    namn: "kampanjmål finns i företagsdatan",
+    ok: kampanjer.length > 0 && paHittadeMal.length === 0,
+    detalj: paHittadeMal.length ? `eget mål: ${paHittadeMal.map((c) => `${c.produkt}: "${c.goal}"`).join(" | ")}` : kampanjer.map((c) => c.goal).join(" | "),
+  });
+
+  const arOkopplad = (p: string | undefined) => UTAN_MALKOPPLING.some((n) => (p ?? "").toLowerCase().includes(n.toLowerCase()));
+  const felLedda = [
+    ...kampanjer.filter((c) => arOkopplad(c.produkt)).map((c) => `kampanj: ${c.produkt}`),
+    ...posts.filter((p) => ["saljande", "prioriterad_produkt"].includes(p.roll ?? "") && arOkopplad(p.produkt)).map((p) => `${p.roll}: ${p.produkt}`),
+  ];
+  k.push({
+    namn: "produkt utan målkoppling leder inget",
+    ok: felLedda.length === 0,
+    detalj: felLedda.length ? felLedda.join(" | ") : `varken ${UTAN_MALKOPPLING.join(" eller ")}`,
+  });
+
+  // 3. Sasongsord som hor till fel arstid, aven i kampanjforslagen.
+  // Budskapet mattes inte forut, och "inte bara for sommaren" gick igenom.
   const sasongstexter = [
     ...texter,
-    ...kampanjer.map((c) => c.title ?? ""),
+    ...kampanjer.flatMap((c) => [c.title ?? "", c.message ?? "", c.cta ?? ""]),
   ];
-  const sasongsfel = [...new Set(sasongstexter.flatMap((t) => sasongsfelIText(t)))];
+  //
+  // En ordtraff ar inte ett innehallsfel. "Inte bara for sommaren" i
+  // oktober sager att sasongen ar OVER, och "sommarstugan" ar en plats.
+  // Traffarna delas darfor i tva: meningar som avgransar sig mot
+  // arstiden, och ovriga. Bara de ovriga faller kontrollen, och bada
+  // skrivs ut med sin mening - sorteringen ar grov och ska lasas.
+  const AVGRANSAR = /inte\s+(?:bara|enbart|längre|slut)|(?:är|var)\s+över|även\s+(?:om|när|efter)|tar\s+inte\s+slut|efter\s+(?:sommar|vinter)|oavsett|året\s+(?:runt|om)/i;
+  const traffar = sasongstexter
+    .flatMap((t) => t.split(/(?<=[.!?])\s+|\n+/))
+    .flatMap((mening) => sasongsfelIText(mening).map((o) => ({ o, mening: mening.trim() })));
+  const avgransande = traffar.filter((t) => AVGRANSAR.test(t.mening));
+  const attLasa = traffar.filter((t) => !AVGRANSAR.test(t.mening));
+  const visa = (ts: typeof traffar) => ts.map((t) => `\n      [${t.o}] ${t.mening.slice(0, 140)}`).join("");
   k.push({
-    namn: "inga ord från fel årstid",
-    ok: sasongsfel.length === 0,
-    detalj: sasongsfel.length ? sasongsfel.join(", ") : `rent (förbjudet nu: ${forbjudnaSasongsord().slice(0, 3).join(", ")}…)`,
+    namn: "inga säsongsord som behöver läsas",
+    ok: attLasa.length === 0,
+    detalj: attLasa.length
+      ? `${attLasa.length} ordträff att läsa — kan vara ett innehållsfel:${visa(attLasa)}`
+      : `inga (förbjudet nu: ${forbjudnaSasongsord().slice(0, 3).join(", ")}…)`,
+  });
+  k.push({
+    namn: "säsongsord som avgränsning (inget fel)",
+    ok: true,
+    detalj: avgransande.length ? `${avgransande.length} ordträff:${visa(avgransande)}` : "inga",
   });
 
   // 6. Nyhetsbrevets styckeindelning.
@@ -432,6 +591,8 @@ console.log(`Självtest: ${LACKTA_SAKERHETSRAD.length}/${LACKTA_SAKERHETSRAD.len
 // ── Körning ─────────────────────────────────────────────────
 const runs = Number(process.argv.find((a) => a.startsWith("--runs="))?.split("=")[1] ?? 1);
 const print = process.argv.includes("--print");
+const dump = process.argv.find((a) => a.startsWith("--dump="))?.split("=")[1];
+if (dump) mkdirSync(dump, { recursive: true });
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // Samma upplösning som routen, så evalen mäter det prod faktiskt kör.
@@ -470,28 +631,38 @@ for (let i = 1; i <= runs; i++) {
   }
   // Samma reparationsrunda som routen kor, sa evalen mater hela kedjan
   // och inte bara forsta svaret.
-  const forKorta = hittaForKorta(plan as PlanShape);
-  if (forKorta.length > 0) {
-    process.stdout.write(`(utokar ${forKorta.length}) `);
+  const svaret = structuredClone(plan);
+  const underlag = planUnderlag(brain);
+  const brister = hittaBrister(plan as PlanShape, underlag);
+  // Hur manga pastaenden utan underlag modellen skrev, fore rattning.
+  obelagdaFore = brister.flatMap((x) => x.obelagda);
+  // Det rundan svarade, också det som inte togs emot.
+  let rattningssvar: Record<string, string> | undefined;
+  if (brister.length > 0) {
+    process.stdout.write(`(rättar ${brister.length}) `);
     const fix = await openai.chat.completions.create({
       model,
       messages: [
         { role: "system", content: PLAN_SYSTEM_PROMPT },
-        { role: "user", content: buildRepairPrompt(plan as PlanShape, forKorta) },
+        { role: "user", content: buildRepairPrompt(brister, underlag) },
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
     });
     try {
-      const texts = JSON.parse(fix.choices[0]?.message?.content ?? "{}")?.texts;
-      if (texts) plan = applyRepair(plan as PlanShape, texts) as Plan;
+      rattningssvar = JSON.parse(fix.choices[0]?.message?.content ?? "{}")?.texts;
+      if (rattningssvar) plan = applyRepair(plan as PlanShape, rattningssvar, underlag) as Plan;
     } catch { /* behall originalet */ }
   }
 
-  plan = valideraPlan(plan as PlanShape, brain.websites) as Plan;
+  const raPlan = structuredClone(plan);
+  plan = valideraPlan(plan as PlanShape, brain.websites, underlag) as Plan;
+  if (dump) {
+    writeFileSync(`${dump}/korning-${i}.json`, JSON.stringify({ svaret, brister, rattningssvar, rattad: raPlan, validerad: plan }, null, 2));
+  }
 
   sistaPlan = plan;
-  const k = kontrollera(plan);
+  const k = kontrollera(plan, raPlan, svaret);
   alla.push(k);
   const godkanda = k.filter((x) => x.ok).length;
   console.log(`${godkanda}/${k.length} godkända`);

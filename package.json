@@ -27,6 +27,7 @@
     "test:locations": "tsx app/_shared/locations.test.mts",
     "test:websites": "tsx app/_shared/websites.test.mts",
     "test:planvalidate": "tsx lib/server/planValidate.test.mts",
+    "test:planrepair": "tsx lib/server/planRepair.test.mts",
     "test:season": "tsx lib/server/season.test.mts",
     "test:campaigns": "tsx lib/campaigns/logic.test.mts",
     "test:today": "tsx lib/today/nextStep.test.mts",

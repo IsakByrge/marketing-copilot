@@ -15,6 +15,7 @@ import { factGuardBlock } from "./factGuard";
 import { migrateProfileToBrain, buildCompanyBrainContext, NAMELESS_PRODUCT, type CompanyBrainContext } from "@/app/_shared/companyBrain";
 import { veckansOrt } from "@/app/_shared/locations";
 import { sasongsBlock } from "./season";
+import type { Underlag } from "./planValidate";
 
 export type PlanCompanyProfile = {
   companyName?: string; industry?: string; summary?: string;
@@ -74,6 +75,29 @@ export function planContextFromRow(row: PlanCompanyRow): { profile: PlanCompanyP
   };
 
   return { profile, brain };
+}
+
+/**
+ * Det ett påstående i planen får luta sig mot: allt företaget själv
+ * skrivit om sig och sina produkter, plus de verifierade bevisen.
+ * Valideringen jämför texterna mot det här (planValidate.ts).
+ *
+ * Företaget, varje produkt och bevisen hålls isär, så att det som står
+ * om en produkt inte belägger något om en annan.
+ *
+ * Invändningar är med flit inte med. De är kundens tvekan, inte något
+ * företaget påstår.
+ */
+export function planUnderlag(brain: CompanyBrainContext | null): Underlag {
+  if (!brain) return { text: "", bevis: [] };
+  return {
+    text: [brain.summary, ...brain.strengths, ...brain.usps].join("\n"),
+    bevis: brain.proofPoints,
+    produkter: brain.priorityProducts.map((p) => ({
+      namn: p.name,
+      text: [p.description ?? "", ...p.differentiators].join("\n"),
+    })),
+  };
 }
 
 /** En lucka ska synas som en lucka. En tom rad läser modellen som
@@ -163,8 +187,36 @@ export function brainBlock(brain: CompanyBrainContext | null): string {
   const malRegel = harMal ? `
 - Välj veckans "focus" och de två kampanjförslagen så att de för företaget
   närmare minst ett av affärsmålen ovan. Säg i "intro" vilket mål veckan
-  tjänar, med företagarens egen formulering. Finns ingen ärlig koppling:
-  påstå inte att det finns en.` : "";
+  tjänar, med företagarens egen formulering, och vilka av uppgifterna
+  ovan som gör att just den produkten går först. Finns ingen ärlig
+  koppling: påstå inte att det finns en.
+- VARJE kampanjförslag ska tjäna ett av affärsmålen ovan, och fältet
+  "goal" ska vara just det målet, med företagarens formulering. Hitta
+  aldrig på ett nytt mål — inte "ökad försäljning" av en produkt som
+  inget mål nämner, inte "ökad medvetenhet".
+- Tjänar bara en produkt målen: gör båda kampanjförslagen för den
+  produkten, med olika vinkel, målgrupp eller kanal. Föreslå aldrig en
+  kampanj för en annan produkt för omväxlings skull.` : "";
+
+  // Utan mål finns bara prioriteten att gå på. Då är det den som styr,
+  // och lönsamheten avgör mellan lika prioriterade.
+  const urval = harMal
+    ? `- Företagarens mål och den prioritet hen själv har satt styr vilka
+  produkter veckan handlar om. En produkt med prioritet "high" som är i
+  säsong och för företaget närmare ett av målen ska förekomma i minst
+  ett inlägg.
+- Lönsamhet är beslutsunderlag, inte ett krav. Den avgör mellan två
+  produkter som båda tjänar ett mål. Hög lönsamhet ensam ger ingen
+  produkt ett eget inlägg eller en kampanj.
+- En produkt som inget mål nämner och som inte är prioriterad får stå
+  med där den hör hemma i sak, till exempel i tipsinlägget om att välja
+  rätt. Den leder inget inlägg och får ingen kampanj.`
+    : `- Den prioritet företagaren själv har satt styr vilka produkter veckan
+  handlar om. En produkt med prioritet "high" som är i säsong ska
+  förekomma i minst ett inlägg.
+- Lönsamhet är beslutsunderlag, inte ett krav. Den avgör mellan två
+  lika prioriterade produkter. Hög lönsamhet ensam ger ingen produkt
+  ett eget inlägg eller en kampanj.`;
 
   return `
 PRODUKTER MED PRIORITET, LÖNSAMHET OCH SÄSONG:
@@ -180,8 +232,7 @@ ${brain.locations.length ? `\nPLATSER KUNDER KAN BESÖKA: ${brain.locations.join
 
 ${topDiffRad(brain)}
 STYRREGLER FÖR URVALET:
-- Produkter med prioritet "high" ELLER lönsamhet "high" som är i säsong just
-  nu MÅSTE förekomma i minst ett inlägg den här veckan.
+${urval}
 - Den högst prioriterade produkten i säsong får inlägget med rollen
   "prioriterad_produkt".${malRegel}
 - Koppla inlägget till ett av målen ovan när det passar, och skriv vilket
@@ -225,6 +276,17 @@ export function buildPlanUserPrompt(input: PlanPromptInput): string {
   const month = now.toLocaleString("sv-SE", { month: "long" });
   const day = now.getDate();
   const week = isoWeek(now);
+
+  // Kampanjmallen krävde tidigare "en ANNAN produkt" i det andra
+  // förslaget. Med ett enda mål, om en enda produkt, tvingade det fram
+  // en kampanj utan koppling till målet — och ett påhittat mål till den.
+  const harMal = (brain?.marketingGoals.length ?? 0) > 0;
+  const kampanjmal = harMal
+    ? "Ett av företagets affärsmål ovan, med samma formulering. Aldrig ett eget."
+    : "Vad kampanjen uppnår";
+  const andraProdukt = harMal
+    ? "en produkt ur listan som tjänar samma eller ett annat av affärsmålen — samma produkt som i det första förslaget om ingen annan gör det"
+    : "en produkt ur listan, i första hand en med hög prioritet";
 
   return `NULÄGE: ${day} ${month} ${year}, vecka ${week}.
 
@@ -273,7 +335,11 @@ DESSUTOM:
 FEM INLÄGG MED FEM OLIKA ROLLER — inte fem varianter av samma budskap.
 Exakt ett inlägg per roll, i den här ordningen:
 1. "saljande" — lyfter en produkt eller tjänst ur listan och varför den löser
-   något just nu. Får sälja, men bara på det som finns.
+   något just nu. Får sälja, men bara på det som finns. Produkten väljs
+   enligt styrreglerna för urvalet ovan: den ska föra företaget närmare
+   ett av målen eller vara prioriterad. Att en produkt är lönsam eller i
+   säsong räcker inte. Får samma produkt som det prioriterade inlägget
+   bli säljande också: ta en annan vinkel, inte en annan produkt.
 2. "tips" — hjälper läsaren VÄLJA RÄTT eller FÖRSTÅ HUR DET GÅR TILL.
    Två sorters tips är tillåtna, och inga andra:
    a) Välja rätt produkt: vilken storlek eller variant som passar vilket
@@ -331,11 +397,20 @@ säga, inte genom att skriva mindre.
 - Nyhetsbrevet har EN uppmaning, i fältet "cta". Upprepa den inte inne i
   brödtexten.
 - Varje inlägg har exakt en tydlig uppmaning i "cta".
+- Varje uppmaning ber om EN sak: antingen ett besök eller ett köp. Inte
+  båda i samma uppmaning.
 - Inläggen med rollen "saljande" och "prioriterad_produkt" ska AVSLUTAS
-  med en länk, vald efter webbplatsernas syfte enligt faktaspärren. Ett
-  säljande inlägg om en produkt leder till den adress där man köper.
-  Skriv adressen sist i "text", efter uppmaningen. Finns ingen adress i
-  företagsdatan: hoppa över länken, hitta aldrig på en.
+  med den länk som hör till inläggets uppmaning — bestäm uppmaningen
+  först, välj länken efter den. Ber uppmaningen om ett besök i depå
+  eller butik: adressen med depå- eller kontaktinformation. Ber den om
+  ett köp: adressen där man köper. En uppmaning om depåbesök följd av
+  webbshoppens adress skickar läsaren fel.
+  Skriv adressen sist i "text", efter uppmaningen. Finns ingen adress
+  med rätt syfte i företagsdatan: ingen länk alls. Hitta aldrig på en,
+  och ta inte en annan adress i stället.
+- "Varför nu" får bara bygga på datumet, på den säsong som står angiven
+  för produkten och på allmänt kända förhållanden. Inte på påståenden
+  om vad kunder brukar göra, vilja eller behöva.
 - Sprid inläggen över veckan i fältet "dag" — inte alla på samma dag.
   Skriv dagen med liten bokstav och svensk stavning: ${POST_DAYS.join(", ")}.
 
@@ -362,13 +437,13 @@ sak. Det är det vanligaste felet: texterna blir för korta.
 Returnera exakt denna JSON:
 {
   "company": "${profile.companyName ?? ""}",
-  "focus": "En mening om veckans tema — specifik och säsongsanpassad för ${month} ${year}",
-  "intro": "En eller två naturliga meningar till företagaren om varför du valt veckans tema. Löpande text, inte en uppräkning. Räkna INTE upp teman och skriv inte ordet teman.",
+  "focus": "En mening om vad veckan ska åstadkomma: produkten som leder veckan och målet den tjänar. Nämn säsong bara om den står angiven för just den produkten. Påstå inget om efterfrågan, väder eller vad kunder brukar göra.",
+  "intro": "Två eller tre meningar till företagaren, i du-form, som motiverar veckans val med det hen själv har angett. Säg (1) vilken produkt som leder veckan, vid namn, (2) vilket av målen det tjänar, med hens egen formulering, och (3) vilka uppgifter om produkten som gör att den går först: att den är markerad som prioriterad, säsongen som står angiven för den, det som skiljer den. Det här fältet läser bara företagaren, och bara här får prioritet och mål nämnas — i inlägg, nyhetsbrev och kampanjförslag gäller faktaspärren som vanligt. Använd BARA uppgifter ur företagsdatan. Påstå aldrig något om efterfrågan, om vad kunder brukar göra eller vilja, om lönsamhet som inte står angiven eller om ett säsongsbehov som inte står där. Saknas mål eller produktuppgifter: säg vad som saknas i stället för att fylla i. Löpande text, inte en uppräkning. Skriv inte ordet teman.",
   "tags": ["3-5 konkreta teman för veckan, ej enkla ord utan fraser som 'Midsommarförberedelser' eller 'Campingsäsongen startar'"],
   "posts": [
-    { "roll": "saljande", "dag": "en av ${POST_DAYS.join("/")}", "produkt": "produktens namn ur listan", "mal": "vilket marknadsföringsmål inlägget tjänar", "title": "Rubrik som fångar ett konkret problem", "text": "MINST 60 ord, högst 150. Konkret scenario + vad man gör + varför nu. SISTA RADEN ska vara adressen dit man köper, skriven som den står i faktaspärren.", "cta": "Uppmaning som bara hänvisar till något som finns", "image": "Realistisk bildidé" },
+    { "roll": "saljande", "dag": "en av ${POST_DAYS.join("/")}", "produkt": "produktens namn ur listan", "mal": "vilket marknadsföringsmål inlägget tjänar", "title": "Rubrik som fångar ett konkret problem", "text": "MINST 60 ord, högst 150. Konkret scenario + vad man gör + varför nu. Skriv hela texten först. Lägg sedan, på en egen rad efter texten, adressen som hör till uppmaningen i cta — köpadressen vid köp, adressen med depåinformation vid besök — skriven som den står i faktaspärren. Finns ingen passande adress: ingen adress.", "cta": "EN handling — besök eller köp — som bara hänvisar till något som finns", "image": "Realistisk bildidé" },
     { "roll": "tips", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "text": "MINST 60 ord praktisk kunskap. Lovar rubriken en lista ska listan stå här.", "title": "Rubrik", "cta": "Uppmaning", "image": "Bildidé" },
-    { "roll": "prioriterad_produkt", "dag": "annan dag", "produkt": "den högst prioriterade produkten i säsong", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord om just den produkten. MÅSTE innehålla produktens Skiljer sig genom, ordagrant eller nästan ordagrant — inte en generisk fördel. SISTA RADEN ska vara adressen dit man köper.", "cta": "Uppmaning", "image": "Bildidé" },
+    { "roll": "prioriterad_produkt", "dag": "annan dag", "produkt": "den högst prioriterade produkten i säsong", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord om just den produkten. MÅSTE innehålla produktens Skiljer sig genom, ordagrant eller nästan ordagrant — inte en generisk fördel. Skriv hela texten först. Lägg sedan, på en egen rad efter texten, adressen som hör till uppmaningen i cta.", "cta": "EN handling — besök eller köp", "image": "Bildidé" },
     { "roll": "lokalt", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord med lokal förankring", "cta": "Uppmaning", "image": "Bildidé" },
     { "roll": "socialt", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord som bjuder in till samtal om vad gasolen används TILL - mat, resor, sällskap, årstider. Aldrig en fråga om tips, knep eller hantering.", "cta": "Uppmaning", "image": "Bildidé" }
   ],
@@ -379,8 +454,8 @@ Returnera exakt denna JSON:
     "cta": "Uppmaning som bara hänvisar till något som finns"
   },
   "campaigns": [
-    { "title": "Konkret kampanjnamn som säger vad kampanjen gör — ALDRIG \\"Kampanj för ${month}\\" eller \\"Höstkampanj\\"", "produkt": "produkten kampanjen handlar om, ur listan", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" },
-    { "title": "Konkret kampanjnamn för en ANNAN produkt", "produkt": "en annan produkt ur listan", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" }
+    { "title": "Konkret kampanjnamn som säger vad kampanjen gör — ALDRIG \\"Kampanj för ${month}\\" eller \\"Höstkampanj\\"", "produkt": "produkten kampanjen handlar om, ur listan", "goal": "${kampanjmal}", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" },
+    { "title": "Konkret kampanjnamn med en annan vinkel, målgrupp eller kanal än det första", "produkt": "${andraProdukt}", "goal": "${kampanjmal}", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" }
   ],
   "opportunities": [
     {
