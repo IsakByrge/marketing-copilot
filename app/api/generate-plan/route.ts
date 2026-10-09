@@ -12,8 +12,8 @@ import { guardAiRequest, safeError } from "@/lib/server/guard";
 import { classifyAiError, modelUsageFrom } from "@/lib/server/aiError";
 import { callChatJson, AI } from "@/lib/server/ai";
 import { editMemoryBlock } from "@/lib/server/editMemory";
-import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, planContextFromRow, type PlanCompanyRow } from "@/lib/server/planPrompt";
-import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
+import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, planContextFromRow, planUnderlag, type PlanCompanyRow } from "@/lib/server/planPrompt";
+import { hittaBrister, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
 import { valideraPlan } from "@/lib/server/planValidate";
 
 
@@ -175,31 +175,35 @@ ${pastPlans.map((p, i) => {
     });
     let plan = result.parsed as PlanShape;
 
+    // Det ett pastaende i planen far luta sig mot. Samma underlag i
+    // reparationsrundan och i valideringen, sa de mater samma sak.
+    const underlag = planUnderlag(brain);
+
     // Reparationsrunda: modellen skriver konsekvent for korta texter pa
-    // svenska oavsett hur kravet formuleras (se lib/server/planRepair.ts).
-    // Har raknas orden i stallet, och bara de texter som ligger under
-    // golvet skickas tillbaka for utokning. Ett extra anrop, bara vid
-    // behov, och misslyckas det behaller vi originalet.
-    const forKorta = hittaForKorta(plan);
-    if (forKorta.length > 0) {
+    // svenska, och den drar slutsatser som "sparar pengar" ur fakta som
+    // inte sager det, oavsett hur kravet formuleras (se
+    // lib/server/planRepair.ts). Har mats texterna i stallet, och bara
+    // de som har felet skickas tillbaka for rattning. Ett extra anrop,
+    // bara vid behov, och misslyckas det behaller vi originalet.
+    const brister = hittaBrister(plan, underlag);
+    if (brister.length > 0) {
       try {
         const repair = await callChatJson(
           PLAN_SYSTEM_PROMPT,
-          buildRepairPrompt(plan, forKorta),
+          buildRepairPrompt(brister, underlag),
           { maxTokens: AI.MAX_OUTPUT_TOKENS, model: AI.PLAN_MODEL },
         );
         const texts = (repair.parsed as { texts?: Record<string, string> })?.texts;
-        if (texts) plan = applyRepair(plan, texts);
+        if (texts) plan = applyRepair(plan, texts, underlag);
       } catch (e) {
-        console.warn(`[${requestId}] Utokningen misslyckades, behaller originalet:`, e);
+        console.warn(`[${requestId}] Rattningen misslyckades, behaller originalet:`, e);
       }
     }
 
-    // Markera platshallare och normalisera veckodagarna. Texten rors
-    // aldrig - att gissa fram ett faktum vore precis det problem en
-    // platshallare avslojar. Inlagget far i stallet med sig vad som
-    // saknas, och granssnittet visar det.
-    plan = valideraPlan(plan, brain.websites);
+    // Ratta lankar, markera platshallare och pastaenden utan underlag,
+    // normalisera veckodagarna. Fakta gissas aldrig fram - inlagget far
+    // i stallet med sig vad som saknas, och granssnittet visar det.
+    plan = valideraPlan(plan, brain.websites, underlag);
 
     await guard.finish({
       status: "ok",

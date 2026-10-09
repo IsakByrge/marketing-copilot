@@ -8,7 +8,8 @@ import {
   hittaPlatshallare, beskrivSaknat, saknatIText,
   normaliseraDag, antalStycken, delaIStycken,
   sakerhetsordIText, granskningsordIText, arSakerhetsrad, valideraPlan,
-  kopLank, infoLank, valjLank, arBesoksuppmaning, sattLank, utanUtropstecken,
+  kopLank, infoLank, valjLank, arBesoksuppmaning, kundensHandling, sattLank,
+  obelagdaPastaenden, utanUtropstecken,
 } from "./planValidate";
 
 let passed = 0;
@@ -155,15 +156,54 @@ const SIDOR = [
   { url: "https://testgas.se", purpose: "Hemsida – information och depåer" },
   { url: "https://shop.testgas.se", purpose: "Webbshop – köp av produkter" },
 ];
+const BARA_SHOP = [SIDOR[1]];
+const BARA_INFO = [SIDOR[0]];
+
+type Inlagg = { posts: Array<Record<string, unknown>> };
+const satt = (posts: Inlagg["posts"], sidor = SIDOR) => sattLank<Inlagg>({ posts }, sidor).posts;
 
 test("köplänken väljs på syftet, inte på ordningen", () => {
   assert.equal(kopLank(SIDOR), "https://shop.testgas.se");
 });
 
-test("utan köpsyfte tas den första", () => {
-  assert.equal(kopLank([{ url: "https://a.se", purpose: "Info" }]), "https://a.se");
+test("utan köpsyfte finns ingen köplänk — ingen annan adress tas i stället", () => {
+  assert.equal(kopLank(BARA_INFO), null);
   assert.equal(kopLank([]), null);
   assert.equal(kopLank(undefined), null);
+});
+
+test("informationssidan väljs på syftet", () => {
+  assert.equal(infoLank(SIDOR), "https://testgas.se");
+  assert.equal(infoLank([{ url: "https://a.se", purpose: "Våra depåer och öppettider" }]), "https://a.se");
+  assert.equal(infoLank([]), null);
+});
+
+test("med bara webbshoppen registrerad finns ingen informationslänk", () => {
+  // Reserven "den första i listan" gav tidigare shoppens adress här.
+  assert.equal(infoLank(BARA_SHOP), null);
+  assert.equal(infoLank([{ url: "https://shop.a.se", purpose: "Webbshop" }, { url: "https://a.se", purpose: "Allmänt" }]), null);
+});
+
+test("kundens handling läses ur uppmaningen", () => {
+  const fall: Array<[string, string | null]> = [
+    ["Kom förbi depån", "besok"],
+    ["Besök våra depåer idag", "besok"],
+    ["Besök oss i Nyköping", "besok"],
+    // "köp" i ortsnamnet gjorde tidigare det här till ett köp.
+    ["Kom förbi vår depå i Nyköping", "besok"],
+    ["Träffa oss på plats", "besok"],
+    ["Beställ i webbshoppen", "kop"],
+    ["Handla online", "kop"],
+    ["Besök webbshoppen", "kop"],
+    ["Läs mer på webbplatsen", "las"],
+    ["Besök vår hemsida för mer information", "las"],
+    // Pekar åt två håll, eller inte åt något.
+    ["Kom förbi depån eller beställ på nätet", null],
+    ["Dela ditt favoritrecept i kommentarerna", null],
+    ["", null],
+  ];
+  for (const [cta, vantat] of fall) assert.equal(kundensHandling(cta), vantat, `"${cta}"`);
+  assert.equal(kundensHandling(undefined), null);
 });
 
 test("besöksuppmaningar känns igen", () => {
@@ -175,59 +215,203 @@ test("besöksuppmaningar känns igen", () => {
   }
 });
 
-test("informationssidan valjs pa syftet", () => {
-  assert.equal(infoLank(SIDOR), "https://testgas.se");
-  // Utan uttalad informationssida tas den som inte ar shoppen.
-  assert.equal(
-    infoLank([{ url: "https://shop.a.se", purpose: "Webbshop" }, { url: "https://a.se", purpose: "Allmänt" }]),
-    "https://a.se",
-  );
-  assert.equal(infoLank([]), null);
-});
-
-test("lanken foljer uppmaningen, inte amnet", () => {
-  // Det verkliga felet: inlagget om losvikt bad om depabesok men
-  // lankade till webbshoppen.
+test("länken följer uppmaningen, inte ämnet", () => {
   assert.equal(valjLank(SIDOR, "Besök våra depåer idag"), "https://testgas.se");
   assert.equal(valjLank(SIDOR, "Beställ i webbshoppen"), "https://shop.testgas.se");
+  assert.equal(valjLank(SIDOR, "Läs mer på webbplatsen"), "https://testgas.se");
+  assert.equal(valjLank(SIDOR, "Dela ditt bästa recept"), null);
 });
 
-test("ett inlagg med depabesok far hemsidan, inte shoppen", () => {
-  const plan = sattLank<{ posts: Array<Record<string, unknown>> }>({
-    posts: [
-      { roll: "prioriterad_produkt", text: "Gasol i lösvikt hos oss.", cta: "Besök våra depåer idag" },
-      { roll: "saljande", text: "Ny gasolgrill i sortimentet.", cta: "Beställ i webbshoppen" },
-    ],
-  }, SIDOR);
-  assert.ok(String(plan.posts[0].text).endsWith("https://testgas.se"), "depåbesök ska ge hemsidan");
-  assert.ok(String(plan.posts[1].text).endsWith("https://shop.testgas.se"), "köp ska ge shoppen");
+test("DET VERKLIGA FELET: depåbesök med webbshoppens adress får depåinformationen", () => {
+  // Modellen skrev uppmaningen "Kom förbi depån" och avslutade med
+  // shoppens adress. Tidigare lämnades en länk modellen själv valt orörd.
+  const [p] = satt([{
+    roll: "prioriterad_produkt", cta: "Kom förbi depån",
+    text: "Gasol i lösvikt hos oss. Du betalar för det som fylls.\n\nhttps://shop.testgas.se",
+  }]);
+  assert.equal(p.text, "Gasol i lösvikt hos oss. Du betalar för det som fylls.\n\nhttps://testgas.se");
+  assert.equal(p.saknas, undefined);
 });
 
-test("länken sätts sist i säljande och prioriterade inlägg", () => {
-  const plan = sattLank<{ posts: Array<Record<string, unknown>> }>({
-    posts: [
-      { roll: "saljande", text: "Köp gasol hos oss." },
-      { roll: "prioriterad_produkt", text: "Lösvikt är smidigt." },
-      { roll: "tips", text: "Ett tips utan länk." },
-    ],
-  }, SIDOR);
-  assert.ok(String(plan.posts[0].text).endsWith("https://shop.testgas.se"));
-  assert.ok(String(plan.posts[1].text).endsWith("https://shop.testgas.se"));
-  assert.equal(plan.posts[2].text, "Ett tips utan länk.", "tips ska inte få länk");
+test("fel länk rättas i alla roller, inte bara de som ska ha länk", () => {
+  const [p] = satt([{ roll: "lokalt", cta: "Besök oss i Nyköping", text: "Vi finns i Nyköping. https://shop.testgas.se" }]);
+  assert.equal(p.text, "Vi finns i Nyköping. https://testgas.se");
 });
 
-test("en länk modellen redan valt rörs inte", () => {
-  const plan = sattLank<{ posts: Array<Record<string, unknown>> }>({
-    posts: [{ roll: "saljande", text: "Läs mer på https://testgas.se" }],
-  }, SIDOR);
-  assert.equal(plan.posts[0].text, "Läs mer på https://testgas.se");
+test("köp med informationssidans adress får köplänken", () => {
+  const [p] = satt([{ roll: "saljande", cta: "Beställ i webbshoppen", text: "Ny grill i sortimentet.\n\nhttps://testgas.se" }]);
+  assert.equal(p.text, "Ny grill i sortimentet.\n\nhttps://shop.testgas.se");
+});
+
+test("saknas rätt destination tas länken bort och inlägget säger vad som saknas", () => {
+  const [p] = satt([{
+    roll: "prioriterad_produkt", cta: "Kom förbi depån",
+    text: "Gasol i lösvikt hos oss.\n\nhttps://shop.testgas.se",
+  }], BARA_SHOP);
+  assert.equal(p.text, "Gasol i lösvikt hos oss.");
+  assert.equal((p.saknas as string[]).length, 1);
+  assert.match((p.saknas as string[])[0], /ber om ett besök.*depå- eller kontaktinformation/);
+});
+
+test("saknas rätt destination läggs ingen annan länk till", () => {
+  const besok = satt([{ roll: "saljande", cta: "Kom förbi depån", text: "Fyll på hos oss." }], BARA_SHOP);
+  assert.equal(besok[0].text, "Fyll på hos oss.");
+  assert.equal(besok[0].saknas, undefined, "inget togs bort, så inget att anmärka på");
+
+  const kop = satt([{ roll: "saljande", cta: "Beställ i webbshoppen", text: "Ny grill.\n\nhttps://testgas.se" }], BARA_INFO);
+  assert.equal(kop[0].text, "Ny grill.");
+  assert.match((kop[0].saknas as string[])[0], /ber om ett köp/);
+});
+
+test("säljande och prioriterade inlägg utan länk får den som hör till uppmaningen", () => {
+  const posts = satt([
+    { roll: "prioriterad_produkt", text: "Gasol i lösvikt hos oss.", cta: "Besök våra depåer idag" },
+    { roll: "saljande", text: "Ny gasolgrill i sortimentet.", cta: "Beställ i webbshoppen" },
+    { roll: "saljande", text: "Mer om lösvikt.", cta: "Läs mer på webbplatsen" },
+    { roll: "tips", text: "Ett tips utan länk.", cta: "Kom förbi depån" },
+  ]);
+  assert.ok(String(posts[0].text).endsWith("\n\nhttps://testgas.se"), "depåbesök ska ge hemsidan");
+  assert.ok(String(posts[1].text).endsWith("\n\nhttps://shop.testgas.se"), "köp ska ge shoppen");
+  assert.ok(String(posts[2].text).endsWith("\n\nhttps://testgas.se"), "läs mer ska ge hemsidan");
+  assert.equal(posts[3].text, "Ett tips utan länk.", "tips ska inte få länk");
+});
+
+test("säger uppmaningen inte vart läsaren ska rörs ingenting", () => {
+  const posts = satt([
+    { roll: "saljande", text: "Köp gasol hos oss." },
+    { roll: "saljande", text: "Läs mer på https://shop.testgas.se", cta: "Dela ditt bästa recept" },
+    { roll: "saljande", text: "Fyll på. https://shop.testgas.se", cta: "Kom förbi depån eller beställ på nätet" },
+  ]);
+  assert.equal(posts[0].text, "Köp gasol hos oss.");
+  assert.equal(posts[1].text, "Läs mer på https://shop.testgas.se");
+  assert.equal(posts[2].text, "Fyll på. https://shop.testgas.se");
+});
+
+test("en rätt länk dubbleras inte, och en oregistrerad adress rörs inte", () => {
+  const posts = satt([
+    { roll: "saljande", cta: "Kom förbi depån", text: "Fyll på hos oss.\n\nhttps://testgas.se" },
+    { roll: "saljande", cta: "Kom förbi depån", text: "Se https://shop.testgas.se eller https://testgas.se" },
+    { roll: "tips", cta: "Kom förbi depån", text: "Läs hos https://energigas.example" },
+  ]);
+  assert.equal(posts[0].text, "Fyll på hos oss.\n\nhttps://testgas.se");
+  assert.equal(posts[1].text, "Se eller https://testgas.se", "fel länk bort när den rätta redan står där");
+  assert.equal(posts[2].text, "Läs hos https://energigas.example");
 });
 
 test("utan webbplatser händer ingenting", () => {
-  const plan = sattLank<{ posts: Array<Record<string, unknown>> }>({
-    posts: [{ roll: "saljande", text: "Köp gasol hos oss." }],
-  }, []);
-  assert.equal(plan.posts[0].text, "Köp gasol hos oss.");
+  const [p] = satt([{ roll: "saljande", text: "Köp gasol hos oss.", cta: "Beställ i webbshoppen" }], []);
+  assert.equal(p.text, "Köp gasol hos oss.");
+});
+
+test("valideraPlan behåller länkrättningens anmärkning bredvid platshållarnas", () => {
+  const plan = valideraPlan<Inlagg>({
+    posts: [{ roll: "saljande", cta: "Kom förbi depån", text: "Vi finns i [ort].\n\nhttps://shop.testgas.se" }],
+  }, BARA_SHOP);
+  const saknas = plan.posts[0].saknas as string[];
+  assert.equal(saknas.length, 2);
+  assert.ok(saknas.some((s) => /ber om ett besök/.test(s)));
+  assert.ok(saknas.some((s) => /depåorter/.test(s)));
+});
+
+// ── Obelagda påståenden ─────────────────────────────────────
+
+/** Det företaget självt har skrivit. Säger ingenting om tid eller pengar. */
+const UNDERLAG = {
+  text: "Säljer gasol i webbshop och i egna depåer.\nEgna depåer\nGasol i lösvikt\nBetalar bara för det som faktiskt fylls",
+  bevis: 0,
+};
+
+/** Stod i en riktig plan. Får aldrig sluta fångas. */
+const OBELAGDA_I_SKARP_PLAN: Array<[string, string]> = [
+  ["Många upplever att påfyllning är krångligt.", "Många upplever"],
+  ["Lösvikt sparar både tid och pengar.", "sparar både tid och pengar"],
+  ["Hos oss får du alltid fräsch gasol.", "fräsch"],
+];
+
+test("påståendena ur den riktiga planen fångas", () => {
+  for (const [mening, fras] of OBELAGDA_I_SKARP_PLAN) {
+    assert.ok(obelagdaPastaenden(mening, UNDERLAG).includes(fras), `missade "${fras}" i: ${mening}`);
+  }
+});
+
+test("fler former av samma tre sorter fångas", () => {
+  const fall: Array<[string, string]> = [
+    ["De flesta husbilsägare väljer lösvikt.", "De flesta husbilsägare väljer"],
+    ["Vår populära tjänst gasol i lösvikt.", "populära"],
+    ["Något som är särskilt uppskattat av husbilsägare.", "uppskattat"],
+    ["Många kunder vill fylla sina flaskor.", "Många kunder"],
+    ["Ett kostnadseffektivt sätt att fylla på.", "kostnadseffektivt"],
+    ["Flexibelt och ekonomiskt för husbilsägare.", "ekonomiskt"],
+    ["Du får lägre kostnader över tid.", "lägre kostnader"],
+    ["Smidigare än att byta flaska.", "Smidigare än"],
+    ["Gasol av högsta kvalitet.", "högsta kvalitet"],
+    ["Med högkvalitativa produkter för utomhusbruk.", "högkvalitativa"],
+    // Stod i den sista mätningen: ett kampanjbudskap och ett utbyggt inlägg.
+    ["Upptäck våra kvalitetsprodukter.", "kvalitetsprodukter"],
+    ["Användbart för våra kunder som uppskattar exakt kontroll.", "kunder som uppskattar"],
+  ];
+  for (const [mening, fras] of fall) {
+    assert.ok(obelagdaPastaenden(mening, UNDERLAG).includes(fras), `missade "${fras}" i: ${mening}`);
+  }
+});
+
+test("bekräftade fakta och vanlig text ger inga larm", () => {
+  for (const mening of [
+    "Du betalar bara för det som faktiskt fylls.",
+    "Vi fyller din egen flaska och du betalar per kilo.",
+    "Vilken flaskstorlek passar husbilen, grillen och kaminen?",
+    "Påfyllning är enklare än du tror.",
+    "Vad är ditt bästa ställe att campa på?",
+    "Spara inlägget till nästa resa.",
+    "Tidigare i höst öppnade depån i Nyköping.",
+    "Många av våra depåer ligger nära E4.",
+  ]) {
+    assert.deepEqual(obelagdaPastaenden(mening, UNDERLAG), [], `falskt larm: ${mening}`);
+  }
+});
+
+test("det företaget självt har påstått får stå kvar", () => {
+  assert.deepEqual(obelagdaPastaenden("Lösvikt sparar tid.", { text: "Lösvikt sparar tid för den som fyller ofta", bevis: 0 }), []);
+  assert.deepEqual(obelagdaPastaenden("Ett prisvärt val.", { text: "Prisvärd påfyllning", bevis: 0 }), []);
+  assert.deepEqual(obelagdaPastaenden("Alltid fräsch gasol.", { text: "Fräsch gasol från egen cistern", bevis: 0 }), []);
+  assert.deepEqual(obelagdaPastaenden("Med högkvalitativa grillar.", { text: "Högkvalitativa grillar i gjutjärn", bevis: 0 }), []);
+  assert.deepEqual(obelagdaPastaenden("Med högkvalitativa grillar.", { text: "Grillar av hög kvalitet", bevis: 0 }), []);
+  assert.deepEqual(obelagdaPastaenden("Våra kvalitetsprodukter.", { text: "Grillar av hög kvalitet", bevis: 0 }), []);
+  // Tid är belagt, pengar är det inte.
+  assert.deepEqual(
+    obelagdaPastaenden("Lösvikt sparar både tid och pengar.", { text: "Lösvikt sparar tid", bevis: 0 }),
+    ["sparar både tid och pengar"],
+  );
+});
+
+test("omdömen kräver verifierade bevis, inte bara ordet i underlaget", () => {
+  const mening = "Många kunder uppskattar lösvikt.";
+  assert.ok(obelagdaPastaenden(mening, { text: "Många kunder", bevis: 0 }).length > 0);
+  assert.deepEqual(obelagdaPastaenden(mening, { text: "", bevis: 1 }), []);
+});
+
+test("utan underlag räknas ingenting som belagt", () => {
+  assert.deepEqual(obelagdaPastaenden("Sparar tid."), ["Sparar tid"]);
+  assert.deepEqual(obelagdaPastaenden(undefined), []);
+});
+
+test("valideraPlan märker inlägget med vad som saknar underlag", () => {
+  const plan = valideraPlan<Inlagg>({
+    posts: [
+      { roll: "tips", title: "Spara pengar på gasolen", text: "Många upplever att det är krångligt.", cta: "Kom förbi depån" },
+      { roll: "tips", title: "Så går det till", text: "Du betalar bara för det som faktiskt fylls.", cta: "Kom förbi depån" },
+    ],
+  }, SIDOR, UNDERLAG);
+  const saknas = plan.posts[0].saknas as string[];
+  assert.equal(saknas.length, 2);
+  assert.ok(saknas.some((s) => s.includes('"Spara pengar"')));
+  assert.ok(saknas.some((s) => s.includes('"Många upplever"') && s.includes("Vad jag vet")));
+  assert.equal(plan.posts[1].saknas, undefined, "ett bekräftat faktum ska inte märkas");
+});
+
+test("utan underlag mäts inga påståenden — anropare som inte skickar det får ingen flagga", () => {
+  const plan = valideraPlan<Inlagg>({ posts: [{ roll: "tips", text: "Lösvikt sparar tid och pengar." }] }, SIDOR);
+  assert.equal(plan.posts[0].saknas, undefined);
 });
 
 // ── Utropstecken ────────────────────────────────────────────

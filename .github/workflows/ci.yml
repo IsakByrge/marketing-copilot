@@ -136,6 +136,9 @@ jobs:
       - name: Test — planvalidering och säkerhetsord
         run: npm run test:planvalidate
 
+      - name: Test — rättningsrundan (längd och obelagda påståenden)
+        run: npm run test:planrepair
+
       - name: Test — säsongsspärr
         run: npm run test:season
 
