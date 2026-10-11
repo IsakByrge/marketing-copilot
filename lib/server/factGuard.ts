@@ -32,6 +32,10 @@ export interface FactGuardContext {
   locations?: string[];
   /** forbiddenClaims ur Company Brain — påståenden användaren förbjudit. */
   forbiddenClaims?: string[];
+  /** Sant när prompten har ett "VECKANS UNDERLAG" som företagaren själv
+   *  skrivit. Det räknas då som företagsdata — annars förbjuder listan
+   *  nedan just de erbjudanden och datum underlaget finns till för. */
+  hasWeekInput?: boolean;
 }
 
 /** Ord som avslöjar en uppmaning till något företaget kanske inte säljer.
@@ -140,7 +144,11 @@ datum, säsonger och väderförhållanden. Du får ALDRIG hitta på:
 - öppettider, leveranstider, lagerstatus, platser eller samarbeten
 - omdömen, kundcitat, betyg, antal kunder eller år i branschen
 - lokala evenemang du inte vet äger rum
-
+${ctx.hasWeekInput ? `
+VECKANS UNDERLAG RÄKNAS SOM FÖRETAGSDATA. Ett erbjudande, pris, datum,
+lager eller evenemang som står där får användas exakt som det står, och
+orden nedan får användas om underlaget stöder dem. Inget utöver det.
+` : ""}
 ${lista("PRODUKTER OCH TJÄNSTER SOM FINNS:", ctx.products, "(inga angivna — nämn då ingen specifik tjänst alls)")}
 
 ${ctx.locations?.length ? lista("PLATSER SOM FINNS:", ctx.locations, "") + "\n" : ""}${webbBlock(ctx)}

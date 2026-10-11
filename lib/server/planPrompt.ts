@@ -15,6 +15,7 @@ import { factGuardBlock } from "./factGuard";
 import { migrateProfileToBrain, buildCompanyBrainContext, NAMELESS_PRODUCT, type CompanyBrainContext } from "@/app/_shared/companyBrain";
 import { veckansOrt } from "@/app/_shared/locations";
 import { sasongsBlock } from "./season";
+import { weekInputBlock } from "./weekInput";
 
 export type PlanCompanyProfile = {
   companyName?: string; industry?: string; summary?: string;
@@ -90,17 +91,11 @@ export type PostRole = (typeof POST_ROLES)[number];
 export const POST_DAYS = ["måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag", "söndag"] as const;
 
 /** Ordgränser, delade av prompten, reparationsrundan och eval-skriptet
- *  så kraven inte kan glida isär.
- *
- *  Nyhetsbrevets golv sänktes från 150 till 130: efter reparation landade
- *  det på 147 i en av tre körningar, och att köra ytterligare en runda för
- *  tre ords skull är inte värt anropet. 130 ord är fortfarande ett riktigt
- *  nyhetsbrev. */
+ *  så kraven inte kan glida isär. Nyhetsbrevet togs bort ur veckoplanen
+ *  i oktober 2026 — det är inte en kanal företaget använder. */
 export const LENGTH_LIMITS = {
   POST_MIN_WORDS: 60,
   POST_MAX_WORDS: 150,
-  NEWSLETTER_MIN_WORDS: 130,
-  NEWSLETTER_MAX_WORDS: 300,
 } as const;
 
 export const PLAN_SYSTEM_PROMPT = `Du är en erfaren copywriter och marknadsstrateg specialiserad på lokala svenska tjänsteföretag.
@@ -201,11 +196,17 @@ export interface PlanPromptInput {
   profile: PlanCompanyProfile;
   brain: CompanyBrainContext | null;
   now: Date;
+  /** Datumlistan ur planCalendar, en rad per datum. Möjligheterna får
+   *  bara väljas härifrån. */
   upcomingDates: string;
   historyContext: string;
   feedbackContext: string;
   fileContext: string;
   editMemory: string;
+  /** Det företagaren själv skrivit om veckan. Null = inget lämnat. */
+  weekInput?: string | null;
+  /** Kampanjblocket ur weekInput.campaignsBlock. Tom sträng = inga. */
+  campaignsContext?: string;
 }
 
 /**
@@ -221,6 +222,8 @@ function veckansLokalaOrt(brain: CompanyBrainContext | null, now: Date): string 
 
 export function buildPlanUserPrompt(input: PlanPromptInput): string {
   const { profile, brain, now, upcomingDates, historyContext, feedbackContext, fileContext, editMemory } = input;
+  const weekInput = input.weekInput ?? null;
+  const campaignsContext = input.campaignsContext ?? "";
   const year = now.getFullYear();
   const month = now.toLocaleString("sv-SE", { month: "long" });
   const day = now.getDate();
@@ -228,7 +231,10 @@ export function buildPlanUserPrompt(input: PlanPromptInput): string {
 
   return `NULÄGE: ${day} ${month} ${year}, vecka ${week}.
 
-KOMMANDE HÄNDELSER OCH DATUM (nästa 2 veckor):
+${weekInputBlock(weekInput)}
+${campaignsContext}
+
+DATUM DE NÄRMASTE TVÅ VECKORNA (uträknade, alla stämmer):
 ${upcomingDates}
 ${historyContext}
 ${feedbackContext}
@@ -255,6 +261,7 @@ ${factGuardBlock({
   forbiddenClaims: brain?.forbiddenClaims ?? [],
   locations: brain?.locations ?? [],
   websites: brain?.websites ?? [],
+  hasWeekInput: Boolean(weekInput),
 })}
 
 ${sasongsBlock(now)}
@@ -269,6 +276,11 @@ DESSUTOM:
 3. Matcha branschens verkliga språk
 4. Upprepa INTE teman, fokus eller inläggstitlar från tidigare planer
 5. Om användaren gett feedback ovan: luta tydligt mot de gillade inläggens stil och ton, och undvik mönstren i de ogillade
+6. VARJE INLÄGG HAR ETT EGET HUVUDARGUMENT. Samma faktum eller samma
+   formulering får stå i högst två av de fem inläggen. Formuleringen ur
+   "Skiljer sig genom" hör hemma i det prioriterade inlägget.
+7. Börja aldrig ett inlägg med "Tänk dig", "Föreställ dig" eller "Visste
+   du". Börja med det konkreta.
 
 FEM INLÄGG MED FEM OLIKA ROLLER — inte fem varianter av samma budskap.
 Exakt ett inlägg per roll, i den här ordningen:
@@ -325,11 +337,6 @@ säga, inte genom att skriva mindre.
   Så här når du dit utan att fylla ut: (1) ett konkret scenario där
   läsaren känner igen sig, (2) vad man gör åt det, (3) varför just nu.
   Tre saker, inte tre adjektiv.
-- "body" i nyhetsbrevet: MINST ${LENGTH_LIMITS.NEWSLETTER_MIN_WORDS} ord, HÖGST ${LENGTH_LIMITS.NEWSLETTER_MAX_WORDS}. Exakt 2–4 stycken,
-  åtskilda med en tom rad. Inte ett enda block, inte fem stycken.
-  Under ${LENGTH_LIMITS.NEWSLETTER_MIN_WORDS} ord är underkänt.
-- Nyhetsbrevet har EN uppmaning, i fältet "cta". Upprepa den inte inne i
-  brödtexten.
 - Varje inlägg har exakt en tydlig uppmaning i "cta".
 - Inläggen med rollen "saljande" och "prioriterad_produkt" ska AVSLUTAS
   med en länk, vald efter webbplatsernas syfte enligt faktaspärren. Ett
@@ -355,7 +362,7 @@ minuter i stället för en kvart i garaget."
 Lägg märke till: konkret situation, vad som händer, vad man gör, varför
 nu. Inga superlativ. Ingen utfyllnad. Och ändå 85 ord.
 
-INNAN DU SVARAR: räkna orden i varje "text" och i "body". Ligger någon
+INNAN DU SVARAR: räkna orden i varje "text". Ligger någon
 under ${LENGTH_LIMITS.POST_MIN_WORDS}, skriv om den med mer innehåll — inte med fler ord om samma
 sak. Det är det vanligaste felet: texterna blir för korta.
 
@@ -372,37 +379,21 @@ Returnera exakt denna JSON:
     { "roll": "lokalt", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord med lokal förankring", "cta": "Uppmaning", "image": "Bildidé" },
     { "roll": "socialt", "dag": "annan dag", "produkt": "", "mal": "vilket mål", "title": "Rubrik", "text": "MINST 60 ord som bjuder in till samtal om vad gasolen används TILL - mat, resor, sällskap, årstider. Aldrig en fråga om tips, knep eller hantering.", "cta": "Uppmaning", "image": "Bildidé" }
   ],
-  "newsletter": {
-    "subject": "Ämnesrad max 50 tecken",
-    "preview": "Förhandsvisning max 85 tecken",
-    "body": "MINST ${LENGTH_LIMITS.NEWSLETTER_MIN_WORDS} ord, högst ${LENGTH_LIMITS.NEWSLETTER_MAX_WORDS}, i 2-4 korta stycken åtskilda med tom rad: scenario → vad man gör → varför just nu i ${month} ${year}",
-    "cta": "Uppmaning som bara hänvisar till något som finns"
-  },
   "campaigns": [
     { "title": "Konkret kampanjnamn som säger vad kampanjen gör — ALDRIG \\"Kampanj för ${month}\\" eller \\"Höstkampanj\\"", "produkt": "produkten kampanjen handlar om, ur listan", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" },
     { "title": "Konkret kampanjnamn för en ANNAN produkt", "produkt": "en annan produkt ur listan", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" }
   ],
   "opportunities": [
     {
-      "title": "Allmänt känt datum, temadag eller säsongsskifte inom 2 veckor",
-      "date": "ISO-datum YYYY-MM-DD när tillfället har ett bestämt datum, annars veckans måndag som YYYY-MM-DD",
-      "relevance": "Vad tillfället gör med ${profile.companyName ?? "företagets"} kunder, och vilket ämne det ger att skriva om. Bara tjänster som står i profilen. Inga erbjudanden."
-    },
-    {
-      "title": "Säsongsbeteende hos målgruppen just nu",
-      "date": "YYYY-MM-DD, måndagen i den vecka det gäller",
-      "relevance": "Vad målgruppen gör den här tiden på året och vilket ämne det ger. Inga påhittade tjänster eller erbjudanden."
-    },
-    {
-      "title": "Branschmönster som återkommer den här tiden på året",
-      "date": "YYYY-MM-DD, måndagen i den vecka det gäller",
-      "relevance": "Vad mönstret innebär för kunderna och vad det ger att skriva om. Bara det som stöds av profilen."
+      "date": "YYYY-MM-DD, exakt som i datumlistan ovan",
+      "title": "Titeln exakt som i datumlistan ovan",
+      "relevance": "Vad datumet gör med ${profile.companyName ?? "företagets"} kunder, och vilket ämne det ger att skriva om. Bara tjänster som står i profilen. Inga erbjudanden."
     }
   ]
 }
 
-Fältet "date" ska ALLTID vara ett giltigt datum i formen YYYY-MM-DD och
-ligga inom de närmaste 14 dagarna från ${day} ${month} ${year}. Skriv
-aldrig "Denna vecka", "Vecka 39" eller liknande där — gränssnittet
-räknar själv ut hur långt bort det är.`;
+"opportunities" är 0–3 datum, VALDA UR DATUMLISTAN ovan och inget annat.
+Ta bara med datum som faktiskt berör kunderna. Inget datum i listan som
+passar: lämna listan tom. Ett datum som inte står i listan tas bort
+innan planen visas.`;
 }

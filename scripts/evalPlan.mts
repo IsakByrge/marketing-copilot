@@ -26,7 +26,7 @@ import { RISKY_CTA_WORDS } from "@/lib/server/factGuard";
 import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
 import { INTERNAL_TERMS } from "@/lib/server/factGuard";
 import {
-  hittaPlatshallare, antalStycken, normaliseraDag, valideraPlan,
+  hittaPlatshallare, normaliseraDag, valideraPlan,
   sakerhetsordIText, arSakerhetsrad,
   arBesoksuppmaning, kopLank, infoLank,
 } from "@/lib/server/planValidate";
@@ -157,11 +157,30 @@ function kontrollera(plan: Plan): Kontroll[] {
     detalj: langder.join(", "),
   });
 
-  const nlOrd = ord(plan.newsletter?.body ?? "");
+  // Samma formulering i fler än två inlägg är det som gjorde planerna
+  // tjatiga: "du betalar bara för det som fylls" stod i fyra av fem.
+  // Fem ord i följd som återkommer i tre inlägg eller fler räknas.
+  const fraser = new Map<string, Set<number>>();
+  posts.forEach((p, i) => {
+    const w = (p.text ?? "").toLowerCase().replace(/[^a-zåäö0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+    for (let j = 0; j + 5 <= w.length; j++) {
+      const f = w.slice(j, j + 5).join(" ");
+      if (!fraser.has(f)) fraser.set(f, new Set());
+      fraser.get(f)!.add(i);
+    }
+  });
+  const tjat = [...fraser].filter(([, s]) => s.size > 2).map(([f]) => f);
   k.push({
-    namn: `nyhetsbrev ${LENGTH_LIMITS.NEWSLETTER_MIN_WORDS}-${LENGTH_LIMITS.NEWSLETTER_MAX_WORDS} ord`,
-    ok: nlOrd >= LENGTH_LIMITS.NEWSLETTER_MIN_WORDS && nlOrd <= LENGTH_LIMITS.NEWSLETTER_MAX_WORDS,
-    detalj: `${nlOrd} ord`,
+    namn: "ingen formulering i fler än två inlägg",
+    ok: tjat.length === 0,
+    detalj: tjat.length ? tjat.slice(0, 2).map((f) => `"${f}"`).join(", ") : "rent",
+  });
+
+  const tankDig = posts.filter((p) => /^(tänk dig|föreställ dig|visste du)/i.test((p.text ?? "").trim()));
+  k.push({
+    namn: "ingen inledning med Tänk dig/Föreställ dig",
+    ok: tankDig.length === 0,
+    detalj: tankDig.length ? `${tankDig.length} inlägg` : "rent",
   });
 
   // CTA-ord som antyder en tjänst profilen inte har. "service" osv.
@@ -391,13 +410,6 @@ function kontrollera(plan: Plan): Kontroll[] {
     detalj: sasongsfel.length ? sasongsfel.join(", ") : `rent (förbjudet nu: ${forbjudnaSasongsord().slice(0, 3).join(", ")}…)`,
   });
 
-  // 6. Nyhetsbrevets styckeindelning.
-  const stycken = antalStycken(plan.newsletter?.body);
-  k.push({
-    namn: "nyhetsbrev 2-4 stycken",
-    ok: stycken >= 2 && stycken <= 4,
-    detalj: `${stycken} stycken`,
-  });
 
   // 7. Veckodag med liten bokstav och svensk stavning.
   const dagFel = posts.map((p) => p.dag ?? "").filter((d) => d && (d !== d.toLowerCase() || normaliseraDag(d) === null));

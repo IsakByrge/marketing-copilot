@@ -12,13 +12,15 @@
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
-import { Button, ButtonLink, Card, Alert, EmptyState, Skeleton } from "@/app/_shared/primitives";
+import { Button, ButtonLink, Card, Alert, EmptyState, Skeleton, Field } from "@/app/_shared/primitives";
+import { Textarea } from "@/app/_shared/Textarea";
 import { useAccountData } from "@/app/_shared/useAccountData";
 import UsagePanel from "@/app/_shared/UsagePanel";
 import { firstNameFromEmail } from "@/app/_shared/user";
 import { IconArrowRight } from "@/app/_shared/icons";
 import { isoWeek, greeting, isPlanStale, opportunityWhen } from "@/lib/server/voice";
-import { todayIso, type Campaign } from "@/lib/campaigns/logic";
+import { todayIso, formatPeriod, type Campaign } from "@/lib/campaigns/logic";
+import { WEEK_INPUT_MAX_CHARS, relevantCampaigns } from "@/lib/server/weekInput";
 import { listCampaigns } from "@/lib/campaigns/store";
 import { nextStep, type NextStep } from "@/lib/today/nextStep";
 import { createClient } from "@/lib/supabase-browser";
@@ -72,10 +74,89 @@ function NextStepCard({
   );
 }
 
+/**
+ * Veckans underlag — frågan som ställs innan planen skrivs.
+ *
+ * En plan som bara har Company Brain att gå på har ett enda belagt
+ * faktum och upprepar det i varje inlägg. Det som gör veckan till just
+ * den här veckan vet bara företagaren. Två minuter här är skillnaden.
+ *
+ * Underlaget är frivilligt. "Skapa utan" ger samma plan som förut.
+ */
+function WeekInputCard({
+  value, onChange, onSubmit, onCancel, working, campaigns,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: (withInput: boolean) => void;
+  onCancel: () => void;
+  working: boolean;
+  campaigns: Campaign[];
+}) {
+  const nara = value.length > WEEK_INPUT_MAX_CHARS * 0.8;
+  return (
+    <Card className="border-primary/30 p-5 sm:p-6">
+      <h2 className="text-[19px] font-semibold leading-snug tracking-tight">
+        Vad händer hos er den här veckan?
+      </h2>
+      <p className="mt-1.5 text-[15px] leading-relaxed text-text-secondary">
+        Ett erbjudande, något nytt i sortimentet, ett evenemang, något kunderna frågar om.
+        Veckans plan byggs kring det du skriver, och priser och datum återges som du skrivit dem.
+      </p>
+
+      {campaigns.length > 0 && (
+        <p className="mt-3 text-sm text-text-secondary">
+          {campaigns.length === 1 ? "Kampanjen " : "Kampanjerna "}
+          {campaigns.map((c, i) => (
+            <span key={c.id}>
+              {i > 0 && (i === campaigns.length - 1 ? " och " : ", ")}
+              <span className="font-medium text-text-primary">{c.title}</span>
+              {" "}({formatPeriod(c.starts_on, c.ends_on, todayIso())})
+            </span>
+          ))}
+          {" "}tas med automatiskt.
+        </p>
+      )}
+
+      <Field label="Veckans underlag" optional className="mt-4">
+        {(props) => (
+          <Textarea
+            {...props}
+            rows={4}
+            maxLength={WEEK_INPUT_MAX_CHARS}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Till exempel: 15 % på alla gasolkaminer i Norrköping till och med söndag. Ny leverans av 11 kg-flaskor i Linköping på onsdag."
+          />
+        )}
+      </Field>
+      {nara && (
+        <p className="mt-1.5 text-xs text-text-tertiary">
+          {value.length} av {WEEK_INPUT_MAX_CHARS} tecken
+        </p>
+      )}
+
+      <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <Button onClick={() => onSubmit(true)} loading={working} disabled={!value.trim()} className="w-full sm:w-auto">
+          Skapa veckans plan
+        </Button>
+        <Button variant="secondary" onClick={() => onSubmit(false)} disabled={working} className="w-full sm:w-auto">
+          Skapa utan underlag
+        </Button>
+        <Button variant="ghost" onClick={onCancel} disabled={working} className="w-full sm:w-auto">
+          Avbryt
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const { profile, plan, setPlan, loaded, email } = useAccountData();
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [weekOpen, setWeekOpen] = useState(false);
+  const [weekText, setWeekText] = useState("");
 
   // Kampanjerna kommer efter planen och blockerar aldrig sidan. Null
   // betyder "hämtas ännu": rekommendationen bygger då på planen och byts
@@ -126,7 +207,29 @@ export default function DashboardPage() {
     return gick < NY_PLAN_KARENS_MS ? Math.ceil((NY_PLAN_KARENS_MS - gick) / 1000) : 0;
   }
 
-  async function generatePlan() {
+  /** Kampanjer som ska med i veckans plan — samma urval som servern gör,
+   *  så det som står i rutan är det som faktiskt skickas in. */
+  const veckansKampanjer = useMemo(
+    () => relevantCampaigns(campaigns ?? [], todayIso()) as Campaign[],
+    [campaigns],
+  );
+
+  /** Frågan om veckan kommer före varje ny plan. Karensen kontrolleras
+   *  redan här, så ingen skriver sitt underlag i onödan. */
+  function openWeekInput() {
+    if (!profile || generating) return;
+    const kvar = karensKvar();
+    if (kvar > 0) {
+      setError(
+        `Du skapade ett förslag alldeles nyss. Vänta ${kvar} sekunder om du vill göra ett nytt.`,
+      );
+      return;
+    }
+    setError(null);
+    setWeekOpen(true);
+  }
+
+  async function generatePlan(weekInput: string | null) {
     if (!profile || generating) return;
 
     const kvar = karensKvar();
@@ -142,7 +245,13 @@ export default function DashboardPage() {
     try {
       // Ingen foretagsdata i bodyn: servern hamtar den sjalv ur
       // sessionen. Klienten ska inte kunna bestamma vad planen skrivs om.
-      const res = await fetch("/api/generate-plan", { method: "POST" });
+      // Bodyn bär bara veckans underlag. Företagsdatan hämtar servern
+      // själv ur sessionen.
+      const res = await fetch("/api/generate-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekInput }),
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "Kunde inte skapa veckoplanen just nu.");
@@ -150,6 +259,8 @@ export default function DashboardPage() {
 
       const newPlan = await res.json();
       setPlan(newPlan);
+      setWeekOpen(false);
+      setWeekText("");
 
       try {
         const sb = createClient();
@@ -168,8 +279,9 @@ export default function DashboardPage() {
             company_id: company.id, user_id: user.id,
             focus: newPlan.focus, intro: newPlan.intro ?? null,
             tags: newPlan.tags, posts: newPlan.posts,
-            newsletter: newPlan.newsletter, campaigns: newPlan.campaigns,
+            campaigns: newPlan.campaigns,
             opportunities: newPlan.opportunities,
+            week_input: newPlan.weekInput ?? null,
           }).select().single();
           if (saved) setPlan({ ...newPlan, id: saved.id, createdAt: saved.created_at });
         }
@@ -264,10 +376,19 @@ export default function DashboardPage() {
             )}
 
             <div className="space-y-10">
-              {steg && (
+              {weekOpen ? (
+                <WeekInputCard
+                  value={weekText}
+                  onChange={setWeekText}
+                  onSubmit={(withInput) => void generatePlan(withInput ? weekText : null)}
+                  onCancel={() => setWeekOpen(false)}
+                  working={generating}
+                  campaigns={veckansKampanjer}
+                />
+              ) : steg && (
                 <NextStepCard
                   steg={steg}
-                  onAction={generatePlan}
+                  onAction={openWeekInput}
                   working={generating}
                 />
               )}
@@ -293,8 +414,8 @@ export default function DashboardPage() {
                   <ButtonLink href="/company" variant="secondary" size="sm">
                     Vad jag vet
                   </ButtonLink>
-                  {steg?.action !== "generate-plan" && (
-                    <Button variant="secondary" size="sm" onClick={generatePlan} loading={generating}>
+                  {steg?.action !== "generate-plan" && !weekOpen && (
+                    <Button variant="secondary" size="sm" onClick={openWeekInput} loading={generating}>
                       Nytt förslag
                     </Button>
                   )}
