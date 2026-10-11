@@ -108,7 +108,7 @@ export default function SiteReader({
             </Button>
             {state === "reading" && (
               <p className="mt-2 text-xs text-text-tertiary">
-                Jag läser en sida i sekunden för att inte belasta sajten. Det tar upp till en minut.
+                Jag läser en sida i sekunden för att inte belasta sajten. Det tar en dryg minut.
               </p>
             )}
           </div>
