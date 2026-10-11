@@ -42,6 +42,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "create-content": "Snabbskapande",
   "generate-plan": "Veckoplan",
   "plan-post-instagram": "Instagram-text",
+  "read-site": "Läs hemsidan",
   "facebook-specialist": "Facebook-inlägg",
   "generate-image": "Bilder",
   "edit-image": "Bildredigering",

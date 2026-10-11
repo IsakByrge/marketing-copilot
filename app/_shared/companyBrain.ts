@@ -44,6 +44,13 @@ export interface CompanyProduct {
   priority: BusinessPriority;
   seasonality?: string;
   availabilityNotes?: string;
+  /** Pris eller prisintervall som det står på företagets egen sida,
+   *  t.ex. "1 012–6 990 kr". Får återges i innehåll. */
+  priceInfo?: string;
+  /** Namngivna modeller eller varianter, t.ex. "Verona", "Peking". */
+  models?: string[];
+  /** Sidan uppgifterna lästes från, när de kom från hemsidan. */
+  sourceUrl?: string;
   source: KnowledgeSource;
   confidence: KnowledgeConfidence;
   confirmedAt?: string;
@@ -143,6 +150,8 @@ export interface CompanyBrainContext {
     objections: string[];
     differentiators: string[];
     seasonality?: string;
+    priceInfo?: string;
+    models?: string[];
   }>;
   strengths: string[];
   usps: string[];
@@ -266,6 +275,9 @@ export function sanitizeProduct(raw: unknown): CompanyProduct {
     priority: sanitizePriority(o.priority),
     seasonality: clipText(o.seasonality, 120) || undefined,
     availabilityNotes: clipText(o.availabilityNotes, BRAIN_LIMITS.MAX_TEXT) || undefined,
+    priceInfo: clipText(o.priceInfo, 80) || undefined,
+    models: clipList(o.models, 8, 80),
+    sourceUrl: clipText(o.sourceUrl, 500) || undefined,
     source: sanitizeSource(o.source),
     confidence: sanitizeConfidence(o.confidence),
     confirmedAt: typeof o.confirmedAt === "string" ? o.confirmedAt : undefined,
@@ -542,6 +554,8 @@ export function buildCompanyBrainContext(brain: CompanyBrain): CompanyBrainConte
       objections: p.commonObjections,
       differentiators: p.differentiators,
       seasonality: p.seasonality,
+      priceInfo: p.priceInfo,
+      models: p.models?.length ? p.models : undefined,
     })),
     strengths: brain.strengths,
     usps: brain.uniqueSellingPoints,

@@ -147,6 +147,8 @@ export function brainBlock(brain: CompanyBrainContext | null): string {
         ].filter(Boolean).join(" · ");
         const extra = [
           p.description ? `      Beskrivning: ${p.description}` : null,
+          p.priceInfo ? `      Pris (från företagets egen sida, får återges): ${p.priceInfo}` : null,
+          p.models?.length ? `      Modeller: ${p.models.join(", ")}` : null,
           p.differentiators.length ? `      Skiljer sig genom: ${p.differentiators.join("; ")}` : null,
           p.objections.length ? `      Vanliga invändningar: ${p.objections.join("; ")}` : null,
         ].filter(Boolean).join("\n");
