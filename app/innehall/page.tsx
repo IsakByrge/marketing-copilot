@@ -129,7 +129,7 @@ export default function ContentPage() {
         const sb = createClient();
         const { data, error } = await sb
           .from("published_posts")
-          .select("id, item_key, channel, published_on")
+          .select("id, item_key, channel, published_on, result_rating")
           .eq("plan_id", planId);
         if (error) throw error;
         if (!cancelled) setPublished({ planId, index: indexPublished(data) });
@@ -360,7 +360,7 @@ export default function ContentPage() {
       const { data, error } = await sb
         .from("published_posts")
         .upsert({ plan_id: planId, item_key: itemKey, channel, text }, { onConflict: "plan_id,item_key,channel" })
-        .select("id, item_key, channel, published_on")
+        .select("id, item_key, channel, published_on, result_rating")
         .single();
       if (error) throw error;
       const row = indexPublished([data])[k];
@@ -753,6 +753,8 @@ export default function ContentPage() {
                                 <span className="inline-flex items-center gap-2 text-sm text-text-secondary">
                                   <IconCheck size={16} className="shrink-0 text-primary" />
                                   Publicerad på {CHANNEL_LABELS[ch]} {shortDate(pubRad.published_on)}
+                                  {pubRad.result_rating === "good" && " · gick bra"}
+                                  {pubRad.result_rating === "bad" && " · gick sämre"}
                                   <button
                                     type="button"
                                     onClick={() => void unmarkPublished(pubRad)}

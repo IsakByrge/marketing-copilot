@@ -35,6 +35,7 @@ export type NextStepId =
   | "campaign-results"
   | "campaign-learning"
   | "campaign-start"
+  | "post-results"
   | "plan-missing"
   | "plan-stale"
   | "content";
@@ -79,6 +80,12 @@ export interface NextStepInput {
   plan: NextStepPlan | null;
   /** Dagens datum, ISO. Samma format som kampanjernas datumkolumner. */
   today: string;
+  /**
+   * Hur många publicerade inlägg som är mogna att bedöma men saknar
+   * resultat (lib/content/results.resultsDue). Saknas = okänt, och då
+   * hoppas regeln över.
+   */
+  postResultsDue?: number;
 }
 
 /**
@@ -233,13 +240,31 @@ function weeklyContent(plan: NextStepPlan | null): NextStep | null {
   };
 }
 
+/**
+ * 4. Publicerade inlägg utan resultat. Före veckoplanen med flit: svaret
+ * tar några sekunder och är det enda sättet nästa plan får veta vad som
+ * fungerade. Länken går till rutan längre ned på samma sida.
+ */
+function postResults(n: number | undefined): NextStep | null {
+  if (!n || n <= 0) return null;
+  return {
+    id: "post-results",
+    title: n === 1 ? "Hur gick inlägget?" : "Hur gick inläggen?",
+    why: n === 1
+      ? "Ett inlägg du publicerat har inget resultat än."
+      : `${n} inlägg du publicerat har inget resultat än.`,
+    cta: "Svara",
+    href: "#resultat",
+  };
+}
+
 /* ── Valet ──────────────────────────────────────────────── */
 
 /**
  * Ett nästa steg, eller null när det ärligt talat inte finns något att
  * föreslå. Null är ett giltigt svar: hellre tyst än en påhittad uppgift.
  */
-export function nextStep({ campaigns, plan, today }: NextStepInput): NextStep | null {
+export function nextStep({ campaigns, plan, today, postResultsDue }: NextStepInput): NextStep | null {
   const groups = campaigns ? groupCampaigns(campaigns) : null;
 
   if (groups) {
@@ -250,5 +275,5 @@ export function nextStep({ campaigns, plan, today }: NextStepInput): NextStep | 
     if (step) return step;
   }
 
-  return weeklyPlan(plan, today) ?? weeklyContent(plan);
+  return postResults(postResultsDue) ?? weeklyPlan(plan, today) ?? weeklyContent(plan);
 }
