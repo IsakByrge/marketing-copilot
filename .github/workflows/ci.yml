@@ -124,6 +124,12 @@ jobs:
       - name: Test — Company Brain når veckoplanens prompt
         run: npm run test:plancontext
 
+      - name: Test — veckoplanens kalender
+        run: npm run test:plancalendar
+
+      - name: Test — veckans underlag och kampanjer
+        run: npm run test:weekinput
+
       - name: Test — faktaspärr i alla prompter
         run: npm run test:factguard
 

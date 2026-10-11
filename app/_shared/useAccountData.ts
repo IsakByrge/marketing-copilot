@@ -57,8 +57,16 @@ export type MarketingPlan = {
    *  isPlanStale. Saknas i planer skapade fore migration 0009. */
   completedAt?: string | null;
   id?: string; company: string; focus: string; tags: string[];
-  posts: MarketingPost[]; newsletter: Newsletter;
+  /** Saknas i planer från oktober 2026 och framåt: nyhetsbrevet togs ur
+   *  veckoplanen. Äldre planer har det kvar och visas som förut. */
+  posts: MarketingPost[]; newsletter?: Newsletter;
   campaigns: PlanCampaign[]; opportunities?: Opportunity[];
+  /** Det företagaren skrev om veckan innan planen skapades. Null när
+   *  inget lämnades, och i planer skapade före migration 0010. */
+  weekInput?: string | null;
+  /** Vad planen behövde veta om veckans underlag men inte fick. Finns
+   *  bara direkt efter att planen skapats — sparas inte. */
+  underlagSaknas?: string[];
 };
 
 export interface PlanHistoryEntry {
@@ -124,6 +132,7 @@ export function useAccountData() {
               tags: latest.tags ?? [],
               posts: latest.posts ?? [], newsletter: latest.newsletter,
               campaigns: latest.campaigns ?? [], opportunities: latest.opportunities ?? [],
+              weekInput: latest.week_input ?? null,
             });
 
             setHistory(plans.map((row) => ({

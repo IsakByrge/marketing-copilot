@@ -37,7 +37,7 @@ export interface PlanShape {
 }
 
 export interface ForKort {
-  /** Index i posts, eller -1 för nyhetsbrevet. */
+  /** Index i posts. */
   index: number;
   titel: string;
   ordNu: number;
@@ -53,10 +53,6 @@ export function hittaForKorta(plan: PlanShape): ForKort[] {
       ut.push({ index: i, titel: p.title ?? `Inlägg ${i + 1}`, ordNu: n, minst: LENGTH_LIMITS.POST_MIN_WORDS });
     }
   });
-  const nl = ord(plan.newsletter?.body ?? "");
-  if (nl < LENGTH_LIMITS.NEWSLETTER_MIN_WORDS) {
-    ut.push({ index: -1, titel: "Nyhetsbrevet", ordNu: nl, minst: LENGTH_LIMITS.NEWSLETTER_MIN_WORDS });
-  }
   return ut;
 }
 
@@ -67,10 +63,8 @@ export function hittaForKorta(plan: PlanShape): ForKort[] {
  */
 export function buildRepairPrompt(plan: PlanShape, forKorta: ForKort[]): string {
   const delar = forKorta.map((f) => {
-    const text = f.index === -1
-      ? plan.newsletter?.body ?? ""
-      : plan.posts?.[f.index]?.text ?? "";
-    const nyckel = f.index === -1 ? "newsletter" : String(f.index);
+    const text = plan.posts?.[f.index]?.text ?? "";
+    const nyckel = String(f.index);
     return `── ${nyckel} — "${f.titel}" (${f.ordNu} ord, sikta på ${f.minst + 25}, absolut minst ${f.minst})
 ${text}`;
   }).join("\n\n");
@@ -88,17 +82,14 @@ BYGG UT, SKRIV INTE OM:
 - Inga utropstecken, ingen emoji.
 - Skriv aldrig ut företagets interna styrdata: prioritet, lönsamhet,
   marknadsföringsmål eller inläggets roll. De är underlag för dig.
-- Nyckeln "newsletter": svaret ska ha 2–4 stycken åtskilda med en TOM
-  RAD (\\n\\n i JSON-strängen). Lämna aldrig tillbaka ett enda block —
-  det är den vanligaste regressionen när texten byggs ut.
-- Numeriska nycklar är inlägg och ska vara ETT stycke.
+- Varje text är ett inlägg och ska vara ETT stycke.
 
 ${delar}
 
 Svara med EXAKT giltig JSON, ingen förtext:
 {
   "texts": {
-${forKorta.map((f) => `    "${f.index === -1 ? "newsletter" : f.index}": "den utbyggda texten, minst ${f.minst} ord"`).join(",\n")}
+${forKorta.map((f) => `    "${f.index}": "den utbyggda texten, minst ${f.minst} ord"`).join(",\n")}
   }
 }`;
 }
@@ -106,19 +97,13 @@ ${forKorta.map((f) => `    "${f.index === -1 ? "newsletter" : f.index}": "den ut
 /** Väver in de utökade texterna. Kortare svar än originalet ignoreras. */
 export function applyRepair(plan: PlanShape, texts: Record<string, string>): PlanShape {
   const posts = [...(plan.posts ?? [])];
-  let newsletter = plan.newsletter;
 
   for (const [nyckel, ny] of Object.entries(texts ?? {})) {
     if (typeof ny !== "string" || !ny.trim()) continue;
-    if (nyckel === "newsletter") {
-      const gammal = newsletter?.body ?? "";
-      if (ord(ny) > ord(gammal)) newsletter = { ...newsletter, body: ny };
-      continue;
-    }
     const i = Number(nyckel);
     if (!Number.isInteger(i) || i < 0 || i >= posts.length) continue;
     if (ord(ny) > ord(posts[i].text ?? "")) posts[i] = { ...posts[i], text: ny };
   }
 
-  return { ...plan, posts, newsletter };
+  return { ...plan, posts };
 }

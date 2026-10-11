@@ -15,6 +15,8 @@ import { editMemoryBlock } from "@/lib/server/editMemory";
 import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, planContextFromRow, type PlanCompanyRow } from "@/lib/server/planPrompt";
 import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
 import { valideraPlan } from "@/lib/server/planValidate";
+import { stockholmIso, upcomingCalendar, calendarLines, filterOpportunities } from "@/lib/server/planCalendar";
+import { parseWeekInput, parseUnderlagSaknas, relevantCampaigns, campaignsBlock, campaignAreas, type CampaignForPlan } from "@/lib/server/weekInput";
 
 
 export const runtime = "nodejs";
@@ -95,7 +97,23 @@ async function getFeedback(supabase: SupabaseClient, companyName: string, userId
   }
 }
 
-export async function POST() {
+/** Kontots kampanjer med strategin inbäddad. RLS gör att bara egna rader
+ *  nås. Går hämtningen inte igenom blir det en plan utan kampanjblock,
+ *  inte ett fel — kampanjerna är underlag, inte förutsättning. */
+async function getCampaigns(supabase: SupabaseClient, userId: string): Promise<CampaignForPlan[]> {
+  try {
+    const { data } = await supabase
+      .from("campaigns")
+      .select("title,status,starts_on,ends_on,strategy:campaign_strategies(strategy_context)")
+      .eq("user_id", userId)
+      .in("status", ["planned", "active"]);
+    return (data as unknown as CampaignForPlan[]) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function POST(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8);
 
   const guarded = await guardAiRequest("generate-plan");
@@ -115,7 +133,13 @@ export async function POST() {
     // stället för det som faktiskt står i databasen. Allt hämtas nu
     // server-side via den RLS-scopade klienten.
     //
-    // Bodyn läses inte alls. Ett anrop utan body fungerar.
+    // Bodyn bär EN sak: det företagaren själv skrivit om veckan. Den är
+    // data om veckan, aldrig företagsdata och aldrig prompttext, och den
+    // städas och kortas i parseWeekInput. Ett anrop utan body fungerar
+    // som förut.
+    const body = await request.json().catch(() => null) as { weekInput?: unknown } | null;
+    const weekInput = parseWeekInput(body?.weekInput);
+
     const company = await getCompanyRow(guard.supabase, userId);
     if (!company) {
       await guard.finish({ status: "error", errorCategory: "missing_profile" });
@@ -125,12 +149,19 @@ export async function POST() {
     // Profil och Company Brain ur SAMMA rad. Hjärnan hämtades tidigare
     // med en egen fråga, och då fanns en väg där profilen kom fram men
     // hjärnan inte gjorde det.
-    const { profile, brain } = planContextFromRow(company);
+    const { profile, brain, locationDetails } = planContextFromRow(company);
 
     // Datum och veckonummer formas numera inne i planPrompt.
     const now = new Date();
 
-    const upcomingDates = getUpcomingDates(now);
+    // Datumen räknas ut, inte gissas (se planCalendar.ts). Möjligheterna
+    // får bara väljas ur samma lista och filtreras mot den efteråt.
+    const today = stockholmIso(now);
+    const calendar = upcomingCalendar(today);
+    const upcomingDates = calendarLines(calendar);
+
+    const campaignRows = relevantCampaigns(await getCampaigns(guard.supabase, userId), today);
+    const campaignsContext = campaignsBlock(campaignRows, today);
     // Lär av hur användaren brukar skriva om planens inlägg.
     const editMemory = await editMemoryBlock("plan_post");
 
@@ -167,6 +198,8 @@ ${pastPlans.map((p, i) => {
     const userPrompt = buildPlanUserPrompt({
       profile, brain, now, upcomingDates,
       historyContext, feedbackContext, fileContext, editMemory,
+      weekInput, campaignsContext,
+      locationDetails, campaignAreas: campaignAreas(campaignRows),
     });
 
     const result = await callChatJson(systemPrompt, userPrompt, {
@@ -200,14 +233,23 @@ ${pastPlans.map((p, i) => {
     // platshallare avslojar. Inlagget far i stallet med sig vad som
     // saknas, och granssnittet visar det.
     plan = valideraPlan(plan, brain.websites);
+    plan = { ...plan, opportunities: filterOpportunities(plan.opportunities, calendar) };
+    // Det modellen behöver veta om veckans underlag. Visas på Idag direkt
+    // efter att planen skapats; sparas inte, det är en fråga, inte innehåll.
+    const underlagSaknas = parseUnderlagSaknas(plan.underlag_saknas, Boolean(weekInput));
+    delete (plan as { underlag_saknas?: unknown }).underlag_saknas;
+    // Nyhetsbrevet ingår inte längre. Skickar modellen ett ändå sparas det inte.
+    delete (plan as { newsletter?: unknown }).newsletter;
 
     await guard.finish({
       status: "ok",
-      model: AI.CHAT_MODEL,
+      // Planens modell, inte chattmodellen. Tidigare loggades AI.CHAT_MODEL
+      // här, så användningsloggen visade fel modell för varje veckoplan.
+      model: AI.PLAN_MODEL,
       promptTokens: result.promptTokens,
       completionTokens: result.completionTokens,
     });
-    return Response.json(plan);
+    return Response.json({ ...plan, weekInput, underlagSaknas });
 
   } catch (error) {
     const failure = classifyAiError(error, "planen");
@@ -219,59 +261,4 @@ ${pastPlans.map((p, i) => {
     await guard.finish({ status: "error", errorCategory: `${failure.kind}:${failure.logTag}`, ...usage });
     return safeError(failure.message, failure.httpStatus);
   }
-}
-
-function getUpcomingDates(from: Date): string {
-  const events: { month: number; day: number; name: string }[] = [
-    { month: 1, day: 1, name: "Nyårsdagen" },
-    { month: 1, day: 6, name: "Trettondedag jul" },
-    { month: 2, day: 14, name: "Alla hjärtans dag" },
-    { month: 3, day: 8, name: "Internationella kvinnodagen" },
-    { month: 4, day: 1, name: "April fools / Första april" },
-    { month: 4, day: 30, name: "Valborg" },
-    { month: 5, day: 1, name: "Första maj / Arbetarnas dag" },
-    { month: 5, day: 31, name: "Nationaldagen (nästan)" },
-    { month: 6, day: 6, name: "Sveriges nationaldag" },
-    { month: 6, day: 21, name: "Midsommarafton" },
-    { month: 6, day: 22, name: "Midsommardagen" },
-    { month: 7, day: 1, name: "Sommarlovets mitt — semesterhögsäsong" },
-    { month: 8, day: 1, name: "Högsommaren — sista semesterveckorna" },
-    { month: 8, day: 15, name: "Semestern tar slut för många" },
-    { month: 9, day: 1, name: "Hösten börjar — tillbaka till jobbet" },
-    { month: 10, day: 31, name: "Halloween" },
-    { month: 11, day: 1, name: "Alla helgons dag" },
-    { month: 11, day: 11, name: "Mårtensgås" },
-    { month: 11, day: 25, name: "Black Friday (nästan)" },
-    { month: 11, day: 29, name: "Black Friday" },
-    { month: 12, day: 1, name: "Advent börjar" },
-    { month: 12, day: 13, name: "Lucia" },
-    { month: 12, day: 24, name: "Julafton" },
-    { month: 12, day: 25, name: "Juldagen" },
-    { month: 12, day: 31, name: "Nyårsafton" },
-  ];
-
-  const upcoming: string[] = [];
-  const end = new Date(from);
-  end.setDate(end.getDate() + 14);
-
-  for (const event of events) {
-    const eventDate = new Date(from.getFullYear(), event.month - 1, event.day);
-    if (eventDate >= from && eventDate <= end) {
-      upcoming.push(`- ${event.day} ${eventDate.toLocaleString("sv-SE", { month: "long" })}: ${event.name}`);
-    }
-    const eventDateNextYear = new Date(from.getFullYear() + 1, event.month - 1, event.day);
-    if (eventDateNextYear >= from && eventDateNextYear <= end) {
-      upcoming.push(`- ${event.day} ${eventDateNextYear.toLocaleString("sv-SE", { month: "long" })}: ${event.name}`);
-    }
-  }
-
-  const m = from.getMonth() + 1;
-  if (m >= 6 && m <= 8) upcoming.push("- SÄSONG: Högsommar — semester, camping, friluftsliv");
-  if (m >= 9 && m <= 11) upcoming.push("- SÄSONG: Höst — förberedelser, service inför vintern");
-  if (m === 12 || m <= 2) upcoming.push("- SÄSONG: Vinter — inomhusaktiviteter, julkänsla, nyår");
-  if (m >= 3 && m <= 5) upcoming.push("- SÄSONG: Vår — uppstart, städning, förberedelser");
-
-  return upcoming.length > 0
-    ? upcoming.join("\n")
-    : `- Ingen specifik högtid denna vecka — fokusera på säsongsrelevant innehåll för ${from.toLocaleString("sv-SE", { month: "long" })}`;
 }
