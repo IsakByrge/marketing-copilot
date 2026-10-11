@@ -246,12 +246,16 @@ function sanitizePriority(v: unknown): BusinessPriority {
   return typeof v === "string" && PRIORITY_LEVELS.includes(v as BusinessPriority) ? (v as BusinessPriority) : "normal";
 }
 
+/** Namnet en produkt får när posten saknar ett. Det är en platshållare
+ *  för gränssnittet, aldrig en produkt företaget säljer. */
+export const NAMELESS_PRODUCT = "Namnlös produkt";
+
 export function sanitizeProduct(raw: unknown): CompanyProduct {
   const o = (raw && typeof raw === "object") ? (raw as Record<string, unknown>) : {};
   return {
     id: typeof o.id === "string" && o.id ? o.id : newBrainId(),
     articleNumber: clipText(o.articleNumber, 60) || undefined,
-    name: clipText(o.name, 120) || "Namnlös produkt",
+    name: clipText(o.name, 120) || NAMELESS_PRODUCT,
     category: clipText(o.category, 80) || undefined,
     description: clipText(o.description, BRAIN_LIMITS.MAX_LONG_TEXT) || undefined,
     customerProblem: clipText(o.customerProblem, BRAIN_LIMITS.MAX_LONG_TEXT) || undefined,
@@ -322,8 +326,14 @@ export function newManualProduct(name: string): CompanyProduct {
  * användaren uttryckligen bekräftar dem i det nya gränssnittet — även om de
  * i praktiken ofta stämmer.
  *
- * existingBrain (om company_brain redan finns, t.ex. delvis ifylld) vinner
- * alltid över det som härleds ur den gamla profilen.
+ * TRE FALL, i den här ordningen:
+ *  1. Ingen company_brain: allt härleds ur den gamla profilen.
+ *  2. company_brain med lastReviewedAt (sparad under Vad jag vet): den
+ *     gäller ensam. Inget fält fylls på ur den gamla profilen — utom
+ *     forbiddenClaims när fältet är trasigt, se nedan.
+ *  3. company_brain utan lastReviewedAt (kolumnens default är {}): fält
+ *     för fält, där det som finns i hjärnan vinner och tomma fält fylls
+ *     ur den gamla profilen.
  */
 export function migrateProfileToBrain(
   profile: Pick<CompanyProfile, "summary" | "customers" | "products" | "tone" | "strengths" | "avoid" | "contentGuidelines"> | null | undefined,
@@ -351,9 +361,32 @@ export function migrateProfileToBrain(
 
   if (!existingBrain) return base;
 
-  // Ett redan existerande (om än ofullständigt) company_brain vinner fält
-  // för fält över det som just härletts ur den gamla profilen.
   const sanitized = sanitizeBrain(existingBrain);
+
+  // En hjärna som sparats under Vad jag vet är hela sanningen. Sidan
+  // laddar den migrerade profilen och sparar ALLTID hela objektet med
+  // lastReviewedAt, så allt onboarding visste finns redan med — och ett
+  // tomt fält betyder att användaren tömt det. Fylldes det på ur de
+  // platta kolumnerna kom en borttagen produkt tillbaka så fort den
+  // sista togs bort.
+  //
+  // Markören läses ur råobjektet, inte ur det sanerade: nyckeln räcker.
+  // Har värdet blivit ett tal eller en tom sträng är hjärnan fortfarande
+  // sparad, och då ska inget fyllas på.
+  const raw = typeof existingBrain === "object" ? (existingBrain as Record<string, unknown>) : {};
+  if (raw.lastReviewedAt != null) {
+    // Ett undantag, åt det strängare hållet. Sparningen skriver alltid
+    // forbiddenClaims som en lista, så en tom lista är användarens val
+    // medan något annat än en lista är trasig data. Då gäller de gamla
+    // förbuden hellre än inga. Produkter och övriga fält fylls aldrig på:
+    // är de trasiga blir de tomma, och faktaspärren blir då strängare.
+    return Array.isArray(raw.forbiddenClaims)
+      ? sanitized
+      : { ...sanitized, forbiddenClaims: base.forbiddenClaims };
+  }
+
+  // Aldrig sparad via Vad jag vet (saknar lastReviewedAt): det som finns
+  // vinner fält för fält över det som härletts ur den gamla profilen.
   const hasAny = (arr: unknown[]) => Array.isArray(arr) && arr.length > 0;
   return {
     companySummary: sanitized.companySummary || base.companySummary,
