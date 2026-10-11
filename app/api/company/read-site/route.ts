@@ -25,6 +25,16 @@ const MAX_SITES = 2;
 const PAGES_PER_SITE = 30;
 /** Läsningen får ta högst så här lång tid; resten av budgeten är modellens. */
 const READ_BUDGET_MS = 55_000;
+/** Ungefär 18 000 tokens in. Räcker för två sajter à 30 sidor efter rensning. */
+const CORPUS_MAX_CHARS = 70_000;
+
+function interleave<T>(lists: T[][]): T[] {
+  const out: T[] = [];
+  for (let i = 0; lists.some((l) => i < l.length); i++) {
+    for (const l of lists) if (i < l.length) out.push(l[i]);
+  }
+  return out;
+}
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8);
@@ -54,7 +64,9 @@ export async function POST(request: Request) {
     // Sajterna läses parallellt; varje sajt har sitt eget tempo.
     const deadline = Date.now() + READ_BUDGET_MS;
     const results = await Promise.all(roots.map((r) => readSite(r, PAGES_PER_SITE, deadline)));
-    const pages = results.flatMap((r) => r.pages);
+    // Sajterna varvas, så att korpusens tak inte klipper bort hela
+    // webbshoppen bara för att hemsidan lästes först.
+    const pages = interleave(results.map((r) => r.pages));
     const notes = results.flatMap((r) => r.notes);
 
     if (pages.length === 0) {
@@ -64,7 +76,7 @@ export async function POST(request: Request) {
 
     const result = await callChatJson(
       SITE_READER_SYSTEM,
-      siteReaderPrompt(corpus(pages), typeof company?.name === "string" ? company.name : ""),
+      siteReaderPrompt(corpus(pages, CORPUS_MAX_CHARS), typeof company?.name === "string" ? company.name : ""),
       { temperature: 0.2, maxTokens: 3_000 },
     );
     const draft = validateDraft(result.parsed, pages);
