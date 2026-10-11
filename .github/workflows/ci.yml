@@ -130,6 +130,9 @@ jobs:
       - name: Test — veckans underlag och kampanjer
         run: npm run test:weekinput
 
+      - name: Test — Instagram-version och publicering
+        run: npm run test:content
+
       - name: Test — faktaspärr i alla prompter
         run: npm run test:factguard
 

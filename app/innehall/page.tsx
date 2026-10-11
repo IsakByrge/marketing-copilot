@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "@/app/_shared/AppShell";
-import { Button, ButtonLink, Card, Chip, Alert, EmptyState, Skeleton } from "@/app/_shared/primitives";
+import { Button, ButtonLink, Card, Chip, Alert, EmptyState, Skeleton, ToggleChip } from "@/app/_shared/primitives";
 import { Textarea } from "@/app/_shared/Textarea";
 import { IconCheck } from "@/app/_shared/icons";
 import { useAccountData, type MarketingPlan } from "@/app/_shared/useAccountData";
@@ -34,6 +34,11 @@ import ImageMaker from "@/app/_shared/ImageMaker";
 import { isoWeek } from "@/lib/server/voice";
 import { planContentHref } from "@/lib/facebook/planPrefill";
 import { createClient } from "@/lib/supabase-browser";
+import { planPostText } from "@/lib/content/instagram";
+import {
+  CHANNEL_LABELS, indexPublished, publishedChannels, unpublishedCount, shortDate, pubKey,
+  type Channel, type PublishedRow,
+} from "@/lib/content/published";
 
 type Rating = "up" | "down";
 
@@ -56,9 +61,8 @@ const DAGNAMN: Record<string, string> = {
 
 const visaDag = (d: string) => DAGNAMN[d.toLowerCase()] ?? d.toLowerCase();
 
-function postText(p: { title: string; text: string; cta: string }): string {
-  return [p.title, p.text, p.cta].filter(Boolean).join("\n\n");
-}
+/** Delas med Instagram-routen, så varianten utgår från samma text. */
+const postText = planPostText;
 
 function newsletterText(n: MarketingPlan["newsletter"]): string {
   if (!n) return "";
@@ -66,12 +70,13 @@ function newsletterText(n: MarketingPlan["newsletter"]): string {
     .filter(Boolean).join("\n");
 }
 
-function CopyButton({ getText, onCopied }: { getText: () => string; onCopied?: () => void }) {
+function CopyButton({ getText, onCopied, disabled }: { getText: () => string; onCopied?: () => void; disabled?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
       size="sm"
       variant="secondary"
+      disabled={disabled}
       onClick={() => {
         navigator.clipboard.writeText(getText());
         onCopied?.();
@@ -102,6 +107,38 @@ export default function ContentPage() {
   const planId = plan?.id;
   const edits = editStore.planId === planId ? editStore.values : {};
   const [saveFailed, setSaveFailed] = useState(false);
+
+  // ── Publicering ─────────────────────────────────────────────
+  // En rad i published_posts per (inlägg, kanal) som DU markerat. Appen
+  // vet inte själv om något gått ut, och påstår det aldrig utan raden.
+  const [published, setPublished] = useState<{ planId?: string; index: Record<string, PublishedRow> }>({ index: {} });
+  const pubIndex = published.planId === planId ? published.index : {};
+  const [pubBusy, setPubBusy] = useState<string | null>(null);
+  const [pubError, setPubError] = useState<string | null>(null);
+
+  // Vald kanal per inlägg. Facebook är planens originaltext.
+  const [kanal, setKanal] = useState<Record<string, Channel>>({});
+  const [igBusy, setIgBusy] = useState<string | null>(null);
+  const [igError, setIgError] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!planId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const sb = createClient();
+        const { data, error } = await sb
+          .from("published_posts")
+          .select("id, item_key, channel, published_on")
+          .eq("plan_id", planId);
+        if (error) throw error;
+        if (!cancelled) setPublished({ planId, index: indexPublished(data) });
+      } catch (e) {
+        console.warn("Kunde inte läsa publiceringar:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [planId]);
 
   // Läs tillbaka sparade ändringar så fort planens id är känt.
   useEffect(() => {
@@ -311,6 +348,80 @@ export default function ContentPage() {
     }
   }
 
+  /** Markerar ett inlägg som publicerat på en kanal, med texten som
+   *  kopierades ut. Visas inte som publicerat förrän raden är sparad. */
+  async function markPublished(itemKey: string, channel: Channel, text: string) {
+    if (!planId || pubBusy) return;
+    const k = pubKey(itemKey, channel);
+    setPubBusy(k);
+    setPubError(null);
+    try {
+      const sb = createClient();
+      const { data, error } = await sb
+        .from("published_posts")
+        .upsert({ plan_id: planId, item_key: itemKey, channel, text }, { onConflict: "plan_id,item_key,channel" })
+        .select("id, item_key, channel, published_on")
+        .single();
+      if (error) throw error;
+      const row = indexPublished([data])[k];
+      if (row) setPublished((prev) => ({ planId, index: { ...(prev.planId === planId ? prev.index : {}), [k]: row } }));
+    } catch (e) {
+      console.warn("Kunde inte markera som publicerat:", e);
+      setPubError("Kunde inte spara att inlägget är publicerat. Försök igen.");
+    } finally {
+      setPubBusy(null);
+    }
+  }
+
+  async function unmarkPublished(row: PublishedRow) {
+    if (pubBusy) return;
+    const k = pubKey(row.item_key, row.channel);
+    setPubBusy(k);
+    setPubError(null);
+    try {
+      const sb = createClient();
+      const { error } = await sb.from("published_posts").delete().eq("id", row.id);
+      if (error) throw error;
+      setPublished((prev) => {
+        const index = { ...(prev.planId === planId ? prev.index : {}) };
+        delete index[k];
+        return { planId, index };
+      });
+    } catch (e) {
+      console.warn("Kunde inte ångra publiceringen:", e);
+      setPubError("Kunde inte ångra markeringen. Försök igen.");
+    } finally {
+      setPubBusy(null);
+    }
+  }
+
+  /** Instagram-versionen av ett inlägg. Din Facebook-text sparas först,
+   *  så att servern utgår från den och inte från planens original. */
+  async function makeInstagram(index: number) {
+    const key = `post-${index}`;
+    if (!planId || igBusy) return;
+    setIgBusy(key);
+    setIgError((prev) => ({ ...prev, [key]: "" }));
+    try {
+      await flushEdits();
+      const res = await fetch("/api/plan-post/instagram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId, index }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || typeof data?.caption !== "string") {
+        throw new Error(data?.error ?? "Kunde inte skriva Instagram-texten just nu.");
+      }
+      updateEdit(`${key}-ig`, data.caption);
+      void flushEdits();
+    } catch (e) {
+      setIgError((prev) => ({ ...prev, [key]: e instanceof Error ? e.message : "Något gick fel. Försök igen." }));
+    } finally {
+      setIgBusy(null);
+    }
+  }
+
   async function createQuick() {
     const request = quickTopic.trim();
     if (!request) return;
@@ -349,6 +460,7 @@ export default function ContentPage() {
 
   const posts = plan?.posts ?? [];
   const newsletter = plan?.newsletter;
+  const kvar = unpublishedCount(pubIndex, posts.map((_, i) => `post-${i}`));
   const campaigns = plan?.campaigns ?? [];
 
   return (
@@ -375,7 +487,7 @@ export default function ContentPage() {
             </>
           ) : (
             <h1 className="mt-3 text-[clamp(1.5rem,3.2vw,1.85rem)] font-semibold leading-[1.25] tracking-tight">
-              Inlägg och nyhetsbrev
+              Inlägg
             </h1>
           )}
         </header>
@@ -481,6 +593,9 @@ export default function ContentPage() {
         {loaded && plan && (
           <div className="space-y-10">
             {/* Tyst tappad text är värre än ett synligt fel — säg det. */}
+            {pubError && (
+              <Alert tone="danger" title="Det gick inte">{pubError}</Alert>
+            )}
             {saveFailed && (
               <Alert tone="danger" title="Ändringen är inte sparad">
                 Texten finns kvar i rutan, men kunde inte skrivas till databasen.
@@ -490,7 +605,11 @@ export default function ContentPage() {
             {posts.length > 0 && (
               <section>
                 <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                  {posts.length} inlägg väntar
+                  {kvar === 0
+                    ? `Alla ${posts.length} inlägg är publicerade`
+                    : kvar === posts.length
+                      ? `${posts.length} inlägg väntar`
+                      : `${kvar} av ${posts.length} inlägg kvar att publicera`}
                 </h2>
                 <div className="space-y-3">
                   {posts.map((p, i) => {
@@ -498,6 +617,12 @@ export default function ContentPage() {
                     const isOpen = open === key;
                     const value = edits[key] ?? postText(p);
                     const rating = ratings[i];
+                    const ch: Channel = kanal[key] ?? "facebook";
+                    const igKey = `${key}-ig`;
+                    const igValue = edits[igKey];
+                    const aktivText = ch === "facebook" ? value : (igValue ?? "");
+                    const kanaler = publishedChannels(pubIndex, key);
+                    const pubRad = pubIndex[pubKey(key, ch)];
                     return (
                       <Card key={key} padding="sm">
                         <button
@@ -511,6 +636,9 @@ export default function ContentPage() {
                               <span className="font-medium">{p.title}</span>
                               {p.saknas?.length ? <Chip tone="warning">Behöver komplettering</Chip> : null}
                               {p.granskas?.length ? <Chip tone="warning">Behöver granskning</Chip> : null}
+                              {kanaler.map((c) => (
+                                <Chip key={c} tone="success">{CHANNEL_LABELS[c]}</Chip>
+                              ))}
                               {rating === "up" && <Chip tone="success">Gillad</Chip>}
                               {rating === "down" && <Chip tone="neutral">Ogillad</Chip>}
                             </span>
@@ -559,12 +687,55 @@ export default function ContentPage() {
                                 tillverkarens anvisningar svara på.
                               </Alert>
                             ) : null}
-                            <Textarea
-                              rows={7}
-                              value={value}
-                              onChange={(e) => updateEdit(key, e.target.value)}
-                              onBlur={() => void flushEdits()}
-                            />
+                            {/* Kanal. Facebook är planens text; Instagram är en
+                                egen, kortare version utan länk och med hashtags. */}
+                            <div className="mb-3 flex gap-2" role="group" aria-label="Kanal">
+                              {(["facebook", "instagram"] as const).map((c) => (
+                                <ToggleChip
+                                  key={c}
+                                  active={ch === c}
+                                  onClick={() => setKanal((prev) => ({ ...prev, [key]: c }))}
+                                >
+                                  {CHANNEL_LABELS[c]}
+                                  {kanaler.includes(c) && <IconCheck size={14} className="ml-1.5 text-primary" aria-label="publicerad" />}
+                                </ToggleChip>
+                              ))}
+                            </div>
+
+                            {ch === "facebook" ? (
+                              <Textarea
+                                rows={7}
+                                value={value}
+                                onChange={(e) => updateEdit(key, e.target.value)}
+                                onBlur={() => void flushEdits()}
+                              />
+                            ) : igValue !== undefined ? (
+                              <Textarea
+                                rows={7}
+                                value={igValue}
+                                onChange={(e) => updateEdit(igKey, e.target.value)}
+                                onBlur={() => void flushEdits()}
+                              />
+                            ) : (
+                              <div className="rounded-md border border-dashed border-border p-4">
+                                <p className="text-sm text-text-secondary">
+                                  Instagram-versionen är kortare, har poängen i första meningen, saknar länk
+                                  och får hashtags av företagets namn, produkten och orten.
+                                </p>
+                                <Button
+                                  size="sm"
+                                  className="mt-3"
+                                  loading={igBusy === key}
+                                  onClick={() => void makeInstagram(i)}
+                                >
+                                  Skriv Instagram-versionen
+                                </Button>
+                              </div>
+                            )}
+                            {igError[key] && ch === "instagram" && (
+                              <Alert tone="danger" title="Det gick inte" className="mt-3">{igError[key]}</Alert>
+                            )}
+
                             {p.image && (
                               <div className="mt-3">
                                 <ImageMaker initialPrompt={p.image} />
@@ -572,28 +743,64 @@ export default function ContentPage() {
                             )}
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               <CopyButton
-                                getText={() => edits[key] ?? postText(p)}
-                                onCopied={() => void rememberEdit("plan_post", postText(p), edits[key] ?? "", p.title)}
+                                disabled={!aktivText}
+                                getText={() => aktivText}
+                                onCopied={() => {
+                                  if (ch === "facebook") void rememberEdit("plan_post", postText(p), edits[key] ?? "", p.title);
+                                }}
                               />
-                              {/* Veckoplanens inlägg är snabba utkast. Specialisten
-                                  granskar kvalitet och ger tre vinklar — den här
-                                  knappen tar med det planen redan vet dit, så att
-                                  produkt, uppmaning och vinkel inte anges på nytt.
-                                  Vilka fält som är säkra att skicka avgörs i
-                                  planPrefill, inte här. */}
-                              <ButtonLink
-                                size="sm"
-                                variant="ghost"
-                                href={planContentHref({
-                                  amne: `${p.title}. ${p.text}`,
-                                  rubrik: p.title,
-                                  produkt: p.produkt,
-                                  handling: p.cta,
-                                  roll: p.roll,
-                                })}
-                              >
-                                Förfina för Facebook
-                              </ButtonLink>
+                              {pubRad ? (
+                                <span className="inline-flex items-center gap-2 text-sm text-text-secondary">
+                                  <IconCheck size={16} className="shrink-0 text-primary" />
+                                  Publicerad på {CHANNEL_LABELS[ch]} {shortDate(pubRad.published_on)}
+                                  <button
+                                    type="button"
+                                    onClick={() => void unmarkPublished(pubRad)}
+                                    disabled={pubBusy !== null}
+                                    className="inline-flex min-h-11 items-center rounded px-1 font-medium underline underline-offset-4 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 sm:min-h-0"
+                                  >
+                                    Ångra
+                                  </button>
+                                </span>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  disabled={!aktivText}
+                                  loading={pubBusy === pubKey(key, ch)}
+                                  onClick={() => void markPublished(key, ch, aktivText)}
+                                >
+                                  Markera publicerad på {CHANNEL_LABELS[ch]}
+                                </Button>
+                              )}
+                              {ch === "instagram" && igValue !== undefined && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  loading={igBusy === key}
+                                  onClick={() => void makeInstagram(i)}
+                                >
+                                  Skriv om från Facebook-texten
+                                </Button>
+                              )}
+                              {/* Specialisten för Facebook finns kvar för den som vill
+                                  ha tre vinklar och en granskning. Vilka fält som är
+                                  säkra att skicka avgörs i planPrefill. */}
+                              {ch === "facebook" && (
+                                <ButtonLink
+                                  size="sm"
+                                  variant="ghost"
+                                  href={planContentHref({
+                                    amne: `${p.title}. ${p.text}`,
+                                    rubrik: p.title,
+                                    produkt: p.produkt,
+                                    handling: p.cta,
+                                    roll: p.roll,
+                                  })}
+                                >
+                                  Förfina för Facebook
+                                </ButtonLink>
+                              )}
                               <span className="ml-auto flex gap-2">
                                 <Button
                                   size="sm"
