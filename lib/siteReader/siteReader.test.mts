@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import {
   sitemapsFromRobots, parseSitemap, rankSitemap, scorePage, selectPages, linksFrom,
-  extractPage, structuredLines, corpus,
+  extractPage, structuredLines, corpus, trimBoilerplate,
 } from "./pages";
 import { validateDraft, numbersIn, numbersOnPage, siteReaderPrompt } from "./brainDraft";
 import { suggestionsFrom, applySuggestions } from "./merge";
@@ -184,6 +184,34 @@ test("en vald produkt från hemsidan är bekräftad och bär sin källa", () => 
   assert.equal(next.products[0].source, "user_confirmed");
   assert.equal(next.products[0].priority, "normal");
   assert.equal(next.products[0].sourceUrl, "https://shop.testgas.se/");
+});
+
+test("högst tre sidor per mapp, så kategorier inte trängs undan", () => {
+  const urls = [
+    ...[1, 2, 3, 4, 5, 6].map((n) => `https://testgas.se/paketerbjudanden/paket-${n}/`),
+    "https://testgas.se/varmare/", "https://testgas.se/grillar/",
+  ];
+  const ut = selectPages(urls, ROOT, 10);
+  assert.equal(ut.filter((u) => u.includes("/paketerbjudanden/")).length, 3);
+  assert.ok(ut.includes("https://testgas.se/varmare/") && ut.includes("https://testgas.se/grillar/"));
+});
+
+test("menyn som står på varje sida tas bort, utom på startsidan", () => {
+  const meny = "Priser\nKontakt\nWebbshop\nEnköping\nLinköping";
+  const sida = (url: string, egen: string) => ({ url, title: "", description: "", structured: [], text: `${meny}\n${egen}` });
+  const ut = trimBoilerplate([
+    sida("https://testgas.se/", "Välkommen"),
+    sida("https://testgas.se/a/", "Depån i Motala, Storgatan 1"),
+    sida("https://testgas.se/b/", "Öppet 7–17"),
+    sida("https://testgas.se/c/", "Om oss"),
+  ]);
+  assert.ok(ut[0].text.includes("Priser"), "startsidan behåller allt");
+  assert.equal(ut[1].text, "Depån i Motala, Storgatan 1");
+  assert.equal(ut[2].text, "Öppet 7–17");
+});
+
+test("en plats i JSON-LD utan adress, tider eller telefon är ingen uppgift", () => {
+  assert.deepEqual(structuredLines(`<script type="application/ld+json">{"@type":"Organization","name":"Testgas"}</script>`), []);
 });
 
 console.log(`${passed} test ok`);

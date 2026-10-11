@@ -11,7 +11,7 @@ import { safeFetchWebsite, safeFetchBytes } from "@/lib/server/ssrf";
 import { parseRobots, isAllowed, EMPTY_RULES, type RobotsRules } from "@/lib/server/robots";
 import {
   sitemapsFromRobots, parseSitemap, rankSitemap, selectPages, linksFrom, extractPage,
-  type PageExtract,
+  trimBoilerplate, type PageExtract,
 } from "./pages";
 
 const ROBOTS_AGENT = "marketingcopilotbot";
@@ -118,16 +118,20 @@ export async function readSite(rawRoot: string, maxPages: number, deadline: numb
     notes.push(`${root}: ingen sitemap hittades, läste länkarna på startsidan.`);
   }
 
-  const urval = selectPages(urls, root, maxPages, tillaten).filter((u) => u.replace(/\/$/, "") !== root.replace(/\/$/, ""));
+  // Startsidan är redan läst — även när sitemapen skriver den utan www.
+  const utanWww = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
+  const lasta = new Set([utanWww(root), utanWww(start.finalUrl)]);
+  const urval = selectPages(urls, root, maxPages, tillaten).filter((u) => !lasta.has(utanWww(u)));
   for (const url of urval) {
     if (pages.length >= maxPages || !hinner()) break;
     await vanta();
     const res = await safeFetchWebsite(url);
-    if (!res.ok) continue;
+    if (!res.ok || lasta.has(utanWww(res.finalUrl))) continue;
+    lasta.add(utanWww(res.finalUrl));
     pages.push(extractPage(res.html, res.finalUrl));
   }
   if (pages.length < Math.min(maxPages, urval.length + 1) && !hinner()) {
     notes.push(`${root}: hann läsa ${pages.length} sidor innan tiden tog slut.`);
   }
-  return { root, pages, notes };
+  return { root, pages: trimBoilerplate(pages), notes };
 }

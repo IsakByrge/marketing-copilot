@@ -84,6 +84,7 @@ export function scorePage(url: string, root: string): number {
  */
 export function selectPages(
   urls: string[], root: string, max: number, allowed: (path: string) => boolean = () => true,
+  maxPerFolder = 3,
 ): string[] {
   const seen = new Set<string>();
   const scored: Array<{ url: string; score: number; i: number }> = [];
@@ -98,10 +99,20 @@ export function selectPages(
     const score = scorePage(u.toString(), root);
     if (score > -10) scored.push({ url: u.toString(), score, i });
   });
-  return scored
-    .sort((a, b) => b.score - a.score || a.i - b.i)
-    .slice(0, max)
-    .map((s) => s.url);
+  // Högst några sidor per mapp: tolv paketerbjudanden eller tio depåsidor
+  // tränger annars undan kategorierna, och de säger mest om sortimentet.
+  const perMapp = new Map<string, number>();
+  const ut: string[] = [];
+  for (const s of scored.sort((a, b) => b.score - a.score || a.i - b.i)) {
+    const segs = new URL(s.url).pathname.split("/").filter(Boolean);
+    const mapp = segs.length > 1 ? segs.slice(0, -1).join("/") : "";
+    const n = perMapp.get(mapp) ?? 0;
+    if (mapp && n >= maxPerFolder) continue;
+    perMapp.set(mapp, n + 1);
+    ut.push(s.url);
+    if (ut.length >= max) break;
+  }
+  return ut;
 }
 
 /** Länkar på en sida (för sajter utan sitemap). Bara samma sajt. */
@@ -133,6 +144,7 @@ function stripTags(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+    .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
     // Blockelement blir radbrytningar, så pris och namn hålls ihop per rad.
     .replace(/<\/(p|div|li|h[1-6]|tr|section|article|header|footer|br)\s*>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
@@ -202,14 +214,17 @@ export function structuredLines(html: string): string[] {
       const adress = a ? [str(a.streetAddress), str(a.postalCode), str(a.addressLocality)].filter(Boolean).join(", ") : "";
       const hours = Array.isArray(o.openingHours) ? (o.openingHours as unknown[]).map(str).join("; ") : str(o.openingHours);
       const tel = str(o.telephone);
-      const parts = [str(o.name), adress, hours && `öppet ${hours}`, tel && `tel ${tel}`].filter(Boolean);
-      if (parts.length) lines.push(`Plats: ${parts.join(" — ")}`);
+      // Bara namnet säger inget; en plats behöver adress, tider eller telefon.
+      if (adress || hours || tel) {
+        const parts = [str(o.name), adress, hours && `öppet ${hours}`, tel && `tel ${tel}`].filter(Boolean);
+        lines.push(`Plats: ${parts.join(" — ")}`);
+      }
     }
   }
   return [...new Set(lines)].slice(0, 40);
 }
 
-export function extractPage(html: string, url: string, maxText = 2500): PageExtract {
+export function extractPage(html: string, url: string, maxText = 20_000): PageExtract {
   const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "").replace(/\s+/g, " ").trim();
   const body = html.match(/<body[\s\S]*<\/body>/i)?.[0] ?? html;
   // Huvudinnehållet först om sajten märkt ut det; meny och sidfot sist.
@@ -222,6 +237,27 @@ export function extractPage(html: string, url: string, maxText = 2500): PageExtr
     structured: structuredLines(html),
     text: text.slice(0, maxText),
   };
+}
+
+/**
+ * Tar bort det som står på nästan varje sida — meny, sidfot, listan över
+ * alla depåer — från alla sidor utom den första, och kortar sedan varje
+ * sida. Utan det här bestod en depåsida av 2 500 tecken meny och inget
+ * om depån. En rad räknas som mall när den står på minst tre sidor och
+ * minst 40 procent av dem.
+ */
+export function trimBoilerplate(pages: PageExtract[], maxText = 2500): PageExtract[] {
+  if (pages.length < 3) return pages.map((p) => ({ ...p, text: p.text.slice(0, maxText) }));
+  const count = new Map<string, number>();
+  for (const p of pages) {
+    for (const line of new Set(p.text.split("\n"))) count.set(line, (count.get(line) ?? 0) + 1);
+  }
+  const grans = Math.max(3, Math.ceil(pages.length * 0.4));
+  return pages.map((p, i) => ({
+    ...p,
+    text: (i === 0 ? p.text : p.text.split("\n").filter((l) => (count.get(l) ?? 0) < grans).join("\n"))
+      .slice(0, maxText),
+  }));
 }
 
 /** Allt som läst, som en text till modellen. Sidornas ordning behålls. */
