@@ -148,6 +148,10 @@ ${ctx.hasWeekInput ? `
 VECKANS UNDERLAG RÄKNAS SOM FÖRETAGSDATA. Ett erbjudande, pris, datum,
 lager eller evenemang som står där får användas exakt som det står, och
 orden nedan får användas om underlaget stöder dem. Inget utöver det.
+En produkt eller tjänst som nämns i underlaget FINNS, även om den saknas
+i listan nedan. Men skriv bara det om den som står i underlaget eller i
+företagsdatan — aldrig vad den innehåller, kostar eller hur den fungerar
+om det inte står någonstans.
 ` : ""}
 ${lista("PRODUKTER OCH TJÄNSTER SOM FINNS:", ctx.products, "(inga angivna — nämn då ingen specifik tjänst alls)")}
 

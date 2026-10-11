@@ -120,3 +120,18 @@ export function campaignAreas(rows: CampaignForPlan[]): string[] {
     .map((c) => normalizeStrategyContext(c.strategy?.strategy_context).geographicArea)
     .filter((a): a is string => Boolean(a?.trim()));
 }
+
+/**
+ * Modellens lista över vad den behöver veta om veckans underlag. Bara
+ * när underlag lämnats: utan underlag finns inget att fråga om. Högst
+ * tre korta strängar, så rutan på Idag inte blir ett formulär.
+ */
+export function parseUnderlagSaknas(raw: unknown, hadWeekInput: boolean): string[] {
+  if (!hadWeekInput || !Array.isArray(raw)) return [];
+  return raw
+    .filter((x): x is string => typeof x === "string")
+    .map((x) => x.replace(/!/g, ".").replace(/\s+/g, " ").trim())
+    .filter((x) => x.length > 3 && !/^(tom lista|inget|ingenting)\.?$/i.test(x))
+    .map((x) => (x.length > 200 ? x.slice(0, 200).trim() + "…" : x))
+    .slice(0, 3);
+}

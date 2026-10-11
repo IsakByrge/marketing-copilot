@@ -415,6 +415,7 @@ Returnera exakt denna JSON:
     { "title": "Konkret kampanjnamn som säger vad kampanjen gör — ALDRIG \\"Kampanj för ${month}\\" eller \\"Höstkampanj\\"", "produkt": "produkten kampanjen handlar om, ur listan", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" },
     { "title": "Konkret kampanjnamn för en ANNAN produkt", "produkt": "en annan produkt ur listan", "goal": "Vad kampanjen uppnår", "message": "Budskap 2-3 meningar", "channels": "Kanaler", "cta": "CTA" }
   ],
+  "underlag_saknas": ["Det du behöver veta om veckans underlag för att kunna skriva om det, eller tom lista"],
   "opportunities": [
     {
       "date": "YYYY-MM-DD, exakt som i datumlistan ovan",
@@ -423,6 +424,13 @@ Returnera exakt denna JSON:
     }
   ]
 }
+
+"underlag_saknas" är en lista med 0–3 korta meningar till företagaren.
+Handlar veckans underlag om något du inte kan skriva om utan att hitta på
+(vad det innehåller, vad det kostar, hur det fungerar), skriv INTE runt
+det och byt inte ämne i tysthet. Skriv i stället vad du behöver veta, till
+exempel "Vad ingår i säkerhetspaketet, och vad kostar det?". Inget
+underlag, eller allt du behöver finns: lämna listan tom.
 
 "opportunities" är 0–3 datum, VALDA UR DATUMLISTAN ovan och inget annat.
 Ta bara med datum som faktiskt berör kunderna. Inget datum i listan som

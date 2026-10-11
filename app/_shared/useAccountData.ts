@@ -64,6 +64,9 @@ export type MarketingPlan = {
   /** Det företagaren skrev om veckan innan planen skapades. Null när
    *  inget lämnades, och i planer skapade före migration 0010. */
   weekInput?: string | null;
+  /** Vad planen behövde veta om veckans underlag men inte fick. Finns
+   *  bara direkt efter att planen skapats — sparas inte. */
+  underlagSaknas?: string[];
 };
 
 export interface PlanHistoryEntry {

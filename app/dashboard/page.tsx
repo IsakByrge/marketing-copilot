@@ -375,6 +375,22 @@ export default function DashboardPage() {
               <Alert tone="danger" title="Det gick inte" className="mb-8">{error}</Alert>
             )}
 
+            {/* Planen säger vad den inte kunde skriva om, i stället för att
+                tyst byta ämne. Bara direkt efter att den skapats. */}
+            {!weekOpen && (plan?.underlagSaknas?.length ?? 0) > 0 && (
+              <Alert tone="warning" title="Det här behöver jag veta mer om" className="mb-8">
+                <ul className="mt-1 list-disc space-y-1 pl-5">
+                  {plan!.underlagSaknas!.map((t, i) => <li key={i}>{t}</li>)}
+                </ul>
+                <p className="mt-3">
+                  Lägg till det under Vad jag vet, eller skriv det i veckans underlag och skapa planen igen.
+                </p>
+                <div className="mt-3">
+                  <ButtonLink href="/company" variant="secondary" size="sm">Vad jag vet</ButtonLink>
+                </div>
+              </Alert>
+            )}
+
             <div className="space-y-10">
               {weekOpen ? (
                 <WeekInputCard

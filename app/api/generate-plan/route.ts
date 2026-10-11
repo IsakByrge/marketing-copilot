@@ -16,7 +16,7 @@ import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, planContextFromRow, type PlanC
 import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
 import { valideraPlan } from "@/lib/server/planValidate";
 import { stockholmIso, upcomingCalendar, calendarLines, filterOpportunities } from "@/lib/server/planCalendar";
-import { parseWeekInput, relevantCampaigns, campaignsBlock, campaignAreas, type CampaignForPlan } from "@/lib/server/weekInput";
+import { parseWeekInput, parseUnderlagSaknas, relevantCampaigns, campaignsBlock, campaignAreas, type CampaignForPlan } from "@/lib/server/weekInput";
 
 
 export const runtime = "nodejs";
@@ -234,6 +234,10 @@ ${pastPlans.map((p, i) => {
     // saknas, och granssnittet visar det.
     plan = valideraPlan(plan, brain.websites);
     plan = { ...plan, opportunities: filterOpportunities(plan.opportunities, calendar) };
+    // Det modellen behöver veta om veckans underlag. Visas på Idag direkt
+    // efter att planen skapats; sparas inte, det är en fråga, inte innehåll.
+    const underlagSaknas = parseUnderlagSaknas(plan.underlag_saknas, Boolean(weekInput));
+    delete (plan as { underlag_saknas?: unknown }).underlag_saknas;
     // Nyhetsbrevet ingår inte längre. Skickar modellen ett ändå sparas det inte.
     delete (plan as { newsletter?: unknown }).newsletter;
 
@@ -245,7 +249,7 @@ ${pastPlans.map((p, i) => {
       promptTokens: result.promptTokens,
       completionTokens: result.completionTokens,
     });
-    return Response.json({ ...plan, weekInput });
+    return Response.json({ ...plan, weekInput, underlagSaknas });
 
   } catch (error) {
     const failure = classifyAiError(error, "planen");

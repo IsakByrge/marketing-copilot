@@ -1,7 +1,7 @@
 // Kör: npx tsx lib/server/weekInput.test.mts
 import assert from "node:assert/strict";
 import {
-  parseWeekInput, weekInputBlock, relevantCampaigns, campaignsBlock,
+  parseWeekInput, weekInputBlock, relevantCampaigns, campaignsBlock, parseUnderlagSaknas,
   WEEK_INPUT_MAX_CHARS, type CampaignForPlan,
 } from "./weekInput";
 import { buildPlanUserPrompt, planContextFromRow } from "./planPrompt";
@@ -118,6 +118,21 @@ test("det lokala inlägget får kampanjens ort med adress och öppettider", () =
   });
   assert.match(p, /handlar det lokala inlägget om Motala/);
   assert.match(p, /adress: Storgatan 1 · öppettider: Vardagar 7–17/);
+});
+
+test("det planen saknar om underlaget: bara med underlag, högst tre, städat", () => {
+  assert.deepEqual(parseUnderlagSaknas(["Vad ingår i säkerhetspaketet!"], false), []);
+  assert.deepEqual(parseUnderlagSaknas("text", true), []);
+  assert.deepEqual(
+    parseUnderlagSaknas(["Vad ingår i säkerhetspaketet!", "", "Tom lista", 5, "a", "b2b?", "c3c?", "d4d?"], true),
+    ["Vad ingår i säkerhetspaketet.", "b2b?", "c3c?"],
+  );
+});
+
+test("en produkt i underlaget räknas som befintlig, men bara med det som står", () => {
+  const p = prompt({ weekInput: "Fokus på säkerhetspaket" });
+  assert.match(p, /En produkt eller tjänst som nämns i underlaget FINNS/);
+  assert.match(p, /"underlag_saknas"/);
 });
 
 console.log(`${passed} test ok`);
