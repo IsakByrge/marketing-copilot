@@ -22,7 +22,7 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 const MAX_SITES = 2;
-const PAGES_PER_SITE = 20;
+const PAGES_PER_SITE = 30;
 /** Läsningen får ta högst så här lång tid; resten av budgeten är modellens. */
 const READ_BUDGET_MS = 55_000;
 

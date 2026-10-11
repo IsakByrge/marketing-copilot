@@ -99,15 +99,20 @@ export function selectPages(
     const score = scorePage(u.toString(), root);
     if (score > -10) scored.push({ url: u.toString(), score, i });
   });
-  // Högst några sidor per mapp: tolv paketerbjudanden eller tio depåsidor
-  // tränger annars undan kategorierna, och de säger mest om sortimentet.
+  // Högst några sidor per mapp: tolv paketerbjudanden tränger annars undan
+  // kategorierna, som säger mest om sortimentet. Depåer och butiker är
+  // undantaget — varje sida har sin egen adress och sina egna tider, och
+  // det är just dem vi vill ha. Återförsäljare är andras butiker: en räcker.
   const perMapp = new Map<string, number>();
   const ut: string[] = [];
   for (const s of scored.sort((a, b) => b.score - a.score || a.i - b.i)) {
     const segs = new URL(s.url).pathname.split("/").filter(Boolean);
     const mapp = segs.length > 1 ? segs.slice(0, -1).join("/") : "";
     const n = perMapp.get(mapp) ?? 0;
-    if (mapp && n >= maxPerFolder) continue;
+    const tak = /(fyllningsstation|butik|store|depa|location|hitta-hit|anlaggning)/.test(mapp) ? 20
+      : /(aterforsaljare|retailer|reseller)/.test(mapp) ? 1
+      : maxPerFolder;
+    if (mapp && n >= tak) continue;
     perMapp.set(mapp, n + 1);
     ut.push(s.url);
     if (ut.length >= max) break;
@@ -138,6 +143,13 @@ export interface PageExtract {
   text: string;
 }
 
+/** Namngivna tecken som svenska sajter faktiskt använder ("v&auml;rmare"). */
+const NAMED: Record<string, string> = {
+  aring: "å", auml: "ä", ouml: "ö", Aring: "Å", Auml: "Ä", Ouml: "Ö",
+  eacute: "é", Eacute: "É", uuml: "ü", ndash: "–", mdash: "—", hellip: "…",
+  lsquo: "‘", ldquo: "“", rdquo: "”", laquo: "«", raquo: "»", euro: "€", copy: "©",
+};
+
 function stripTags(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -153,6 +165,7 @@ function stripTags(html: string): string {
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"').replace(/&#39;|&rsquo;/g, "'")
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&([a-zA-Z]+);/g, (m, name: string) => NAMED[name] ?? m)
     .replace(/[ \t\f\v]+/g, " ")
     .split("\n").map((l) => l.trim()).filter(Boolean)
     // Samma rad om och om igen är meny och sidfot, inte innehåll. Rader

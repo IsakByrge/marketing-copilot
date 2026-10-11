@@ -214,4 +214,18 @@ test("en plats i JSON-LD utan adress, tider eller telefon är ingen uppgift", ()
   assert.deepEqual(structuredLines(`<script type="application/ld+json">{"@type":"Organization","name":"Testgas"}</script>`), []);
 });
 
+test("depåsidor får plats, återförsäljare bara en", () => {
+  const urls = [
+    ...["a", "b", "c", "d", "e", "f"].map((n) => `https://testgas.se/fyllningsstation/${n}/`),
+    ...["x", "y", "z"].map((n) => `https://testgas.se/aterforsaljare/${n}/`),
+  ];
+  const ut = selectPages(urls, ROOT, 20);
+  assert.equal(ut.filter((u) => u.includes("/fyllningsstation/")).length, 6);
+  assert.equal(ut.filter((u) => u.includes("/aterforsaljare/")).length, 1);
+});
+
+test("namngivna tecken avkodas", () => {
+  assert.match(extractPage("<main><p>Effektiva v&auml;rmare f&ouml;r b&aring;de</p></main>", ROOT).text, /Effektiva värmare för både/);
+});
+
 console.log(`${passed} test ok`);
