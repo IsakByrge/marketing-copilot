@@ -10,6 +10,8 @@
 -- avlästa i Facebook eller Instagram. Ingen av dem räknas fram av appen.
 --
 -- Måste köras före merge: Innehåll läser och skriver tabellen.
+-- Körd i prod 2026-10-11 (tabell, policyer och trigger i ett steg,
+-- search_path i ett andra).
 
 create table if not exists public.published_posts (
   id              uuid primary key default gen_random_uuid(),
@@ -36,11 +38,6 @@ create index if not exists published_posts_user_published_idx
   on public.published_posts (user_id, published_on desc);
 
 alter table public.published_posts enable row level security;
-
-drop policy if exists "own published_posts - select" on public.published_posts;
-drop policy if exists "own published_posts - insert" on public.published_posts;
-drop policy if exists "own published_posts - update" on public.published_posts;
-drop policy if exists "own published_posts - delete" on public.published_posts;
 
 create policy "own published_posts - select" on public.published_posts
   for select to authenticated using ((select auth.uid()) = user_id);
@@ -71,13 +68,9 @@ create policy "own published_posts - update" on public.published_posts
     )
   );
 
--- set_updated_at finns sedan 0005. Fast search_path här, som advisorn
--- påpekat för funktionen; samma kropp, så befintliga triggers påverkas inte.
-create or replace function public.set_updated_at()
-returns trigger language plpgsql set search_path = '' as $$
-begin new.updated_at = now(); return new; end $$;
-
-drop trigger if exists published_posts_updated_at on public.published_posts;
+-- set_updated_at finns sedan 0005. Fast search_path, som Supabase-advisorn
+-- påpekat; kroppen är oförändrad, så befintliga triggers påverkas inte.
+alter function public.set_updated_at() set search_path = '';
 
 create trigger published_posts_updated_at
   before update on public.published_posts
