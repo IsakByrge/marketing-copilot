@@ -101,4 +101,23 @@ test("möjligheterna får bara väljas ur datumlistan", () => {
   assert.match(p, /VALDA UR DATUMLISTAN/);
 });
 
+test("det lokala inlägget får kampanjens ort med adress och öppettider", () => {
+  const rad = {
+    name: "Testgas", summary: "Fyller gasol.",
+    company_brain: { lastReviewedAt: "2026-10-01T00:00:00Z", locations: [
+      { id: "a", city: "Motala", address: "Storgatan 1", openingHours: "Vardagar 7–17" },
+      { id: "b", city: "Mjölby" },
+      { id: "c", city: "Köping" },
+    ] },
+  };
+  const ctx = planContextFromRow(rad);
+  const p = buildPlanUserPrompt({
+    profile: ctx.profile, brain: ctx.brain, now: new Date("2026-10-11T08:00:00Z"),
+    upcomingDates: "", historyContext: "", feedbackContext: "", fileContext: "", editMemory: "",
+    locationDetails: ctx.locationDetails, campaignAreas: [],
+  });
+  assert.match(p, /handlar det lokala inlägget om Motala/);
+  assert.match(p, /adress: Storgatan 1 · öppettider: Vardagar 7–17/);
+});
+
 console.log(`${passed} test ok`);

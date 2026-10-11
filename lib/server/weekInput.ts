@@ -113,3 +113,10 @@ ${lines.join("\n")}
 - Hitta inte på ett erbjudande, pris eller slutdatum för kampanjen. Står
   ett erbjudande i veckans underlag får det användas, annars inte.`;
 }
+
+/** Kampanjernas geografiska område, för valet av veckans ort. */
+export function campaignAreas(rows: CampaignForPlan[]): string[] {
+  return rows
+    .map((c) => normalizeStrategyContext(c.strategy?.strategy_context).geographicArea)
+    .filter((a): a is string => Boolean(a?.trim()));
+}

@@ -1,6 +1,6 @@
 // Kör: npx tsx app/_shared/locations.test.mts
 import assert from "node:assert/strict";
-import { ortesFranText, tillgangligaOrter, veckansOrt } from "./locations";
+import { ortesFranText, tillgangligaOrter, veckansOrt, valjVeckansOrt, namnerOrt } from "./locations";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -78,6 +78,42 @@ test("årsskiftets veckonummer kraschar inte rotationen", () => {
   for (const v of [1, 52, 53]) {
     assert.ok(orter.includes(veckansOrt(orter, v)!), `vecka ${v}`);
   }
+});
+
+// Sju depåer, två med adress och öppettider — samma form som det verkliga
+// fallet där vecka 41 landade på en depå längst ner i listan.
+const sju = ["Motala", "Mjölby", "Borås", "Gävle", "Kalmar", "Luleå", "Köping"];
+const platser = [
+  { id: "1", city: "Motala", address: "Storgatan 1", openingHours: "Vardagar 7–17" },
+  { id: "2", city: "Mjölby", openingHours: "Vardagar 7–17" },
+  ...sju.slice(2).map((city, i) => ({ id: String(i + 3), city })),
+];
+
+test("orten ska stå som eget ord: Köping träffar inte Norrköping", () => {
+  assert.equal(namnerOrt("Kampanj i Norrköping", "Köping"), false);
+  assert.equal(namnerOrt("Kampanj i Köping", "Köping"), true);
+  assert.equal(namnerOrt("Norrkoping och Linkoping med omnejd", "Norrköping"), true);
+});
+
+test("en ort i veckans underlag vinner, den först nämnda", () => {
+  assert.equal(valjVeckansOrt({ orter: sju, platser, veckansUnderlag: "Ny leverans i Kalmar, sedan Borås", veckonummer: 41 }), "Kalmar");
+});
+
+test("kampanjens område går före ifyllda depåer", () => {
+  for (const v of [41, 42, 43]) {
+    const ort = valjVeckansOrt({ orter: sju, platser, kampanjomraden: ["Gavle och Lulea"], veckonummer: v });
+    assert.ok(ort === "Gävle" || ort === "Luleå", `vecka ${v}: ${ort}`);
+  }
+});
+
+test("utan underlag och kampanj: bara depåer med adress eller öppettider", () => {
+  const veckor = [40, 41, 42, 43].map((v) => valjVeckansOrt({ orter: sju, platser, veckonummer: v }));
+  assert.deepEqual([...new Set(veckor)].sort(), ["Mjölby", "Motala"]);
+});
+
+test("utan några detaljer roterar den som förut", () => {
+  assert.equal(valjVeckansOrt({ orter: sju, veckonummer: 41 }), veckansOrt(sju, 41));
+  assert.equal(valjVeckansOrt({ orter: [], veckonummer: 41 }), null);
 });
 
 console.log(`${passed} test ok`);

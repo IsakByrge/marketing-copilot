@@ -16,7 +16,7 @@ import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt, planContextFromRow, type PlanC
 import { hittaForKorta, buildRepairPrompt, applyRepair, type PlanShape } from "@/lib/server/planRepair";
 import { valideraPlan } from "@/lib/server/planValidate";
 import { stockholmIso, upcomingCalendar, calendarLines, filterOpportunities } from "@/lib/server/planCalendar";
-import { parseWeekInput, relevantCampaigns, campaignsBlock, type CampaignForPlan } from "@/lib/server/weekInput";
+import { parseWeekInput, relevantCampaigns, campaignsBlock, campaignAreas, type CampaignForPlan } from "@/lib/server/weekInput";
 
 
 export const runtime = "nodejs";
@@ -149,7 +149,7 @@ export async function POST(request: Request) {
     // Profil och Company Brain ur SAMMA rad. Hjärnan hämtades tidigare
     // med en egen fråga, och då fanns en väg där profilen kom fram men
     // hjärnan inte gjorde det.
-    const { profile, brain } = planContextFromRow(company);
+    const { profile, brain, locationDetails } = planContextFromRow(company);
 
     // Datum och veckonummer formas numera inne i planPrompt.
     const now = new Date();
@@ -199,6 +199,7 @@ ${pastPlans.map((p, i) => {
       profile, brain, now, upcomingDates,
       historyContext, feedbackContext, fileContext, editMemory,
       weekInput, campaignsContext,
+      locationDetails, campaignAreas: campaignAreas(campaignRows),
     });
 
     const result = await callChatJson(systemPrompt, userPrompt, {

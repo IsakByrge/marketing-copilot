@@ -12,8 +12,8 @@
 // ─────────────────────────────────────────────────────────────
 import { voiceBlock, isoWeek } from "./voice";
 import { factGuardBlock } from "./factGuard";
-import { migrateProfileToBrain, buildCompanyBrainContext, NAMELESS_PRODUCT, type CompanyBrainContext } from "@/app/_shared/companyBrain";
-import { veckansOrt } from "@/app/_shared/locations";
+import { migrateProfileToBrain, buildCompanyBrainContext, NAMELESS_PRODUCT, type CompanyBrainContext, type CompanyLocation } from "@/app/_shared/companyBrain";
+import { valjVeckansOrt } from "@/app/_shared/locations";
 import { sasongsBlock } from "./season";
 import { weekInputBlock } from "./weekInput";
 
@@ -47,12 +47,19 @@ export type PlanCompanyRow = {
  *
  * Bara namn och bransch tas ur raden: hjärnan har inga sådana fält.
  */
-export function planContextFromRow(row: PlanCompanyRow): { profile: PlanCompanyProfile; brain: CompanyBrainContext } {
-  const context = buildCompanyBrainContext(migrateProfileToBrain({
+export function planContextFromRow(row: PlanCompanyRow): {
+  profile: PlanCompanyProfile;
+  brain: CompanyBrainContext;
+  /** Depåerna med adress och öppettider. Kontexten bär bara ortnamnen;
+   *  det lokala inlägget behöver resten. */
+  locationDetails: CompanyLocation[];
+} {
+  const full = migrateProfileToBrain({
     summary: row.summary ?? "", customers: row.customers ?? [], products: row.products ?? [],
     tone: row.tone ?? [], strengths: row.strengths ?? [], avoid: row.avoid ?? [],
     contentGuidelines: row.content_guidelines ?? [],
-  }, row.company_brain));
+  }, row.company_brain);
+  const context = buildCompanyBrainContext(full);
 
   // En post utan namn — sparad tom eller trasig i databasen — får en
   // platshållare av saneringen. Den hör hemma i gränssnittet, där den går
@@ -74,7 +81,7 @@ export function planContextFromRow(row: PlanCompanyRow): { profile: PlanCompanyP
     contentGuidelines: brain.contentGuidelines,
   };
 
-  return { profile, brain };
+  return { profile, brain, locationDetails: full.locations };
 }
 
 /** En lucka ska synas som en lucka. En tom rad läser modellen som
@@ -207,23 +214,48 @@ export interface PlanPromptInput {
   weekInput?: string | null;
   /** Kampanjblocket ur weekInput.campaignsBlock. Tom sträng = inga. */
   campaignsContext?: string;
+  /** Depåerna med detaljer, ur planContextFromRow. */
+  locationDetails?: CompanyLocation[];
+  /** Geografiskt område för veckans kampanjer. Styr veckans ort. */
+  campaignAreas?: string[];
 }
 
 /**
- * Instruktionen om veckans ort. Roterar på ISO-veckan, så fem veckor i
- * rad inte alla handlar om samma depå. Tom sträng när ingen ort finns —
- * då ska inlägget inte nämna någon.
+ * Instruktionen om veckans ort. Orten väljs i valjVeckansOrt: först en
+ * ort företagaren nämnt i veckans underlag, sedan kampanjens område,
+ * sedan depåer med adress eller öppettider ifyllda, sist rotation över
+ * alla. Har orten adress och öppettider följer de med — det är det mest
+ * konkreta ett lokalt inlägg kan säga. Tom sträng när ingen ort finns.
  */
-function veckansLokalaOrt(brain: CompanyBrainContext | null, now: Date): string {
-  const ort = veckansOrt(brain?.locations ?? [], isoWeek(now));
+function veckansLokalaOrt(
+  brain: CompanyBrainContext | null, now: Date,
+  extra: { weekInput: string | null; locationDetails: CompanyLocation[]; campaignAreas: string[] },
+): string {
+  const ort = valjVeckansOrt({
+    orter: brain?.locations ?? [],
+    platser: extra.locationDetails,
+    veckansUnderlag: extra.weekInput,
+    kampanjomraden: extra.campaignAreas,
+    veckonummer: isoWeek(now),
+  });
   if (!ort) return "";
-  return `\n   DEN HÄR VECKAN handlar det lokala inlägget om ${ort}. Nämn orten i\n   texten. Andra orter får nämnas i förbigående, men ${ort} är veckans.`;
+  const plats = extra.locationDetails.find((p) => p.city.trim().toLowerCase() === ort.toLowerCase());
+  const fakta = [
+    plats?.address?.trim() ? `adress: ${plats.address.trim()}` : null,
+    plats?.openingHours?.trim() ? `öppettider: ${plats.openingHours.trim()}` : null,
+  ].filter(Boolean);
+  const faktaRad = fakta.length
+    ? `\n   Depån i ${ort} — ${fakta.join(" · ")}. Det här är företagets egna\n   uppgifter och får återges som de står.`
+    : "";
+  return `\n   DEN HÄR VECKAN handlar det lokala inlägget om ${ort}. Nämn orten i\n   texten. Andra orter får nämnas i förbigående, men ${ort} är veckans.${faktaRad}`;
 }
 
 export function buildPlanUserPrompt(input: PlanPromptInput): string {
   const { profile, brain, now, upcomingDates, historyContext, feedbackContext, fileContext, editMemory } = input;
   const weekInput = input.weekInput ?? null;
   const campaignsContext = input.campaignsContext ?? "";
+  const locationDetails = input.locationDetails ?? [];
+  const campaignAreas = input.campaignAreas ?? [];
   const year = now.getFullYear();
   const month = now.toLocaleString("sv-SE", { month: "long" });
   const day = now.getDate();
@@ -309,7 +341,7 @@ Exakt ett inlägg per roll, i den här ordningen:
    är en generisk fördel. "Du betalar bara för det som faktiskt går i
    flaskan" är den konkreta, och det är den som ska stå.
 4. "lokalt" — knyter an till orten där kunderna finns. Ska ha depåmålet
-   om ett sådant finns bland målen.${veckansLokalaOrt(brain, now)}
+   om ett sådant finns bland målen.${veckansLokalaOrt(brain, now, { weekInput, locationDetails, campaignAreas })}
    Hitta ALDRIG på en plats. Finns ingen ort i företagsdatan: skriv
    inlägget allmänt om närområdet utan att nämna någon ort alls.
 5. "socialt" — ställer en fråga eller bjuder in till ett samtal. Inga
