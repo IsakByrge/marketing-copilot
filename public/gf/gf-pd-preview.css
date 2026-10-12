@@ -3,9 +3,11 @@
    Utdrag ur gasolfyllarna-profil-v15.css (Claude-mappen, Webbshop/Ny design).
    Bara det som behövs för beskrivningsfältet. Uppdateras när profilen gör det.
 
-   Två tillägg som INTE finns i v15 och behöver in i profilen:
+   Tillägg som INTE finns i v15 och behöver in i profilen (samlade i
+   gasolfyllarna-profil-v16-tillagg.css i Claude-mappen):
      • .gf-pd .gf-acc — frågorna (i v15 bara under .gf-cat)
      • .gf-pd table   — specifikationstabellen inne i beskrivningen
+     • container-name — rubrikerna i två spalter i linje
    ========================================================== */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
 
@@ -221,3 +223,12 @@ html .gf-pd td, html .gf-pd th {
 }
 html .gf-pd tr:nth-child(odd) td { background: #F7F2EE; }
 html .gf-pd td:first-child { color: var(--gf-muted); width: 40%; }
+
+/* Rubrikerna i två spalter i linje (tillägg i v16, se
+   gasolfyllarna-profil-v16-tillagg.css): regeln i v15 mätte mot
+   gf-pd__main och slog aldrig till. */
+html .gf-pd { container-name: gf-pd; }
+@container gf-pd (min-width: 900px) {
+  html .gf-pd__main > h2.gf-pd__h:first-child,
+  html .gf-pd__side > h2.gf-pd__h:first-child { margin-top: 0; }
+}
