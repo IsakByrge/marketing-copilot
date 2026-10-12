@@ -129,6 +129,7 @@ test("omskrivningen säger exakt vad som saknades", () => {
   const rejected = {
     id: "101259", description: "<p>Kamin med 3,4 kW.</p>", metaTitle: "", metaDescription: "",
     needsInfo: [], missingFacts: ["247 g/h", "ODS"], facts: [], uncoveredFacts: ["tillverkad i gjutjärn"], keywords: [],
+    addedNumbers: [], allowedNumbers: [],
   };
   const retry = buildRetryPrompt([VERONA_INPUT], [{ id: "101259", reasons: rewriteReasons(rejected) }]);
   assert.match(retry, /AVVISADES/);
@@ -137,7 +138,7 @@ test("omskrivningen säger exakt vad som saknades", () => {
 });
 
 test("omskrivningen behålls bara om den är bättre", () => {
-  const base = { id: "1", description: "<p>x</p>", metaTitle: "", metaDescription: "", needsInfo: [], facts: [], keywords: [] };
+  const base = { id: "1", description: "<p>x</p>", metaTitle: "", metaDescription: "", needsInfo: [], facts: [], keywords: [], addedNumbers: [], allowedNumbers: [] };
   const a = { ...base, missingFacts: ["11 kg"], uncoveredFacts: [] };
   const b = { ...base, missingFacts: [], uncoveredFacts: ["gjutjärn"] };
   const c = { ...base, missingFacts: [], uncoveredFacts: [] };

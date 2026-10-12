@@ -33,6 +33,17 @@ import {
   extractHardFacts, missingHardFacts, missingKeywords, parseListedFacts, uncoveredFacts,
   type ListedFact,
 } from "./hardFacts";
+import { PD_PROFILES, detectPdType, type PdTypeId } from "./pdProfiles";
+import { validatePd, renderPd, type PdContent } from "./pdRender";
+import { addedNumbers, allowedNumbers } from "./addedFacts";
+
+/**
+ * Utdataformat. "enkel" är dagens: stycken och punktlistor. "gfpd" är den
+ * nya produktsidan (verona-beskrivning.html): modellen fyller i fält och
+ * koden bygger HTML:en, se pdRender.ts.
+ */
+export type OutputFormat = "enkel" | "gfpd";
+export const isOutputFormat = (v: unknown): v is OutputFormat => v === "enkel" || v === "gfpd";
 
 /** Största batch servern accepterar. Klienten delar upp efter mall. */
 export const MAX_BATCH = 8;
@@ -55,11 +66,27 @@ export const BATCH_SIZE: Record<TemplateId, number> = {
   reservdel: 8,
 };
 
+/** I den nya mallen skriver varje artikel fler fält, så färre får plats per anrop. */
+export const BATCH_SIZE_PD: Record<TemplateId, number> = {
+  huvudprodukt: 1,
+  tillbehor: 3,
+  reservdel: 4,
+};
+
+export const batchSizeFor = (t: TemplateId, format: OutputFormat = "enkel") =>
+  (format === "gfpd" ? BATCH_SIZE_PD : BATCH_SIZE)[t];
+
 /** Grov tokenbudget per artikel och mall, för max_tokens. */
 const TOKENS_PER_ITEM: Record<TemplateId, number> = {
   huvudprodukt: 2_600,
   tillbehor: 300,
   reservdel: 200,
+};
+
+const TOKENS_PER_ITEM_PD: Record<TemplateId, number> = {
+  huvudprodukt: 2_600,
+  tillbehor: 1_000,
+  reservdel: 800,
 };
 
 export interface ProductInput {
@@ -78,6 +105,8 @@ export interface ProductInput {
    * servern, aldrig av klienten: validateProducts läser inte fältet.
    */
   keywords?: string[];
+  /** Produkttyp för den nya mallen. Sätts av servern ur kategori och namn. */
+  pdType?: PdTypeId;
 }
 
 export interface GeneratedText {
@@ -96,6 +125,15 @@ export interface GeneratedText {
   facts: ListedFact[];
   /** Uppgifter ur `facts` vars nyckelord inte står i texten. */
   uncoveredFacts: string[];
+  /** Tal i texten som inte står någonstans i underlaget. Icke-tom = får inte godkännas. */
+  addedNumbers: string[];
+  /** Talen underlaget innehåller, så kontrollen kan räknas om vid redigering. */
+  allowedNumbers: string[];
+  /** Fälten bakom texten, i den nya mallen. HTML:en kan byggas om ur dem. */
+  pd?: PdContent;
+  pdType?: PdTypeId;
+  /** Specifikationsrader typen har men underlaget saknar. */
+  missingSpecs?: string[];
 }
 
 /** Befintlig text som ren text, utan CSS och skript, kapad för prompten. */
@@ -107,12 +145,28 @@ const joinList = (v: string[] | undefined, n = 12): string =>
   (v ?? []).filter(Boolean).slice(0, n).join(", ");
 
 /** Tokenbudget för en hel batch. Taket i ai.ts gäller ändå ovanpå. */
-export function budgetFor(products: ProductInput[]): number {
-  const sum = products.reduce((n, p) => n + (TOKENS_PER_ITEM[p.template] ?? 300), 0);
+export function budgetFor(products: ProductInput[], format: OutputFormat = "enkel"): number {
+  const per = format === "gfpd" ? TOKENS_PER_ITEM_PD : TOKENS_PER_ITEM;
+  const sum = products.reduce((n, p) => n + (per[p.template] ?? 300), 0);
   return Math.min(400 + sum, 4_096);
 }
 
-export function buildSystemPrompt(ctx: CompanyBrainContext | null, editMemory = ""): string {
+/**
+ * Allt texten får bygga på, som en text: namn, modell, tillverkare,
+ * befintlig text, Company Brain och produktsidan. Talen i den är de enda
+ * tal texten får innehålla (se addedFacts.ts).
+ */
+export function sourceText(p: ProductInput, lookup?: FactsLookup): string {
+  const facts = lookup ? lookup(p.id) : null;
+  return [
+    p.name, p.model ?? "", p.producer ?? "", p.category ?? "", p.subCategory ?? "",
+    currentPlain(p),
+    facts ? formatFacts(facts) ?? "" : "",
+    p.page ? formatPageFacts(p.page, { skipDescription: false }) ?? "" : "",
+  ].join("\n");
+}
+
+export function buildSystemPrompt(ctx: CompanyBrainContext | null, editMemory = "", format: OutputFormat = "enkel"): string {
   const company = ctx
     ? `FÖRETAGET (ur Company Brain — bekräftade uppgifter, hitta inte på mer):
 Sammanfattning: ${ctx.summary || "(okänt)"}
@@ -200,7 +254,12 @@ en gänga är farligt, inte hjälpsamt.
 Räcker underlaget inte till en text alls: skriv en enda mening om vad
 produkten är utifrån namnet, och lista allt som saknas i "needsInfo".
 
-FORMAT
+${format === "gfpd" ? PD_TAIL : simpleTail(templateBlock)}`;
+}
+
+/** Avslutningen för det enkla formatet: HTML-regler, mallar och JSON. */
+function simpleTail(templateBlock: string): string {
+  return `FORMAT
 Utdata är HTML, inte ren text. Endast dessa taggar: <p>, <ul>, <li>,
 <strong>. Ingen rubrik, inga länkar, inga attribut. Markera inga enskilda
 ord eller nyckelord med <strong>. Skriv å, ä och ö som vanliga tecken,
@@ -242,13 +301,81 @@ exempel "levereras utan regulator", är det en uppgift du har och ska
 skriva i texten, inte en som saknas. Tom lista om inget saknas.`;
 }
 
-export function buildUserPrompt(products: ProductInput[], lookup?: FactsLookup): string {
+/**
+ * Avslutningen för den nya produktsidan. Modellen fyller i fält; HTML:en
+ * byggs av renderPd. Inga länkar, inget pris.
+ */
+const PD_TAIL = `FORMAT — DEN NYA PRODUKTSIDAN
+Du skriver INTE HTML. Du fyller i fält, och sidan byggs av dem. Varje produkt
+har en rad "typ" som säger vad kolumnerna heter och vilka rader
+specifikationen har.
+
+"lead" — ingressen. En eller två meningar, högst 300 tecken. Vad kunden får,
+och det viktigaste faktumet med siffra och enhet om underlaget har ett.
+Visas bredvid köpknappen, så det är den viktigaste meningen på sidan.
+
+"fit" — tre listor med 0–5 korta punkter var, högst 12 ord per punkt.
+  "yes": vad och var produkten passar för.
+  "add": vad kunden behöver utöver produkten, till exempel en flaska eller
+         en regulator som inte ingår.
+  "no":  det typen anger (se "typ").
+Bara det som står i underlaget. En tom lista är bättre än en gissad punkt.
+
+"about" — 2–4 stycken. Det första har "title": "" och säger vad produkten är.
+De följande har en rubrik på 1–3 ord ("Fläkt utan el", "Förbrukning",
+"Levereras utan") och 1–3 meningar text.
+
+"note" — en varningsruta, { "title", "text" }. Bara om "typ" säger att en
+ska övervägas OCH underlaget stöder den. Annars null.
+
+"specs" — specifikationstabellen. Använd EXAKT etiketterna i typens lista,
+i den ordningen. Värdet ska stå i underlaget, med samma siffra och enhet.
+Står ett värde inte i underlaget: utelämna raden. Gissa aldrig ett tryck,
+en gänga, en effekt eller ett mått. Har typen ingen lista: ta raderna ur
+produktsidans specifikation, högst 12.
+
+"faq" — 0–4 frågor som kunder ställer om just den här produkten, där svaret
+står i underlaget (till exempel produktsidans vanliga frågor). Ingen fråga
+utan ett svar ur underlaget.
+
+Inget pris, ingen leveranstid, inget lagersaldo och inga länkar någonstans.
+Priset visar butiken själv.
+
+META
+metaTitle: högst ${META_TITLE_MAX} tecken, produktnamnet först, inget
+utropstecken, inget butiksnamn påhängt.
+metaDescription: högst ${META_DESCRIPTION_MAX} tecken, en hel mening om vad
+produkten är och vad den används till. Inga löften om leverans, pris eller lager.
+
+Svara med JSON:
+{ "texts": [ { "id": "artikelnummer",
+  "fakta": [ { "uppgift": "maxeffekt 3,4 kW", "ord": "3,4 kW" } ],
+  "pd": {
+    "lead": "…",
+    "fit": { "yes": ["…"], "add": ["…"], "no": ["…"] },
+    "about": [ { "title": "", "text": "…" }, { "title": "Förbrukning", "text": "…" } ],
+    "note": null,
+    "specs": [ { "label": "Effekt", "value": "1,9–3,4 kW" } ],
+    "faq": [ { "q": "…", "a": "…" } ]
+  },
+  "metaTitle": "…", "metaDescription": "…", "needsInfo": ["mått"] } ] }
+Ett objekt per produkt du fått, med exakt samma id.
+
+Skriv "fakta" FÖRST: varje sakuppgift ur underlaget, en per rad. "ord" ska
+stå ordagrant någonstans i "pd". Det kontrolleras maskinellt.
+
+"needsInfo" gäller bara uppgifter som SAKNAS i underlaget, som korta svenska
+substantiv. Tom lista om inget saknas.`;
+
+export function buildUserPrompt(products: ProductInput[], lookup?: FactsLookup, format: OutputFormat = "enkel"): string {
   const lines = products.map((p) => {
     const t = TEMPLATES[p.template];
     const parts = [
       `id: ${p.id}`,
       `namn: ${p.name}`,
-      `mall: ${p.template} (${t.minWords}–${t.maxWords} ord, fler om fakta kräver det)`,
+      format === "gfpd"
+        ? typeLine(p.pdType ?? detectPdType(p))
+        : `mall: ${p.template} (${t.minWords}–${t.maxWords} ord, fler om fakta kräver det)`,
     ];
 
     // Interna fält hålls isär från underlaget. När de stod som "Kategori: …"
@@ -298,6 +425,18 @@ export function buildUserPrompt(products: ProductInput[], lookup?: FactsLookup):
   return `Skriv beskrivning, metaTitle och metaDescription för var och en av följande ${products.length} produkter.\n\n${lines.join("\n\n---\n\n")}`;
 }
 
+/** Typraden i den nya mallen: kolumnernas namn, tabellens rader, varningsruta. */
+function typeLine(id: PdTypeId): string {
+  const pr = PD_PROFILES[id];
+  const rader = pr.specRows.length ? pr.specRows.join(", ") : "inga fasta — ta produktsidans";
+  return [
+    `typ: ${pr.id} (${pr.label})`,
+    `  kolumner: "${pr.fitLabels.yes}" / "${pr.fitLabels.add}" / "${pr.fitLabels.no}" — "no" betyder här: ${pr.noMeans}`,
+    `  specifikationsrader: ${rader}`,
+    pr.noteHint ? `  varningsruta: ${pr.noteHint}` : `  varningsruta: ingen`,
+  ].join("\n");
+}
+
 /**
  * Andra försöket för texter som tappade hårda fakta. Samma underlag, plus
  * exakt vad som saknades, så att modellen inte behöver gissa vad den gjorde fel.
@@ -306,11 +445,12 @@ export function buildRetryPrompt(
   products: ProductInput[],
   rejected: Array<{ id: string; reasons: string[] }>,
   lookup?: FactsLookup,
+  format: OutputFormat = "enkel",
 ): string {
   const reasons = rejected
     .map((r) => `id ${r.id}: ${r.reasons.join("; ")}`)
     .join("\n");
-  return `${buildUserPrompt(products, lookup)}
+  return `${buildUserPrompt(products, lookup, format)}
 
 DIN FÖRRA VERSION AVVISADES:
 ${reasons}
@@ -349,7 +489,15 @@ export function rewriteReasons(t: GeneratedText, p?: ProductInput): string[] {
   if (t.uncoveredFacts.length > 0) {
     reasons.push(`du listade de här i "fakta" men skrev inte med dem: ${t.uncoveredFacts.join(", ")}`);
   }
-  const short = p ? shortBy(t, p) : 0;
+  if (t.addedNumbers.length > 0) {
+    reasons.push(
+      `de här talen står inte någonstans i underlaget: ${t.addedNumbers.join(", ")}. ` +
+      `Ta bort dem. Står uppgiften inte i underlaget ska den inte stå i texten`,
+    );
+  }
+  // Längden mäts inte i den nya mallen: fälten har egna gränser, och en
+  // tunn artikel ska få en kort sida, inte utfyllnad.
+  const short = p && !t.pd ? shortBy(t, p) : 0;
   if (p && short > 0) {
     const min = TEMPLATES[p.template].minWords;
     reasons.push(
@@ -369,6 +517,10 @@ export function rewriteReasons(t: GeneratedText, p?: ProductInput): string[] {
  * mallens minimum.
  */
 export function isImprovement(next: GeneratedText, prev: GeneratedText, p?: ProductInput): boolean {
+  // Påhittade tal väger tyngst: en text med färre är alltid bättre.
+  if (next.addedNumbers.length !== prev.addedNumbers.length) {
+    return next.addedNumbers.length < prev.addedNumbers.length;
+  }
   if (next.missingFacts.length !== prev.missingFacts.length) {
     return next.missingFacts.length < prev.missingFacts.length;
   }
@@ -472,7 +624,12 @@ export function clampMeta(value: string, max: number): string {
 const MAX_NEEDS = 6;
 
 /** Validerar modellens svar och behåller bara texter för produkter vi bett om. */
-export function validateGenerated(parsed: unknown, asked: ProductInput[]): GeneratedText[] | null {
+export function validateGenerated(
+  parsed: unknown,
+  asked: ProductInput[],
+  opts: { format?: OutputFormat; lookup?: FactsLookup } = {},
+): GeneratedText[] | null {
+  const format = opts.format ?? "enkel";
   if (!parsed || typeof parsed !== "object") return null;
   const list = (parsed as Record<string, unknown>).texts;
   if (!Array.isArray(list)) return null;
@@ -491,10 +648,20 @@ export function validateGenerated(parsed: unknown, asked: ProductInput[]): Gener
     const product = wanted.get(id);
     if (!product || seenIds.has(id)) continue;
 
-    const rawDescription = joinParts(o.delar) ?? (typeof o.description === "string" ? o.description : "");
-    if (!rawDescription.trim()) continue;
-
-    const description = stripInternalFields(sanitizeHtml(rawDescription.slice(0, MAX_FIELD_LEN)));
+    // Den nya mallen: fälten valideras och HTML:en byggs här, aldrig av modellen.
+    let pdResult: ReturnType<typeof validatePd> = null;
+    let pdType: PdTypeId | undefined;
+    let description: string;
+    if (format === "gfpd") {
+      pdType = product.pdType ?? detectPdType(product);
+      pdResult = validatePd(o.pd, PD_PROFILES[pdType]);
+      if (!pdResult) continue;
+      description = renderPd(pdResult.content, pdType);
+    } else {
+      const rawDescription = joinParts(o.delar) ?? (typeof o.description === "string" ? o.description : "");
+      if (!rawDescription.trim()) continue;
+      description = stripInternalFields(sanitizeHtml(rawDescription.slice(0, MAX_FIELD_LEN)));
+    }
     const plain = toPlainText(description);
     if (!plain) continue;
 
@@ -516,16 +683,20 @@ export function validateGenerated(parsed: unknown, asked: ProductInput[]): Gener
       needsInfo.push("underlag för en fullständig text");
     }
 
+    const metaTitle = clampMeta(typeof o.metaTitle === "string" ? o.metaTitle : product.name, META_TITLE_MAX);
+    const metaDescription = clampMeta(
+      typeof o.metaDescription === "string" ? o.metaDescription : plain,
+      META_DESCRIPTION_MAX,
+    );
+    const underlag = sourceText(product, opts.lookup);
+
     seenIds.add(id);
     seenContent.add(key);
     out.push({
       id,
       description,
-      metaTitle: clampMeta(typeof o.metaTitle === "string" ? o.metaTitle : product.name, META_TITLE_MAX),
-      metaDescription: clampMeta(
-        typeof o.metaDescription === "string" ? o.metaDescription : plain,
-        META_DESCRIPTION_MAX,
-      ),
+      metaTitle,
+      metaDescription,
       needsInfo,
       missingFacts: [
         ...missingHardFacts(currentPlain(product), plain),
@@ -534,6 +705,10 @@ export function validateGenerated(parsed: unknown, asked: ProductInput[]): Gener
       keywords: product.keywords ?? [],
       facts,
       uncoveredFacts: uncoveredFacts(facts, plain),
+      // Meta räknas med: en påhittad siffra i Google är lika fel som på sidan.
+      addedNumbers: addedNumbers(`${plain}\n${metaTitle}\n${metaDescription}`, underlag),
+      allowedNumbers: allowedNumbers(underlag),
+      ...(pdResult ? { pd: pdResult.content, pdType, missingSpecs: pdResult.missingSpecs } : {}),
     });
   }
   return out.length > 0 ? out : null;

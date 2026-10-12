@@ -21,7 +21,7 @@ import {
   parseCsv, guessColumns, checkIdColumn, THIN_LIMIT,
   type Row, type ColumnGuess,
 } from "@/lib/productText/csv";
-import { BATCH_SIZE, type GeneratedText } from "@/lib/productText/prompt";
+import { batchSizeFor, type GeneratedText, type OutputFormat } from "@/lib/productText/prompt";
 import { TEMPLATES, TEMPLATE_IDS, type TemplateId } from "@/lib/productText/templates";
 import {
   buildProducts, initialItems, catalogStats, categoriesOf, filterProducts,
@@ -127,6 +127,9 @@ export default function ProductTextsPage() {
   const cancelRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [reviewId, setReviewId] = useState<string | null>(null);
+  // Nya texter skrivs i den nya produktsidans mall om inget annat valts.
+  // Det enkla formatet finns kvar för dagens shop.
+  const [format, setFormat] = useState<OutputFormat>("gfpd");
 
   // ── Återställ passet ur webbläsaren ───────────────────────
   useEffect(() => {
@@ -141,6 +144,7 @@ export default function ProductTextsPage() {
         setCols({ ...EMPTY_COLS, ...s.cols });
         setItems(s.items);
         setSources(s.sources ?? {});
+        setFormat(s.format ?? "enkel");
         setStage("work");
       }
       setRestoring(false);
@@ -172,10 +176,10 @@ export default function ProductTextsPage() {
   // ── Spara passet, men inte vid varje tangenttryck ─────────
   useEffect(() => {
     if (stage !== "work" || restoring || rows.length === 0) return;
-    const session: Session = { fileName, headers, rows, delimiter, cols, items, sources, savedAt: Date.now() };
+    const session: Session = { fileName, headers, rows, delimiter, cols, items, sources, format, savedAt: Date.now() };
     const t = setTimeout(() => { void saveSession(session); }, 800);
     return () => clearTimeout(t);
-  }, [stage, restoring, fileName, headers, rows, delimiter, cols, items, sources]);
+  }, [stage, restoring, fileName, headers, rows, delimiter, cols, items, sources, format]);
 
   // ── Fil in ────────────────────────────────────────────────
   async function handleFile(file: File) {
@@ -293,8 +297,9 @@ export default function ProductTextsPage() {
 
     const batches: Array<{ template: TemplateId; products: Product[] }> = [];
     for (const [template, list] of byTemplate) {
-      for (let i = 0; i < list.length; i += BATCH_SIZE[template]) {
-        batches.push({ template, products: list.slice(i, i + BATCH_SIZE[template]) });
+      const size = batchSizeFor(template, format);
+      for (let i = 0; i < list.length; i += size) {
+        batches.push({ template, products: list.slice(i, i + size) });
       }
     }
 
@@ -319,6 +324,10 @@ export default function ProductTextsPage() {
               needsInfo: t.needsInfo,
               facts: t.facts,
               keywords: t.keywords,
+              allowedNumbers: t.allowedNumbers,
+              pd: t.pd,
+              pdType: t.pdType,
+              missingSpecs: t.missingSpecs,
               approved: false,
             };
           }
@@ -414,6 +423,7 @@ export default function ProductTextsPage() {
     onWait: (waiting: boolean) => void,
   ): Promise<GeneratedText[] | null> {
     const payload = {
+      format,
       products: batch.products.map((p) => {
         const page = pages[p.id];
         return {
@@ -785,6 +795,24 @@ export default function ProductTextsPage() {
                   {selected.size > 0 && ` · ${selected.size} markerade`}
                 </p>
                 <div className="ml-auto flex flex-wrap items-center gap-2">
+                  {/* Formatet för NYA texter. Redan skrivna texter behåller sitt. */}
+                  <div className="flex rounded-lg border border-border p-0.5" role="group" aria-label="Format">
+                    {([["gfpd", "Ny produktsida"], ["enkel", "Enkel text"]] as const).map(([v, label]) => (
+                      <button
+                        key={v}
+                        type="button"
+                        aria-pressed={format === v}
+                        disabled={busy}
+                        onClick={() => setFormat(v)}
+                        className={cx(
+                          "min-h-9 rounded-md px-2.5 text-sm transition-colors",
+                          format === v ? "bg-primary/10 font-medium text-text-primary" : "text-text-secondary hover:text-text-primary",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <Button
                     variant="secondary"
                     size="sm"

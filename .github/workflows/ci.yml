@@ -139,6 +139,9 @@ jobs:
       - name: Test — förfina inlägg
         run: npm run test:refine
 
+      - name: Test — produkttexter i den nya mallen och påhittade tal
+        run: npm run test:productpd
+
       - name: Test — faktaspärr i alla prompter
         run: npm run test:factguard
 
