@@ -173,6 +173,7 @@ const longBefore = `<p>${"Kaminen är tillverkad i gjutjärn och har termostat. 
 const text = (words: number) => ({
   id: "1", description: `<p>${"ord ".repeat(words)}</p>`, metaTitle: "", metaDescription: "",
   needsInfo: [], missingFacts: [], facts: [], uncoveredFacts: [], keywords: [],
+  addedNumbers: [], allowedNumbers: [],
 });
 const [kamin] = validateProducts([{ id: "1", name: "Kamin", template: "huvudprodukt", current: longBefore }])!;
 const [tunn] = validateProducts([{ id: "1", name: "Kamin", template: "huvudprodukt", current: "<p>En kamin.</p>" }])!;

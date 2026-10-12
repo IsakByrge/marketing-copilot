@@ -12,6 +12,12 @@ import type { ColumnGuess, Row } from "./csv";
 import { toPlainText, visibleLength } from "./html";
 import { missingHardFacts, missingKeywords, uncoveredFacts, type ListedFact } from "./hardFacts";
 import { pickTemplate, type TemplateId } from "./templates";
+import { addedAgainst } from "./addedFacts";
+import { sanitizePd, isPdHtml } from "./pdRender";
+import { sanitizeHtml } from "./html";
+import type { PdContent } from "./pdRender";
+import type { PdTypeId } from "./pdProfiles";
+import type { OutputFormat } from "./prompt";
 import type { PageResult } from "./pageFacts";
 
 /** Arbetsläget för EN artikel. Bara det vi själva skapat — aldrig CSV-raden. */
@@ -30,6 +36,13 @@ export interface WorkItem {
   facts?: ListedFact[];
   /** Material och funktioner ur före-texten som texten måste ha kvar. */
   keywords?: string[];
+  /** Talen underlaget innehåller. Ett tal i texten som inte finns här är påhittat. */
+  allowedNumbers?: string[];
+  /** Fälten bakom texten i den nya mallen, och typen. */
+  pd?: PdContent;
+  pdType?: PdTypeId;
+  /** Specifikationsrader typen har men underlaget saknar. Information, inget fel. */
+  missingSpecs?: string[];
   approved?: boolean;
 }
 
@@ -47,6 +60,8 @@ export interface Session {
    * efter en omladdning.
    */
   sources: Record<string, PageResult>;
+  /** Vilket format nya texter skrivs i. Saknas i äldre pass = enkel. */
+  format?: OutputFormat;
   savedAt: number;
 }
 
@@ -219,10 +234,22 @@ export function lostFacts(p: Product, item: WorkItem | undefined): string[] {
   ];
 }
 
+/**
+ * Tal i texten (och i meta) som inte står i underlaget. Räknas om varje
+ * gång, så att flaggan försvinner när talet tas bort. Texter skrivna före
+ * kontrollen saknar listan och flaggas inte.
+ */
+export function inventedNumbers(item: WorkItem | undefined): string[] {
+  if (!item?.description || !item.allowedNumbers) return [];
+  const text = [toPlainText(item.description), item.metaTitle ?? "", item.metaDescription ?? ""].join("\n");
+  return addedAgainst(text, item.allowedNumbers);
+}
+
 export function itemState(p: Product, item: WorkItem | undefined, thinLimit: number): ItemState {
   if (item?.approved) return "godkand";
   if (item?.needsInfo && item.needsInfo.length > 0) return "behover";
   if (lostFacts(p, item).length > 0) return "behover";
+  if (inventedNumbers(item).length > 0) return "behover";
   if (item?.description) return "utkast";
   if (p.currentLength === 0) return "saknar";
   return p.currentLength < thinLimit ? "tunn" : "ok";
@@ -320,7 +347,9 @@ export function approvedFor(
   for (const [id, item] of Object.entries(items)) {
     if (!item.approved || !item.description) continue;
     out[id] = {
-      description: item.description,
+      // Saneras på vägen ut: det som redigerats för hand ska inte kunna
+      // bära med sig något annat än mallens taggar in i butiken.
+      description: isPdHtml(item.description) ? sanitizePd(item.description) : sanitizeHtml(item.description),
       metaTitle: item.metaTitle ?? "",
       metaDescription: item.metaDescription ?? "",
     };

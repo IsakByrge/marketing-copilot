@@ -43,7 +43,8 @@
     "test:weekinput": "tsx lib/server/weekInput.test.mts",
     "test:content": "tsx lib/content/content.test.mts",
     "test:sitereader": "tsx lib/siteReader/siteReader.test.mts",
-    "test:refine": "tsx lib/content/refine.test.mts"
+    "test:refine": "tsx lib/content/refine.test.mts",
+    "test:productpd": "tsx lib/productText/pd.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

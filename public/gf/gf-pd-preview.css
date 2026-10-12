@@ -1,0 +1,223 @@
+/* ==========================================================
+   Förhandsvisning av produktbeskrivningen (.gf-pd) i Marketing Copilot.
+   Utdrag ur gasolfyllarna-profil-v15.css (Claude-mappen, Webbshop/Ny design).
+   Bara det som behövs för beskrivningsfältet. Uppdateras när profilen gör det.
+
+   Två tillägg som INTE finns i v15 och behöver in i profilen:
+     • .gf-pd .gf-acc — frågorna (i v15 bara under .gf-cat)
+     • .gf-pd table   — specifikationstabellen inne i beskrivningen
+   ========================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
+
+/* ==========================================================
+   Gasolfyllarna – ny grafisk profil (override-lager)
+   Klistras in i Designverktyg > Redigera CSS.
+   Laddas efter temats /css/compiled/compiled_1.css.
+
+   GAMMAL PROFIL (referens om ni behöver backa):
+     #001032 mörkblå · #FA741D orange · #DF5B05 mörkorange
+     ballinger 400/700 · knappar radius 30px
+   ========================================================== */
+
+:root {
+  /* Profilfärger */
+  --gul:    #FBBA21;
+  --orange: #F29000;
+  --indigo: #2F183D;
+  --lila:   #45244F;
+  --beige:  #EEE6E0;
+  --svart:  #1E1628;
+  --vit:    #FFFFFF;
+
+  /* Roller – byt här, inte längre ner */
+  --gf-dark:          var(--indigo); /* header, footer, hero-rutor     */
+  --gf-bar:           var(--lila);   /* USP-listen under headern       */
+  --gf-heading:       var(--svart);  /* rubriker, produktnamn, pris    */
+  --gf-text:          var(--svart);  /* brödtext                       */
+  --gf-cta:           var(--gul);    /* köpknapp, varukorg (enl. mall)  */
+  --gf-on-cta:        var(--svart);  /* svart på gul = 10:1             */
+  --gf-hover-light:   var(--lila);   /* hover på vit bakgrund          */
+  --gf-hover-dark:    var(--gul);    /* hover/vald på mörk bakgrund    */
+  --gf-radius:        12px;          /* gammalt: 30px                  */
+  --gf-font:          'Outfit', sans-serif;
+  --gf-muted:         #5E5566;       /* sekundär text (7:1 på vitt)    */
+  --gf-line:          #E3D9D1;       /* tunna linjer, beige-ton        */
+}
+
+html, body { margin: 0; background: #fff; font-family: var(--gf-font); color: var(--gf-text); }
+body { padding: 24px; }
+
+/* ==========================================================
+   INNEHÅLLSBLOCK I PRODUKTBESKRIVNINGEN  (.gf-pd)
+   HTML-blocken klistras in i produktens beskrivning (HTML-läge).
+   ========================================================== */
+/* Blocken anpassar sig efter beskrivningens egen bredd
+   (container queries), så de fungerar både i dagens smala
+   spalt och i den nya layouten med flikar i full bredd.     */
+html .gf-pd { container-type: inline-size; }
+html .gf-pd__main { container-type: inline-size; min-width: 0; }
+html .gf-pd p.gf-pd__lead { max-width: 760px; }
+html .gf-pd__cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+@container (min-width: 900px) {
+  html .gf-pd__cols { grid-template-columns: minmax(0, 1.4fr) minmax(0, .9fr); gap: 56px; }
+  html .gf-pd__side > h2.gf-pd__h:first-child { margin-top: 0; }
+  html .gf-pd__main > h2.gf-pd__h:first-child { margin-top: 0; }
+}
+
+html .gf-pd p,
+html .gf-pd li { font-size: 17px; line-height: 28px; color: var(--gf-muted); }
+
+html .gf-pd p.gf-pd__lead {
+  font-size: 20px;
+  line-height: 32px;
+  color: var(--gf-text);
+  margin: 0 0 40px;
+  text-wrap: pretty;
+}
+
+html .gf-pd h2.gf-pd__h {
+  font-size: 26px;
+  line-height: 34px;
+  font-weight: 700;
+  color: var(--gf-heading);
+  margin: 40px 0 16px;
+}
+
+/* Passar detta? */
+html .gf-fit {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--beige);
+}
+@container (min-width: 520px) {
+  html .gf-fit { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 32px; gap: 32px; }
+}
+html .gf-fit h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 10px;
+  font-size: 19px;
+  line-height: 26px;
+  font-weight: 700;
+  color: var(--gf-text);
+}
+html .gf-fit__icon {
+  flex: none;
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  font-size: 15px; font-weight: 700; line-height: 1;
+}
+html .gf-fit__col--yes .gf-fit__icon { background: var(--lila); color: var(--vit); }
+html .gf-fit__col--add .gf-fit__icon { background: var(--gul); color: var(--svart); }
+html .gf-fit__col--no  .gf-fit__icon { background: var(--vit); color: var(--svart); box-shadow: inset 0 0 0 2px var(--svart); }
+
+html .gf-fit ul { list-style: none; margin: 0; padding: 0; }
+html .gf-pd .gf-fit li { margin: 0 0 6px; padding: 0; font-size: 16px; line-height: 24px; color: var(--gf-text); }
+html .gf-fit li::before { content: none; }
+
+/* Länkar i blocken: gul understrykning */
+html .gf-pd a {
+  display: inline-block;
+  margin-top: 6px;
+  font-weight: 600;
+  color: var(--gf-text);
+  text-decoration: underline;
+  text-decoration-color: var(--gul);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+html .gf-pd a:hover { color: var(--gf-hover-light); }
+html .gf-pd p.gf-pd__link { margin: 16px 0 0; }
+
+/* I korthet */
+html .gf-pd ul.gf-pd__facts { list-style: none; margin: 20px 0 0; padding: 0; }
+html .gf-pd ul.gf-pd__facts li {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--gf-line);
+  margin: 0;
+}
+html .gf-pd ul.gf-pd__facts li:last-child { border-bottom: 1px solid var(--gf-line); }
+html .gf-pd ul.gf-pd__facts strong {
+  color: var(--gf-text);
+  font-weight: 600;
+}
+
+/* Varningsruta */
+html .gf-note {
+  display: flex;
+  gap: 16px;
+  margin: 40px 0 0;
+  padding: 22px;
+  border-radius: 24px;
+  background: var(--beige);
+}
+html .gf-note__icon {
+  flex: none;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--gul);
+  color: var(--svart);
+  font-size: 20px; font-weight: 700;
+}
+html .gf-note strong { display: block; font-size: 18px; line-height: 26px; color: var(--gf-text); margin-bottom: 4px; }
+html .gf-note p { margin: 0; font-size: 16px; line-height: 26px; color: var(--gf-text); }
+
+
+
+/* Beskrivningsblocken: rubriker enligt mallen */
+html .gf-pd h2.gf-pd__h { font-size: 32px; line-height: 40px; color: var(--gf-text); }
+html .gf-pd__side h2.gf-pd__h { font-size: 24px; line-height: 32px; }
+html .gf-pd__side p strong { color: var(--gf-text); }
+
+/* Länk inne i löptext */
+html .gf-pd__side p a { display: inline; margin: 0; }
+
+@media (max-width: 600px) {
+  html .gf-pd h2.gf-pd__h { font-size: 26px; line-height: 34px; }
+}
+
+html .gf-pd .gf-acc { display: flex; flex-direction: column; gap: 12px; }
+html .gf-pd .gf-acc__item {
+  border-radius: 24px;
+  background: var(--beige);
+  overflow: hidden;
+  transition: box-shadow .14s ease;
+}
+html .gf-pd .gf-acc__item:hover { box-shadow: inset 0 0 0 2px var(--gul); }
+html .gf-pd .gf-acc__item > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  min-height: 76px; padding: 14px 16px 14px 28px;
+  list-style: none; cursor: pointer;
+  font-size: 20px; line-height: 28px; font-weight: 700; color: var(--svart);
+}
+html .gf-pd .gf-acc__item > summary::-webkit-details-marker { display: none; }
+html .gf-pd .gf-acc__item > summary::after {
+  content: ""; flex: none;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--vit) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath fill='%231E1628' d='M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8z'/%3E%3C/svg%3E") center / 18px no-repeat;
+  transition: background-color .14s ease, transform .24s cubic-bezier(.2, .7, .2, 1);
+}
+html .gf-pd .gf-acc__item[open] > summary::after { background-color: var(--gul); transform: rotate(45deg); }
+html .gf-pd .gf-acc__item > summary:focus-visible { outline: 3px solid var(--lila); outline-offset: -4px; border-radius: 24px; }
+html .gf-pd .gf-acc__panel { padding: 0 28px 26px; max-width: 80ch; }
+html .gf-pd .gf-acc__panel p { margin: 0 0 8px; font-size: 18px; line-height: 30px; color: var(--svart); }
+
+/* Specifikationstabell i beskrivningen — samma utseende som
+   flikens tabell (.view-product .tabs__body table) i v15. */
+html .gf-pd table { width: 100%; border-collapse: collapse; margin: 0 0 8px; }
+html .gf-pd td, html .gf-pd th {
+  padding: 14px 16px; border: 0; border-bottom: 1px solid var(--gf-line);
+  font-size: 16px; text-align: left; color: var(--gf-text);
+}
+html .gf-pd tr:nth-child(odd) td { background: #F7F2EE; }
+html .gf-pd td:first-child { color: var(--gf-muted); width: 40%; }

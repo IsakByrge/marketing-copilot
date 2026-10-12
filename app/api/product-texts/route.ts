@@ -6,8 +6,8 @@
 // rate limit per användare, Company Brain hämtas server-side, servern
 // äger hela prompten, svaret valideras, användningen loggas.
 //
-// Klienten skickar { products: [{ id, name, template, category?, subCategory?,
-// producer?, model?, current? }] }. Mallen avgör längd, struktur och hur stor
+// Klienten skickar { format?: "enkel" | "gfpd", products: [{ id, name, template,
+// category?, subCategory?, producer?, model?, current? }] }. Mallen avgör längd, struktur och hur stor
 // tokenbudget batchen får.
 // ─────────────────────────────────────────────────────────────
 import { guardAiRequest, safeError } from "@/lib/server/guard";
@@ -25,8 +25,10 @@ import {
   rewriteReasons,
   isImprovement,
   currentPlain,
+  isOutputFormat,
   MAX_BATCH,
 } from "@/lib/productText/prompt";
+import { detectPdType } from "@/lib/productText/pdProfiles";
 import {
   KEYWORD_SYSTEM, MIN_WORDS_FOR_KEYWORDS, buildKeywordPrompt, parseKeywords,
 } from "@/lib/productText/keywords";
@@ -66,6 +68,10 @@ export async function POST(request: Request) {
       await guard.finish({ status: "error", errorCategory: "bad_products" });
       return safeError(`Skicka mellan 1 och ${MAX_BATCH} produkter med id, namn och mall.`, 400);
     }
+    // Formatet: "gfpd" är den nya produktsidan. Typen avgörs här, ur
+    // kategori och namn — aldrig av klienten.
+    const format = isOutputFormat(o.format) ? o.format : "enkel";
+    if (format === "gfpd") for (const p of products) p.pdType = detectPdType(p);
 
     const [ctx, brain, editMemory] = await Promise.all([
       getCompanyBrainContext(),
@@ -99,19 +105,19 @@ export async function POST(request: Request) {
       }
     }
 
-    const system = buildSystemPrompt(ctx, editMemory);
-    const user = buildUserPrompt(products, lookup);
+    const system = buildSystemPrompt(ctx, editMemory, format);
+    const user = buildUserPrompt(products, lookup, format);
 
     // Steg 2: texten. Budgeten följer mallarna i batchen: en huvudprodukt på
     // 400 ord behöver tio gånger så mycket som en reservdel. Taket i ai.ts gäller ändå.
     const result = await callChatJson(system, user, {
       temperature: 0.5,
-      maxTokens: budgetFor(products),
+      maxTokens: budgetFor(products, format),
     });
     promptTokens += result.promptTokens;
     completionTokens += result.completionTokens;
 
-    const texts = validateGenerated(result.parsed, products);
+    const texts = validateGenerated(result.parsed, products, { format, lookup });
     if (!texts) {
       console.error(`PRODUCT_TEXTS ${requestId}: SchemaValidationFailed`);
       await guard.finish({
@@ -134,14 +140,14 @@ export async function POST(request: Request) {
     if (rejected.length > 0) {
       const again = products.filter((p) => rejected.some((r) => r.id === p.id));
       try {
-        const retry = await callChatJson(system, buildRetryPrompt(again, rejected, lookup), {
+        const retry = await callChatJson(system, buildRetryPrompt(again, rejected, lookup, format), {
           temperature: 0.3,
-          maxTokens: budgetFor(again),
+          maxTokens: budgetFor(again, format),
         });
         promptTokens += retry.promptTokens;
         completionTokens += retry.completionTokens;
 
-        for (const fixed of validateGenerated(retry.parsed, again) ?? []) {
+        for (const fixed of validateGenerated(retry.parsed, again, { format, lookup }) ?? []) {
           const i = texts.findIndex((t) => t.id === fixed.id);
           if (i !== -1 && isImprovement(fixed, texts[i], byId.get(fixed.id))) texts[i] = fixed;
         }

@@ -16,9 +16,12 @@ import { Button, Card, Chip, Alert, cx } from "@/app/_shared/primitives";
 import { Textarea } from "@/app/_shared/Textarea";
 import { Input } from "@/app/_shared/primitives";
 import { HtmlPreview } from "./HtmlPreview";
+import { PdPreview } from "./PdPreview";
+import { isPdHtml } from "@/lib/productText/pdRender";
+import { PD_PROFILES } from "@/lib/productText/pdProfiles";
 import { TEMPLATES, META_TITLE_MAX, META_DESCRIPTION_MAX, type TemplateId } from "@/lib/productText/templates";
 import { visibleLength, wordCount } from "@/lib/productText/html";
-import { lostFacts, type Product, type WorkItem } from "@/lib/productText/session";
+import { lostFacts, inventedNumbers, type Product, type WorkItem } from "@/lib/productText/session";
 import type { PageResult } from "@/lib/productText/pageFacts";
 
 export interface ReviewPaneProps {
@@ -54,6 +57,12 @@ export function ReviewPane({
   const outsideRange = draft !== "" && words < template.minWords;
   const needs = item.needsInfo ?? [];
   const lost = lostFacts(product, item);
+  // Tal som inte står i underlaget. Så länge de finns går texten inte att
+  // godkänna — en påhittad tryckklass är en säkerhetsfråga.
+  const invented = inventedNumbers(item);
+  const blocked = invented.length > 0;
+  const isPd = isPdHtml(draft);
+  const missingSpecs = item.missingSpecs ?? [];
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -65,14 +74,17 @@ export function ReviewPane({
       }
       if (inTextField(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
 
-      if (e.key === "Enter") { e.preventDefault(); onApprove(); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (blocked) editRef.current?.focus(); else onApprove();
+      }
       else if (e.key === "ArrowRight" || e.key === "j") { e.preventDefault(); onNext(); }
       else if (e.key === "ArrowLeft" || e.key === "k") { e.preventDefault(); onPrev(); }
       else if (e.key === "e") { e.preventDefault(); editRef.current?.focus(); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onApprove, onNext, onPrev, onClose]);
+  }, [onApprove, onNext, onPrev, onClose, blocked]);
 
   return (
     <div className="space-y-5">
@@ -89,7 +101,8 @@ export function ReviewPane({
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-medium tracking-tight">{product.name}</h2>
           {item.approved && <Chip tone="success">Godkänd</Chip>}
-          {(needs.length > 0 || lost.length > 0) && <Chip tone="warning">Behöver uppgifter</Chip>}
+          {(needs.length > 0 || lost.length > 0 || blocked) && <Chip tone="warning">Behöver uppgifter</Chip>}
+          {item.pdType && <Chip tone="neutral">{PD_PROFILES[item.pdType]?.label}</Chip>}
         </div>
         <p className="mt-1 text-xs text-text-tertiary">
           {product.id}
@@ -98,6 +111,17 @@ export function ReviewPane({
           {product.model && ` · ${product.model}`}
         </p>
       </div>
+
+      {blocked && (
+        <Alert tone="danger" title="Siffror som inte står i underlaget">
+          <p>
+            {invented.join(", ")} finns i texten men inte i den befintliga texten, på
+            produktsidan eller i Company Brain. Ta bort dem, eller kontrollera mot
+            databladet och lägg in uppgiften i underlaget. Texten kan inte godkännas
+            så länge de står kvar.
+          </p>
+        </Alert>
+      )}
 
       {needs.length > 0 && (
         <Alert tone="warning" title="Det här saknades i underlaget">
@@ -113,6 +137,15 @@ export function ReviewPane({
           <p>
             Det här finns i underlaget men inte i den nya texten: {lost.join(", ")}.
             Skriv in det nedan, eller skriv om texten.
+          </p>
+        </Alert>
+      )}
+
+      {missingSpecs.length > 0 && (
+        <Alert tone="info" title="Saknas i specifikationen">
+          <p>
+            {missingSpecs.join(", ")} står inte i underlaget och har därför ingen rad i
+            tabellen. Hämta dem ur databladet om de behövs.
           </p>
         </Alert>
       )}
@@ -135,6 +168,8 @@ export function ReviewPane({
           <HtmlPreview html={draft} />
         </Card>
       </div>
+
+      {isPd && <PdPreview html={draft} />}
 
       <div className="space-y-4">
         <div>
@@ -177,7 +212,7 @@ export function ReviewPane({
       </div>
 
       <div className="sticky bottom-20 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3 sm:bottom-4">
-        <Button onClick={onApprove} disabled={!draft.trim()}>
+        <Button onClick={onApprove} disabled={!draft.trim() || blocked}>
           {item.approved ? "Godkänd — nästa" : "Godkänn och nästa"}
         </Button>
         <Button variant="secondary" onClick={onNext}>Hoppa över</Button>
