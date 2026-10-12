@@ -6,6 +6,7 @@ import {
 import {
   indexPublished, publishedChannels, unpublishedCount, shortDate, pubKey,
 } from "./published";
+import { normalizeResultRows, resultsDue, firstLine, parseMetrics, emptyMetricsForm } from "./results";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -78,6 +79,34 @@ test("kanaler per inlägg och antal kvar att publicera", () => {
 test("datumet visas kort och glider inte en dag", () => {
   assert.equal(shortDate("2026-10-12"), "12 okt");
   assert.equal(shortDate("trasigt"), "trasigt");
+});
+
+const res = normalizeResultRows([
+  { id: "a", plan_id: "p", item_key: "post-0", channel: "facebook", published_on: "2026-10-12", text: "Rubrik A\n\nText", result_rating: null },
+  { id: "b", plan_id: "p", item_key: "post-1", channel: "instagram", published_on: "2026-10-10", text: "Rubrik B", result_rating: null },
+  { id: "c", plan_id: "p", item_key: "post-2", channel: "facebook", published_on: "2026-10-09", text: "Rubrik C", result_rating: "good" },
+  { id: "d", plan_id: "p", item_key: "post-3", channel: "facebook", published_on: "2026-09-01", text: "Gammal", result_rating: null },
+  { id: "e", plan_id: "p", item_key: "post-4", channel: "tiktok", published_on: "2026-10-10", text: "x", result_rating: null },
+]);
+
+test("resultat efterfrågas inte samma dag, inte för bedömda och inte för gamla", () => {
+  assert.equal(res.length, 4);
+  assert.deepEqual(resultsDue(res, "2026-10-12").map((r) => r.id), ["b"]);
+  assert.deepEqual(resultsDue(res, "2026-10-13").map((r) => r.id), ["a", "b"]);
+});
+
+test("första raden känner igen inlägget och kortas", () => {
+  assert.equal(firstLine("\n  Rubrik A \n\nText"), "Rubrik A");
+  assert.equal(firstLine("x".repeat(100), 10), "xxxxxxxxx…");
+});
+
+test("siffror: tomt är null, inte noll; mellanslag godtas; text avvisas", () => {
+  const ok = parseMetrics({ ...emptyMetricsForm(), reach: "1 200", clicks: "0" });
+  assert.ok(ok.ok);
+  if (ok.ok) assert.deepEqual(ok.value, { reach: 1200, reactions: null, comments: null, clicks: 0 });
+  const fel = parseMetrics({ ...emptyMetricsForm(), reactions: "många", comments: "-3" });
+  assert.ok(!fel.ok);
+  if (!fel.ok) assert.deepEqual(Object.keys(fel.errors).sort(), ["comments", "reactions"]);
 });
 
 console.log(`${passed} test ok`);

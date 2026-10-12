@@ -19,6 +19,8 @@ export interface PublishedRow {
   item_key: string;
   channel: Channel;
   published_on: string;
+  /** Steg 3: företagarens bedömning. Null = inget svar ännu. */
+  result_rating?: "good" | "bad" | null;
 }
 
 export const isChannel = (v: unknown): v is Channel =>
@@ -37,6 +39,7 @@ export function indexPublished(rows: unknown): Record<string, PublishedRow> {
     if (!isChannel(r.channel) || typeof r.published_on !== "string") continue;
     out[pubKey(r.item_key, r.channel)] = {
       id: r.id, item_key: r.item_key, channel: r.channel, published_on: r.published_on,
+      result_rating: r.result_rating === "good" || r.result_rating === "bad" ? r.result_rating : null,
     };
   }
   return out;

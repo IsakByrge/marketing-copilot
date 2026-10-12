@@ -259,6 +259,20 @@ function run(over: Partial<NextStepInput> = {}): NextStep | null {
   }
 }
 
+/* ── Publicerade inlägg utan resultat ─────────────────── */
+{
+  const step = run({ postResultsDue: 3 });
+  assert(step?.id === "post-results", "inlägg utan resultat går före veckans innehåll");
+  assert(step?.why === "3 inlägg du publicerat har inget resultat än.", "varför-texten räknar inläggen");
+  assert(step?.href === "#resultat", "steget pekar på rutan på samma sida");
+  assert(run({ postResultsDue: 1 })?.title === "Hur gick inlägget?", "ett inlägg sägs i singular");
+  assert(run({ postResultsDue: 0 })?.id === "content", "inga inlägg att bedöma ger inget resultatsteg");
+  assert(run({})?.id === "content", "okänt antal hoppar över regeln");
+  const c = campaign({ id: "a", status: "active", ends_on: "2026-09-26" });
+  assert(run({ campaigns: [c], postResultsDue: 2 })?.id === "campaign-results", "kampanjsteget går fortfarande först");
+  assert(run({ plan: null, postResultsDue: 2 })?.id === "post-results", "resultat före att skapa veckans plan");
+}
+
 if (failures > 0) {
   console.error(`\n✗ today: ${failures} assertion(s) failed.`);
   process.exit(1);

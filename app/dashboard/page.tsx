@@ -21,6 +21,8 @@ import { IconArrowRight } from "@/app/_shared/icons";
 import { isoWeek, greeting, isPlanStale, opportunityWhen } from "@/lib/server/voice";
 import { todayIso, formatPeriod, type Campaign } from "@/lib/campaigns/logic";
 import { WEEK_INPUT_MAX_CHARS, relevantCampaigns } from "@/lib/server/weekInput";
+import { normalizeResultRows, resultsDue, type ResultRow, type Rating } from "@/lib/content/results";
+import ResultsSection from "./_components/ResultsSection";
 import { listCampaigns } from "@/lib/campaigns/store";
 import { nextStep, type NextStep } from "@/lib/today/nextStep";
 import { createClient } from "@/lib/supabase-browser";
@@ -173,6 +175,38 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // Publicerade inlägg som saknar resultat. Null = hämtas ännu, och då
+  // hoppar nästa-steg-regeln över dem, precis som med kampanjerna.
+  const [resultRows, setResultRows] = useState<ResultRow[] | null>(null);
+  // Bedömda i den här sessionen ligger kvar i rutan med sitt svar, så
+  // man kan lägga till siffror efteråt. De räknas inte längre som kvar.
+  const [rated, setRated] = useState<Record<string, Rating>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const sb = createClient();
+        const fran = new Date(Date.now() - 21 * 86_400_000).toISOString().slice(0, 10);
+        const { data, error } = await sb
+          .from("published_posts")
+          .select("id, plan_id, item_key, channel, published_on, text, result_rating")
+          .is("result_rating", null)
+          .gte("published_on", fran)
+          .order("published_on", { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        if (!cancelled) setResultRows(resultsDue(normalizeResultRows(data), todayIso()));
+      } catch (e) {
+        console.warn("Kunde inte läsa publicerade inlägg:", e);
+        if (!cancelled) setResultRows([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const resultatKvar = resultRows ? resultRows.filter((r) => !rated[r.id]).length : undefined;
+
   const steg = useMemo(
     () => nextStep({
       campaigns,
@@ -184,8 +218,9 @@ export default function DashboardPage() {
           }
         : null,
       today: todayIso(),
+      postResultsDue: resultatKvar,
     }),
-    [campaigns, plan],
+    [campaigns, plan, resultatKvar],
   );
 
   const name = firstNameFromEmail(email) ?? profile?.companyName?.split(" ")[0];
@@ -406,6 +441,13 @@ export default function DashboardPage() {
                   steg={steg}
                   onAction={openWeekInput}
                   working={generating}
+                />
+              )}
+
+              {resultRows && (
+                <ResultsSection
+                  rows={resultRows}
+                  onRated={(id, r) => setRated((prev) => ({ ...prev, [id]: r }))}
                 />
               )}
 
