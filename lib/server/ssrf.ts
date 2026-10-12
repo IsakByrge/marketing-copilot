@@ -134,9 +134,9 @@ export async function checkUrlAllowed(raw: string): Promise<string | null> {
 }
 
 /** Läser en respons-kropp men avbryter om den överskrider MAX_BYTES. */
-async function readCapped(res: Response, maxBytes: number): Promise<string | null> {
+async function readCappedBytes(res: Response, maxBytes: number): Promise<Buffer | null> {
   const body = res.body;
-  if (!body) return "";
+  if (!body) return Buffer.alloc(0);
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -156,7 +156,7 @@ async function readCapped(res: Response, maxBytes: number): Promise<string | nul
   } finally {
     reader.releaseLock();
   }
-  return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf8");
+  return Buffer.concat(chunks.map((c) => Buffer.from(c)));
 }
 
 /**
@@ -165,6 +165,29 @@ async function readCapped(res: Response, maxBytes: number): Promise<string | nul
  * och accepterar bara text-/HTML-svar.
  */
 export async function safeFetchWebsite(rawUrl: string): Promise<FetchResult> {
+  const res = await safeFetchRaw(rawUrl, TEXT_TYPES, "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.8,*/*;q=0.5");
+  if (!res.ok) return res;
+  return { ok: true, html: res.body.toString("utf8"), finalUrl: res.finalUrl };
+}
+
+const TEXT_TYPES = /(text\/html|application\/xhtml|text\/plain|text\/xml|application\/xml)/;
+/** Sitemaps kommer ofta gzippade (sitemap.xml.gz), med en av de här typerna. */
+const SITEMAP_TYPES = /(text\/xml|application\/xml|text\/plain|application\/(x-)?gzip|application\/octet-stream|text\/html)/;
+
+export type BytesResult =
+  | { ok: true; body: Buffer; finalUrl: string; contentType: string }
+  | { ok: false; error: string };
+
+/**
+ * Hämtar en sitemap som råa byte, så att en gzippad fil kan packas upp.
+ * Samma SSRF-kontroll på varje hopp, samma tidsgräns och storlekstak som
+ * safeFetchWebsite — bara fler godtagna innehållstyper.
+ */
+export async function safeFetchBytes(rawUrl: string): Promise<BytesResult> {
+  return safeFetchRaw(rawUrl, SITEMAP_TYPES, "application/xml,text/xml;q=0.9,*/*;q=0.5");
+}
+
+async function safeFetchRaw(rawUrl: string, accept: RegExp, acceptHeader: string): Promise<BytesResult> {
   let current: URL;
   try {
     current = new URL(rawUrl);
@@ -185,7 +208,7 @@ export async function safeFetchWebsite(rawUrl: string): Promise<FetchResult> {
         signal: controller.signal,
         headers: {
           "User-Agent": SSRF_LIMITS.USER_AGENT,
-          "Accept": "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.8,*/*;q=0.5",
+          "Accept": acceptHeader,
           "Accept-Language": "sv-SE,sv;q=0.9,en;q=0.8",
         },
       });
@@ -205,13 +228,13 @@ export async function safeFetchWebsite(rawUrl: string): Promise<FetchResult> {
       if (!res.ok) return { ok: false, error: "Hemsidan svarade med ett fel." };
 
       const contentType = (res.headers.get("content-type") || "").toLowerCase();
-      if (contentType && !/(text\/html|application\/xhtml|text\/plain|text\/xml|application\/xml)/.test(contentType)) {
+      if (contentType && !accept.test(contentType)) {
         return { ok: false, error: "Adressen ledde inte till en läsbar webbsida." };
       }
 
-      const html = await readCapped(res, SSRF_LIMITS.MAX_BYTES);
-      if (html === null) return { ok: false, error: "Hemsidan var för stor för att analyseras." };
-      return { ok: true, html, finalUrl: current.toString() };
+      const body = await readCappedBytes(res, SSRF_LIMITS.MAX_BYTES);
+      if (body === null) return { ok: false, error: "Hemsidan var för stor för att analyseras." };
+      return { ok: true, body, finalUrl: current.toString(), contentType };
     }
     return { ok: false, error: "Hemsidan omdirigerade för många gånger." };
   } catch (err) {

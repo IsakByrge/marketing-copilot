@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────
 import { useState, type ReactNode } from "react";
 import AppShell from "@/app/_shared/AppShell";
+import SiteReader from "./_components/SiteReader";
 import {
   Button, ButtonLink, Card, Input, Chip, Alert, EmptyState, Skeleton,
 } from "@/app/_shared/primitives";
@@ -259,6 +260,9 @@ function ProductForm({ product, onSave, onCancel }: {
       <Labeled label="Säsong" optional>
         <Input value={draft.seasonality ?? ""} onChange={(e) => set("seasonality", e.target.value)} placeholder="t.ex. Vår och sommar" />
       </Labeled>
+      <Labeled label="Pris" optional>
+        <Input value={draft.priceInfo ?? ""} onChange={(e) => set("priceInfo", e.target.value)} placeholder="t.ex. 1 012–6 990 kr" />
+      </Labeled>
       <Labeled label="Tillgänglighetsnotering" optional>
         <Input value={draft.availabilityNotes ?? ""} onChange={(e) => set("availabilityNotes", e.target.value)} placeholder="t.ex. Alltid i lager" />
       </Labeled>
@@ -312,6 +316,11 @@ function ProductRow({ product, onEdit, onDelete, onConfirm, onReject }: {
             <span>Lönsamhet: {PROFITABILITY_LABEL[product.profitability]}</span>
             {product.seasonality && <span>Säsong: {product.seasonality}</span>}
           </div>
+          {(product.priceInfo || product.models?.length) && (
+            <p className="mt-1.5 text-sm text-text-secondary">
+              {[product.priceInfo, product.models?.length ? product.models.join(", ") : null].filter(Boolean).join(" · ")}
+            </p>
+          )}
           {isSuggestion && product.description && (
             <p className="mt-2.5 max-w-lg text-sm leading-relaxed text-text-secondary">
               Jag hittade detta: <em>{product.name} — {product.description}</em>
@@ -549,6 +558,8 @@ export default function CompanyPage() {
                 Kontrollera anslutningen och försök igen.
               </Alert>
             )}
+
+            <SiteReader brain={brain} onApply={persist} />
 
             <KnowledgeGaps gaps={gaps} onAnswer={answerGap} />
 

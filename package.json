@@ -41,7 +41,8 @@
     "test:modeljson": "tsx lib/server/modelJson.test.mts",
     "test:plancalendar": "tsx lib/server/planCalendar.test.mts",
     "test:weekinput": "tsx lib/server/weekInput.test.mts",
-    "test:content": "tsx lib/content/content.test.mts"
+    "test:content": "tsx lib/content/content.test.mts",
+    "test:sitereader": "tsx lib/siteReader/siteReader.test.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
