@@ -136,6 +136,9 @@ jobs:
       - name: Test — läsa företaget från hemsidan
         run: npm run test:sitereader
 
+      - name: Test — förfina inlägg
+        run: npm run test:refine
+
       - name: Test — faktaspärr i alla prompter
         run: npm run test:factguard
 
