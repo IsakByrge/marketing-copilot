@@ -31,6 +31,8 @@ import { Textarea } from "@/app/_shared/Textarea";
 import { IconCheck } from "@/app/_shared/icons";
 import { useAccountData, type MarketingPlan } from "@/app/_shared/useAccountData";
 import ImageMaker from "@/app/_shared/ImageMaker";
+import RefineBar from "./_components/RefineBar";
+import type { RefineAction, RefineWarning } from "@/lib/content/refine";
 import { isoWeek } from "@/lib/server/voice";
 import { planContentHref } from "@/lib/facebook/planPrefill";
 import { createClient } from "@/lib/supabase-browser";
@@ -119,6 +121,16 @@ export default function ContentPage() {
   // Vald kanal per inlägg. Facebook är planens originaltext.
   const [kanal, setKanal] = useState<Record<string, Channel>>({});
   const [igBusy, setIgBusy] = useState<string | null>(null);
+
+  // Förfining per text (post-N eller post-N-ig): vad som körs, vad som
+  // stod innan (för Ångra) och vad kontrollen flaggade.
+  const [refineBusy, setRefineBusy] = useState<{ key: string; action: RefineAction } | null>(null);
+  const [refinePrev, setRefinePrev] = useState<Record<string, string>>({});
+  const [refineWarn, setRefineWarn] = useState<Record<string, RefineWarning[]>>({});
+  const [refineError, setRefineError] = useState<Record<string, string>>({});
+  // Texter som senast skrevs om av AI. Redigeringsminnet ska lära sig din
+  // röst, inte modellens — så de skickas inte dit förrän du själv skrivit.
+  const [aiSkriven, setAiSkriven] = useState<Set<string>>(new Set());
   const [igError, setIgError] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -393,6 +405,45 @@ export default function ContentPage() {
     } finally {
       setPubBusy(null);
     }
+  }
+
+  /** Skriver om ett inlägg efter en instruktion. Din text sparas först,
+   *  så att servern utgår från den. Den förra versionen sparas för Ångra. */
+  async function refine(index: number, channel: Channel, action: RefineAction, instruction?: string) {
+    const textKey = channel === "instagram" ? `post-${index}-ig` : `post-${index}`;
+    if (!planId || refineBusy) return;
+    setRefineBusy({ key: textKey, action });
+    setRefineError((prev) => ({ ...prev, [textKey]: "" }));
+    try {
+      await flushEdits();
+      const res = await fetch("/api/plan-post/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId, index, channel, action, instruction }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || typeof data?.text !== "string") {
+        throw new Error(data?.error ?? "Kunde inte skriva om texten just nu.");
+      }
+      setRefinePrev((prev) => ({ ...prev, [textKey]: data.previous }));
+      setRefineWarn((prev) => ({ ...prev, [textKey]: Array.isArray(data.warnings) ? data.warnings : [] }));
+      updateEdit(textKey, data.text);
+      setAiSkriven((prev) => new Set(prev).add(textKey));
+      void flushEdits();
+    } catch (e) {
+      setRefineError((prev) => ({ ...prev, [textKey]: e instanceof Error ? e.message : "Något gick fel. Försök igen." }));
+    } finally {
+      setRefineBusy(null);
+    }
+  }
+
+  function undoRefine(textKey: string) {
+    const prev = refinePrev[textKey];
+    if (prev === undefined) return;
+    updateEdit(textKey, prev);
+    void flushEdits();
+    setRefinePrev((p) => { const n = { ...p }; delete n[textKey]; return n; });
+    setRefineWarn((p) => ({ ...p, [textKey]: [] }));
   }
 
   /** Instagram-versionen av ett inlägg. Din Facebook-text sparas först,
@@ -706,7 +757,10 @@ export default function ContentPage() {
                               <Textarea
                                 rows={7}
                                 value={value}
-                                onChange={(e) => updateEdit(key, e.target.value)}
+                                onChange={(e) => {
+                                  updateEdit(key, e.target.value);
+                                  if (aiSkriven.has(key)) setAiSkriven((prev) => { const n = new Set(prev); n.delete(key); return n; });
+                                }}
                                 onBlur={() => void flushEdits()}
                               />
                             ) : igValue !== undefined ? (
@@ -736,6 +790,25 @@ export default function ContentPage() {
                               <Alert tone="danger" title="Det gick inte" className="mt-3">{igError[key]}</Alert>
                             )}
 
+                            {(ch === "facebook" || igValue !== undefined) && (() => {
+                              const textKey = ch === "facebook" ? key : igKey;
+                              return (
+                                <>
+                                  <RefineBar
+                                    busy={refineBusy?.key === textKey ? refineBusy.action : null}
+                                    disabled={refineBusy !== null && refineBusy.key !== textKey}
+                                    onRefine={(a, instr) => void refine(i, ch, a, instr)}
+                                    canUndo={refinePrev[textKey] !== undefined}
+                                    onUndo={() => undoRefine(textKey)}
+                                    warnings={refineWarn[textKey] ?? []}
+                                  />
+                                  {refineError[textKey] && (
+                                    <Alert tone="danger" title="Det gick inte" className="mt-3">{refineError[textKey]}</Alert>
+                                  )}
+                                </>
+                              );
+                            })()}
+
                             {p.image && (
                               <div className="mt-3">
                                 <ImageMaker initialPrompt={p.image} />
@@ -746,7 +819,7 @@ export default function ContentPage() {
                                 disabled={!aktivText}
                                 getText={() => aktivText}
                                 onCopied={() => {
-                                  if (ch === "facebook") void rememberEdit("plan_post", postText(p), edits[key] ?? "", p.title);
+                                  if (ch === "facebook" && !aiSkriven.has(key)) void rememberEdit("plan_post", postText(p), edits[key] ?? "", p.title);
                                 }}
                               />
                               {pubRad ? (
@@ -784,24 +857,6 @@ export default function ContentPage() {
                                 >
                                   Skriv om från Facebook-texten
                                 </Button>
-                              )}
-                              {/* Specialisten för Facebook finns kvar för den som vill
-                                  ha tre vinklar och en granskning. Vilka fält som är
-                                  säkra att skicka avgörs i planPrefill. */}
-                              {ch === "facebook" && (
-                                <ButtonLink
-                                  size="sm"
-                                  variant="ghost"
-                                  href={planContentHref({
-                                    amne: `${p.title}. ${p.text}`,
-                                    rubrik: p.title,
-                                    produkt: p.produkt,
-                                    handling: p.cta,
-                                    roll: p.roll,
-                                  })}
-                                >
-                                  Förfina för Facebook
-                                </ButtonLink>
                               )}
                               <span className="ml-auto flex gap-2">
                                 <Button
