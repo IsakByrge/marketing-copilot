@@ -26,6 +26,11 @@ import { createClient } from "@/lib/supabase-browser";
 import { clearAppStorage } from "./appStorage";
 import { cx } from "./primitives";
 import {
+  DARK_QUERY, DEFAULT_PREFERENCE, THEME_ATTRIBUTE, THEME_LABELS, THEME_PREFERENCES,
+  followsSystem, readPreference, resolveTheme, writePreference,
+  type ThemePreference,
+} from "./theme-preference";
+import {
   IconToday, IconContent, IconCompany, IconPencil, IconSparkle,
   IconHistory, IconLogout, IconCampaigns, IconMenu, IconClose,
 } from "./icons";
@@ -73,6 +78,61 @@ function matches(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
+/**
+ * Temaväljaren: tre uttryckliga val, inte en cyklande ikon.
+ *
+ * En sol/måne som växlar visar aldrig vilket läge som är valt, och
+ * "System" går inte att uttrycka med en ikon alls. Tre knappar kostar
+ * lite mer plats och är entydiga.
+ *
+ * Semantiken är en radiogrupp: skärmläsaren får veta att det är ett val
+ * mellan tre, och vilket som gäller. Det aktiva valet markeras med ram,
+ * ton OCH aria-checked — aldrig med färg ensam.
+ *
+ * Ingen ny delad komponent. Knapparna är vanliga button-element med
+ * samma tokens som resten av appen.
+ */
+function TemaVal({ value, onChange }: { value: ThemePreference; onChange: (p: ThemePreference) => void }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Utseende"
+      className="flex gap-1"
+      onKeyDown={(e) => {
+        // Piltangenter flyttar inom gruppen, som i en riktig radiogrupp.
+        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+        e.preventDefault();
+        const i = THEME_PREFERENCES.indexOf(value);
+        const steg = e.key === "ArrowRight" ? 1 : -1;
+        onChange(THEME_PREFERENCES[(i + steg + THEME_PREFERENCES.length) % THEME_PREFERENCES.length]);
+      }}
+    >
+      {THEME_PREFERENCES.map((p) => {
+        const vald = p === value;
+        return (
+          <button
+            key={p}
+            type="button"
+            role="radio"
+            aria-checked={vald}
+            tabIndex={vald ? 0 : -1}
+            onClick={() => onChange(p)}
+            className={cx(
+              "flex-1 rounded border px-2 py-1.5 text-[11px] transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+              vald
+                ? "border-primary/40 bg-surface font-medium text-primary"
+                : "border-transparent text-text-tertiary hover:bg-surface hover:text-text-secondary",
+            )}
+          >
+            {THEME_LABELS[p]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function isActive(pathname: string, item: Item): boolean {
   return [item.href, ...(item.also ?? [])].some((h) => matches(pathname, h));
 }
@@ -82,6 +142,54 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [merOppen, setMerOppen] = useState(false);
+
+  // Temapreferensen. Bootstrap-scriptet i layout.tsx har redan satt
+  // attributet före första paint; det här state:t är bara för att visa
+  // vilket val som är aktivt och för att kunna byta.
+  //
+  // Startar på standarden och läses om efter mount: localStorage finns
+  // inte vid förrendering, och att läsa den under render skulle ge en
+  // hydration-miss.
+  const [tema, setTema] = useState<ThemePreference>(DEFAULT_PREFERENCE);
+
+  useEffect(() => {
+    // Utanför den synkrona effektkroppen — samma mönster som
+    // Facebook-sidans förifyllning använder, av samma skäl: repots
+    // lint-regel tillåter inte setState direkt i en effekt.
+    queueMicrotask(() => {
+      setTema(readPreference(typeof window === "undefined" ? null : window.localStorage));
+    });
+  }, []);
+
+  /** Skriver attributet på <html>. Samma ställe som scriptet skriver. */
+  function applyTheme(pref: ThemePreference) {
+    const morkt = typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia(DARK_QUERY).matches
+      : false;
+    document.documentElement.setAttribute(THEME_ATTRIBUTE, resolveTheme(pref, morkt));
+  }
+
+  function valjTema(pref: ThemePreference) {
+    setTema(pref);
+    writePreference(typeof window === "undefined" ? null : window.localStorage, pref);
+    applyTheme(pref);
+  }
+
+  // Systemläget ska svara medan appen står öppen. Lyssnaren finns BARA
+  // i systemläge — väljer användaren Ljust eller Mörkt ska ett OS-byte
+  // inte röra appen. Effekten körs om vid varje preferensbyte, så
+  // lyssnaren kopplas av så fort valet blir uttryckligt.
+  useEffect(() => {
+    if (!followsSystem(tema)) return;
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(DARK_QUERY);
+    const vidByte = () => {
+      document.documentElement.setAttribute(THEME_ATTRIBUTE, mq.matches ? "dark" : "light");
+    };
+    vidByte();
+    mq.addEventListener("change", vidByte);
+    return () => mq.removeEventListener("change", vidByte);
+  }, [tema]);
 
   // Utloggningen satt i gamla Shell.tsx. Den flyttade hit med den, inte
   // bort: appstadningen fore auth.signOut() sa en delad dator aldrig
@@ -151,6 +259,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="shrink-0 border-t border-border px-3 py-3">
+          {/* Sekundärt med flit: en liten etikett och tre knappar nere
+              vid kontot, inte en ny post i navigationen. */}
+          <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+            Utseende
+          </p>
+          <div className="pb-3">
+            <TemaVal value={tema} onChange={valjTema} />
+          </div>
+
           {email && (
             <p className="truncate px-2 pb-2 text-xs text-text-tertiary">{email}</p>
           )}
@@ -230,6 +347,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               })}
 
               <div className="mt-2 border-t border-border pt-2">
+                {/* Samma kontroll som på desktop, samma plats i hierarkin:
+                    vid kontot, sist. */}
+                <p className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+                  Utseende
+                </p>
+                <div className="px-3 pb-3">
+                  <TemaVal value={tema} onChange={valjTema} />
+                </div>
+
                 {email && (
                   <p className="truncate px-3 pb-1 text-xs text-text-tertiary">{email}</p>
                 )}

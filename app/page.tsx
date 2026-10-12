@@ -43,7 +43,7 @@ const STEG = [
 
 export default function Home() {
   return (
-    <div className="app-light flex min-h-svh flex-col bg-background font-sans text-text-primary">
+    <div data-theme="light" className="app-light flex min-h-svh flex-col bg-background font-sans text-text-primary">
       {/* ── Header ───────────────────────────────────────────
           Kompakt, som målbilden. Men utan Produkt/Pris/Om oss: de
           sidorna finns inte, och en meny ska inte lova rutter vi

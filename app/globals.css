@@ -76,6 +76,108 @@
   --z-toast:  400;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   TEMA — ljust, mörkt, system
+
+   @theme static ovanför lägger LJUSA värden på :root. Det är basen och
+   standarden. Blocken här under byter bara värdena; inga nya tokens,
+   inga nya utilities, ingen parallell komponentvärld.
+
+   Selektorerna är avsiktligt attributbaserade UTAN :root-prefix, så att
+   de fungerar både på <html> och på ett enskilt element. Det är hela
+   lösningen för publika ytor: custom properties ärvs, så en wrapper med
+   data-theme="light" ger hela sitt subträd ljusa tokens även när roten
+   står i mörkt. Specificitet spelar ingen roll — värdet deklareras på
+   ett närmare element.
+
+   Blocken ligger OLAGRADE med flit. Tailwinds @theme hamnar i ett lager,
+   och olagrade regler vinner över lagrade oavsett specificitet.
+
+   Mörkt är varmt, inte svart och inte blågrått. Samma emerald-identitet:
+   primärfärgen ljusnar precis så mycket att vit text håller kontrast mot
+   den, inte mer. Se app/_shared/contrast.test.mts för de mätta paren.
+   ═══════════════════════════════════════════════════════════════════ */
+
+[data-theme="dark"] {
+  --color-background:     #1A1815;
+  --color-surface:        #232019;
+  --color-surface-sunken: #141210;
+  /* ── OM EMERALD I MÖRKT LÄGE ──────────────────────────────
+     Primärfärgen har två jobb, och de drar åt varsitt håll:
+
+       vit text PÅ primary  kräver luminans ≤ 0,183
+       primary SOM text     kräver luminans ≥ 0,217 mot #1A1815
+
+     De överlappar inte. En enda emerald kan alltså inte ge AA åt båda
+     rollerna i mörkt läge — det är matematik, inte smak.
+
+     Valet: #1E8468 ger vit knapptext 4,61:1 (full AA). Knapparna är
+     den vanligaste och viktigaste ytan, och vit på emerald är den
+     etablerade identiteten. Emerald SOM text landar då på 3,84:1 mot
+     bakgrunden, alltså AA-large.
+
+     Hover går MÖRKARE, inte ljusare. Ljusare hade brutit vit text; i
+     mörkt läge läser en mörkare knapp ändå som nedtryckt.
+
+     Vill vi ha full AA även för emerald-text krävs ett eget token för
+     den rollen — se rapporten. Det är inte den här PR:ns uppgift. */
+  --color-primary:        #1E8468;
+  --color-primary-hover:  #1A7459;
+
+  --color-text-primary:   #F2EEE6;
+  --color-text-secondary: #B8B0A4;
+  --color-text-tertiary:  #948B7E;
+  --color-border:         #332E27;
+  --color-border-strong:  #4A4238;
+
+  /* Status: ytorna blir mörka toner av samma familj, texten ljusnar
+     tills den håller mot dem med god marginal (7–8:1). */
+  --color-success:         #4FBF9B;
+  --color-success-surface: #17251F;
+  --color-danger:          #FF9C90;
+  --color-danger-surface:  #2A1A18;
+  --color-warning:         #EDAE62;
+  --color-warning-surface: #2A2016;
+
+  color-scheme: dark;
+}
+
+/* Uttryckligt ljust. Redundant på <html> när temat är ljust, men
+   nödvändigt på landningssidans och inloggningens wrappers: de ska vara
+   ljusa även om roten står i mörkt. Värdena är samma som @theme static
+   ovan — den enda dubbleringen i hela lösningen, och den är medveten:
+   alternativet vore ett extra indirektionslager av variabler. */
+[data-theme="light"] {
+  --color-background:     #FAF7F1;
+  --color-surface:        #FFFFFF;
+  --color-surface-sunken: #F3EFE6;
+  --color-primary:        #125E4B;
+  --color-primary-hover:  #0E4C3D;
+  --color-text-primary:   #1A1A18;
+  --color-text-secondary: #5C574E;
+  --color-text-tertiary:  #8A8377;
+  --color-border:         #E8E1D5;
+  --color-border-strong:  #D8CFBE;
+
+  --color-success:         #125E4B;
+  --color-success-surface: #E6EFEA;
+  --color-danger:          #B42318;
+  --color-danger-surface:  #FEF3F2;
+  --color-warning:         #B54708;
+  --color-warning-surface: #FFFAEB;
+
+  color-scheme: light;
+}
+
+/* Roten följer temat i stället för legacy-basens --mc-bg. Olagrad, så
+   den vinner över @layer base längre ned. Utan den här raden skulle
+   överscroll-zonen visa Mission Controls grafit. */
+html,
+body {
+  background: var(--color-background);
+  color: var(--color-text-primary);
+}
+
 /* ─── LEGACY TOKENS (frozen — used by legacy routes only) ───────────── */
 :root {
   --mc-bg:            #2a2f3a;

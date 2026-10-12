@@ -29,7 +29,7 @@ import Link from "next/link";
 
 export default function AuthRam({ children }: { children: React.ReactNode }) {
   return (
-    <div className="app-light min-h-svh bg-background font-sans text-text-primary lg:grid lg:grid-cols-[1fr_0.9fr] xl:grid-cols-2">
+    <div data-theme="light" className="app-light min-h-svh bg-background font-sans text-text-primary lg:grid lg:grid-cols-[1fr_0.9fr] xl:grid-cols-2">
       {/* ── Formuläret ──────────────────────────────────────── */}
       <div className="flex min-h-svh flex-col px-5 py-8 sm:px-10 lg:px-14 lg:py-12">
         <Link

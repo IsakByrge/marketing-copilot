@@ -96,4 +96,107 @@ test("felfärg klarar AA på sin egen yta", () => {
   assert.ok(ratio >= AA_TEXT, `danger på danger-surface är ${ratio.toFixed(2)}:1`);
 });
 
+/* ── Mörkt läge ─────────────────────────────────────────────
+   Samma krav som ljust. token() ovan hittar det FÖRSTA värdet i filen,
+   alltså @theme statics ljusa palett; darkToken() läser i stället inuti
+   [data-theme="dark"]-blocket. Ändras en mörk token utan att kontrasten
+   håller faller testet här, inte i en preview-granskning. */
+
+const darkBlock = (() => {
+  const m = css.match(/\[data-theme="dark"\]\s*\{([\s\S]*?)\}/);
+  if (!m) throw new Error("hittade inte [data-theme=\"dark\"]-blocket i globals.css");
+  return m[1];
+})();
+
+function darkToken(name: string): string {
+  const m = darkBlock.match(new RegExp(`--color-${name}:\\s*(#[0-9A-Fa-f]{6})`));
+  if (!m) throw new Error(`hittade inte --color-${name} i dark-blocket`);
+  return m[1];
+}
+
+test("dark: alla tokens går att läsa", () => {
+  for (const t of [
+    "background", "surface", "surface-sunken", "primary", "primary-hover",
+    "text-primary", "text-secondary", "text-tertiary", "border", "border-strong",
+    "success", "success-surface", "warning", "warning-surface", "danger", "danger-surface",
+  ]) {
+    assert.match(darkToken(t), /^#[0-9A-Fa-f]{6}$/, `--color-${t} saknas i dark`);
+  }
+});
+
+test("dark: brödtext klarar AA på alla tre ytorna", () => {
+  for (const bg of ["background", "surface", "surface-sunken"] as const) {
+    const ratio = contrast(darkToken("text-primary"), darkToken(bg));
+    assert.ok(ratio >= AA_TEXT, `dark text-primary på ${bg} är ${ratio.toFixed(2)}:1`);
+  }
+});
+
+test("dark: sekundärtext klarar AA på background och surface", () => {
+  for (const bg of ["background", "surface"] as const) {
+    const ratio = contrast(darkToken("text-secondary"), darkToken(bg));
+    assert.ok(ratio >= AA_TEXT, `dark text-secondary på ${bg} är ${ratio.toFixed(2)}:1`);
+  }
+});
+
+test("dark: tertiärtext klarar AA-large", () => {
+  for (const bg of ["background", "surface"] as const) {
+    const ratio = contrast(darkToken("text-tertiary"), darkToken(bg));
+    assert.ok(ratio >= AA_LARGE, `dark text-tertiary på ${bg} är ${ratio.toFixed(2)}:1`);
+  }
+});
+
+test("dark: vit text på primärknappen klarar AA", () => {
+  for (const p of ["primary", "primary-hover"] as const) {
+    const ratio = contrast(WHITE, darkToken(p));
+    assert.ok(ratio >= AA_TEXT, `vit på dark ${p} är ${ratio.toFixed(2)}:1`);
+  }
+});
+
+test("dark: emerald som text klarar AA-large — och varför bara det", () => {
+  // Vit text PÅ primary kräver luminans ≤ 0,183. Primary SOM text mot
+  // bakgrunden kräver ≥ 0,217. Intervallen överlappar inte, så en enda
+  // emerald kan inte ge AA åt båda rollerna i mörkt läge.
+  //
+  // Knappen vann: vit på primary har full AA i testet ovan. Emerald som
+  // text landar därför på AA-large. Sänk inte den här gränsen till 3
+  // "för att bli av med felet" utan att läsa kommentaren i globals.css —
+  // rätt lösning när det behövs är ett eget token för emerald-som-text.
+  const ratio = contrast(darkToken("primary"), darkToken("background"));
+  assert.ok(ratio >= AA_LARGE, `dark primary på background är ${ratio.toFixed(2)}:1`);
+  assert.ok(
+    ratio < AA_TEXT,
+    `dark primary på background är ${ratio.toFixed(2)}:1 — om den nu klarar AA har paletten ändrats och kommentaren i globals.css bör uppdateras`,
+  );
+});
+
+test("dark: statusfärgerna klarar AA på sina egna ytor", () => {
+  for (const s of ["success", "danger", "warning"] as const) {
+    const ratio = contrast(darkToken(s), darkToken(`${s}-surface`));
+    assert.ok(ratio >= AA_TEXT, `dark ${s} på ${s}-surface är ${ratio.toFixed(2)}:1`);
+  }
+});
+
+test("dark: ramar syns mot sina ytor", () => {
+  // Ramar är inte text; kravet är att de går att uppfatta, inte AA.
+  for (const [linje, yta] of [["border", "surface"], ["border-strong", "background"]] as const) {
+    const ratio = contrast(darkToken(linje), darkToken(yta));
+    assert.ok(ratio >= 1.2, `dark ${linje} mot ${yta} är ${ratio.toFixed(2)}:1 — osynlig`);
+  }
+});
+
+test("dark: ytorna skiljer sig från varandra", () => {
+  // surface ska lyfta mot background, precis som i ljust läge.
+  assert.notEqual(darkToken("surface"), darkToken("background"), "surface och background är identiska");
+  assert.notEqual(darkToken("surface-sunken"), darkToken("background"), "sunken och background är identiska");
+});
+
+test("dark är faktiskt mörkt och ljust faktiskt ljust", () => {
+  assert.ok(
+    luminance(darkToken("background")) < luminance(token("background")),
+    "dark background är inte mörkare än light background",
+  );
+  // Inte svart: en varm mörk ton, inte #000.
+  assert.ok(luminance(darkToken("background")) > 0.002, "dark background är i princip svart");
+});
+
 console.log(`${passed} test ok`);

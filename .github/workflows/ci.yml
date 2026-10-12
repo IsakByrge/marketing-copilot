@@ -118,6 +118,9 @@ jobs:
       - name: Test — färgkontrast
         run: npm run test:contrast
 
+      - name: Test — temapreferens (ljust/mörkt/system)
+        run: npm run test:theme
+
       - name: Test — administratörsgrind
         run: npm run test:admin
 
